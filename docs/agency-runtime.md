@@ -82,7 +82,8 @@ An optional `runtime` section:
 
 ## Keeping in step with Agency
 
-The wire types in `src/agency-runtime/types.ts` are written by hand from the specification. `test/fixtures/agency/teamview.sample.json` is Agency's shared sample, and `contract/agency.lock` records the Agency commit and the hashes of the sample and of Agency's generated TypeScript types.
+Agency's generated TypeScript types are copied unchanged to `src/agency-runtime/bindings/`, and `src/agency-runtime/types.ts` re-exports them. `test/fixtures/agency/teamview.sample.json` is Agency's shared sample. `contract/agency.lock` records the Agency commit and the hash of the types and of the sample.
 
-- `pnpm run check:agency` compares them with Agency's `main` and fails when they differ. When the types changed, read the change and update `types.ts` and `validate.ts`, then run `scripts/agency-contract.sh update`.
-- The tests check that the sample is the recorded copy, that it passes the TeamView check in `src/agency-runtime/validate.ts`, and that what `view` produces passes the same check and uses only keys that the sample uses. The harness runs the same check on its own output and answers 503 instead of sending a view that does not parse.
+- `pnpm test` checks, without the network, that the copies are the ones the lock records.
+- `pnpm run check:agency` compares them with Agency's `main` (it needs `gh` and the network, so it is not part of CI) and fails when they differ. When it does, run `scripts/agency-contract.sh update` to copy the new files and the new lock, and fix whatever no longer type-checks.
+- The tests also check that the sample passes the TeamView check in `src/agency-runtime/validate.ts`, that what `view` produces passes the same check and uses only keys that the sample uses. The harness runs the same check on its own output and answers 503 instead of sending a view that does not parse.

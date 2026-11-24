@@ -30,7 +30,7 @@ export function storedRequestOf(request: OwnerRequest): Request {
     ...(request.to === undefined ? {} : { to: request.to }),
     createdAt: new Date(request.createdAt).toISOString(),
     ...(request.issue === undefined ? {} : { issue: request.issue }),
-    blocks: request.blocks,
+    blocks: [...request.blocks],
     options: request.options.map((option) => ({ key: option.key, text: option.text, isRecommended: option.isRecommended === true, ...(option.detail === undefined ? {} : { detail: option.detail }) })),
     ...(request.messages.length === 0
       ? {}
@@ -40,7 +40,7 @@ export function storedRequestOf(request: OwnerRequest): Request {
 }
 
 /** Requests waiting for the owner: the questions and proposals the team filed, newest first. An answered or closed one is not waiting. */
-export function waitingRequestsOf(stored: readonly OwnerRequest[]): readonly Request[] {
+export function waitingRequestsOf(stored: readonly OwnerRequest[]): Request[] {
   return stored.filter((request) => isOpen(request) && request.waiting === 'owner').map(storedRequestOf)
 }
 
@@ -48,7 +48,7 @@ export function waitingRequestsOf(stored: readonly OwnerRequest[]): readonly Req
  * The requests of the owner: what the team filed, then the board items blocked on a decision (`pendingDecision`).
  * A request addressed to nobody goes to the owner.
  */
-export function requestsOf(items: readonly BoardItem[], config: Config, fetchedAt: string, stored: readonly OwnerRequest[]): readonly Request[] {
+export function requestsOf(items: readonly BoardItem[], config: Config, fetchedAt: string, stored: readonly OwnerRequest[]): Request[] {
   const decisions = pendingDecisionItems(items, config).map((item): Request => {
     const ref = label(item)
     const since = blockedSince(item, fetchedAt)
