@@ -10,8 +10,8 @@ const unused = (name: string) => () => {
 }
 
 /**
- * 外に出ないポート。セッションは無く、通知と書き込みは何もせず、外から読むものは呼ばれたら投げる。
- * 試験で使う部分だけを overrides で差し替える。
+ * A port that stays inside the process. It has no session, notifications and writes do nothing, and anything read from outside throws when called.
+ * Only the parts a test uses are swapped out through overrides.
  */
 export function fakePorts(overrides: Partial<Ports> = {}): Ports {
   return {
@@ -34,8 +34,8 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
 }
 
 /**
- * 空いた部下に渡す試験のポート。担当と Status は GitHub のアダプタ (設定のスクリプト) で書き、スクリプトの実行は exec が受ける。
- * 作業の印は probe (無ければ読まない)、ブランチは用意しない。
+ * A port for tests that hand work to an idle member. The assignee and Status are written through the GitHub adapter (the configured script), and running the script goes to exec.
+ * The work marker goes through probe (nothing is read if absent), and no branch is prepared.
  */
 export function dispatchPorts(config: Config, exec: Exec, probe: (item: BoardItem) => string | null = () => null): Ports {
   const base = fakePorts()

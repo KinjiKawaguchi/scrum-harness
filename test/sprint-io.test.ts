@@ -24,12 +24,12 @@ const sprint = {
 const config: Config = { ...base, sprint }
 const jst = (text: string) => new Date(`${text}+09:00`)
 
-describe('parseConfig の sprint', () => {
-  it('そろっていれば使う', () => {
+describe('sprint of parseConfig', () => {
+  it('uses it when complete', () => {
     assert.deepEqual(parseConfig({ ...base, sprint })?.sprint, sprint)
   })
 
-  it('欠けているか形が違えば、sprint だけを外し、ほかは使う', () => {
+  it('when missing or the wrong shape, drops only sprint and uses the rest', () => {
     const broken = parseConfig({ ...base, sprint: { ...sprint, utcOffset: 'JST' } })
     assert.equal(broken?.sprint, undefined)
     assert.equal(broken?.techlead, 'TechLead')
@@ -37,38 +37,38 @@ describe('parseConfig の sprint', () => {
   })
 })
 
-describe('ポイントと超過の欄の取り出し', () => {
-  it('Number の欄の値を読む', () => {
+describe('extracting the points and overrun fields', () => {
+  it('reads the value of a Number field', () => {
     const [item] = normalizeNodes([{ id: 'X', type: 'ISSUE', points: { number: 3 }, overrun: { number: 2 }, content: { number: 1 } }])
     assert.deepEqual([item?.points, item?.overrun], [3, 2])
   })
 
-  it('値が無ければ null', () => {
+  it('null when there is no value', () => {
     const [item] = normalizeNodes([{ id: 'X', type: 'ISSUE', content: { number: 1 } }])
     assert.deepEqual([item?.points, item?.overrun], [null, null])
   })
 })
 
-describe('Status の変化の記録', () => {
+describe('record of Status changes', () => {
   const targets = [
     { repo: 'example-org/app', number: 5 },
     { repo: 'example-org/app-mobile', number: 7 },
   ]
 
-  it('作業中の issue をリポジトリごとにまとめて1回で問い合わせる', () => {
+  it('queries the In Progress issues in one call, grouped by repository', () => {
     const query = statusHistoryQuery(targets)
     assert.match(query, /r0: repository\(owner:"example-org", name:"app"\)\{ i5: issue\(number:5\)/)
     assert.match(query, /r1: repository\(owner:"example-org", name:"app-mobile"\)\{ i7: issue\(number:7\)/)
     assert.match(query, /PROJECT_V2_ITEM_STATUS_CHANGED_EVENT/)
   })
 
-  it('設定の repos に無いリポジトリの issue は、そのリポジトリに問い合わせる (defaultRepo の同じ番号と取り違えない)', () => {
+  it("queries the repository of an issue whose repository is missing from the config's repos (does not mistake it for the same number in defaultRepo)", () => {
     const query = statusHistoryQuery([{ repo: 'other-owner/tool', number: 2 }, { repo: 'example-org/app', number: 2 }])
     assert.match(query, /r0: repository\(owner:"other-owner", name:"tool"\)\{ i2: issue\(number:2\)/)
     assert.match(query, /r1: repository\(owner:"example-org", name:"app"\)\{ i2: issue\(number:2\)/)
   })
 
-  it('このボードの記録だけを、ラベルごとに取り出す', () => {
+  it("extracts only this board's records, per label", () => {
     const response = {
       data: {
         r0: {
@@ -87,20 +87,20 @@ describe('Status の変化の記録', () => {
     assert.deepEqual(history.get('app#5'), [{ at: '2026-10-29T00:00:00Z', status: 'In Progress' }])
   })
 
-  it('読めなかった issue (結果が null) は入れない。入れると、記録が無いのでなく、作業中の期間が 0 と読まれる', () => {
+  it('does not include an issue that could not be read (result is null); including it would read as an In Progress period of 0 rather than a missing record', () => {
     const response = { data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } }, i6: null } } }
     const history = parseStatusHistory(response, [{ repo: 'example-org/app', number: 5 }, { repo: 'example-org/app', number: 6 }], config)
     assert.deepEqual([...history.keys()], ['app#5'])
   })
 
-  it('別のリポジトリの issue のラベルは、短い名前で、そのリポジトリの番号として取り出す', () => {
+  it('extracts the label of an issue in another repository by its short name, as a number in that repository', () => {
     const response = { data: { r0: { i2: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } } } } }
     const history = parseStatusHistory(response, [{ repo: 'other-owner/tool', number: 2 }], config)
     assert.deepEqual([...history.keys()], ['tool#2'])
   })
 })
 
-describe('withStatusHistory の gh の失敗', () => {
+describe('gh failures in withStatusHistory', () => {
   const doing = (repo: string, number: number) => ({ ...issue(number, { status: 'In Progress' }), repo })
   const withFakeGh = (script: string, run: () => void) => {
     const dir = mkdtempSync(join(tmpdir(), 'scrum-fake-gh-'))
@@ -116,14 +116,14 @@ describe('withStatusHistory の gh の失敗', () => {
   }
   const partial = JSON.stringify({ data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } }, i2: null } }, errors: [{ message: 'Could not resolve to an Issue with the number of 2.' }] })
 
-  it('一部の issue が読めなくても (終了コード 1)、読めた issue の記録は使い、読めなかった issue には足さない', () => {
+  it('even if some issues cannot be read (exit code 1), uses the records of the issues that were read and adds nothing for the ones that were not', () => {
     withFakeGh(`#!/bin/sh\ncat <<'EOF'\n${partial}\nEOF\necho 'gh: Could not resolve to an Issue with the number of 2.' >&2\nexit 1\n`, () => {
       const items = withStatusHistory([doing('example-org/app', 5), doing('example-org/app', 2)], config, gh)
       assert.deepEqual(items.map((one) => one.statusEvents?.length ?? null), [1, null])
     })
   })
 
-  it('問い合わせは、項目の repo (owner/name) のリポジトリへ出す。設定の defaultRepo に引き直さない', () => {
+  it("sends the query to the repository of the item's repo (owner/name); does not remap to the config's defaultRepo", () => {
     const logFile = join(mkdtempSync(join(tmpdir(), 'scrum-gh-log-')), 'args.txt')
     const ok = JSON.stringify({ data: { r0: { i2: { timelineItems: { nodes: [] } } }, r1: { i2: { timelineItems: { nodes: [] } } } } })
     withFakeGh(`#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${logFile}'\ncat <<'EOF'\n${ok}\nEOF\n`, () => {
@@ -134,7 +134,7 @@ describe('withStatusHistory の gh の失敗', () => {
     assert.match(query, /repository\(owner:"example-org", name:"app"\)\{ i2: issue\(number:2\)/)
   })
 
-  it('設定の repos に無いリポジトリの issue だけでも、そのリポジトリに問い合わせ、defaultRepo の同じ番号を引かない', () => {
+  it("even with only issues from a repository missing from the config's repos, queries that repository and does not fetch the same number from defaultRepo", () => {
     const logFile = join(mkdtempSync(join(tmpdir(), 'scrum-gh-log-')), 'args.txt')
     withFakeGh(`#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${logFile}'\necho '{"data":{"r0":{"i2":{"timelineItems":{"nodes":[]}}}}}'\n`, () => {
       const items = withStatusHistory([doing('other-owner/tool', 2)], config, gh)
@@ -145,7 +145,7 @@ describe('withStatusHistory の gh の失敗', () => {
     assert.doesNotMatch(query, /name:"app"/)
   })
 
-  it('標準出力に何も無い失敗 (通信の失敗など) は、記録を足さずに返す', () => {
+  it('a failure with no standard output (such as a network failure) returns without adding records', () => {
     withFakeGh('#!/bin/sh\nexit 1\n', () => {
       const items = withStatusHistory([doing('example-org/app', 5)], config, gh)
       assert.deepEqual(items.map((one) => one.statusEvents), [undefined])
@@ -159,7 +159,7 @@ describe('planMarks', () => {
     ['app#2', 0],
   ])
 
-  it('超えた数がボードと違う issue だけ書き換える。超えていなければ空にする', () => {
+  it('rewrites only issues whose overrun count differs from the board; empties it when not exceeded', () => {
     const board = snapshot([
       issue(1, { status: 'In Progress', overrun: null }),
       issue(2, { status: 'In Progress', overrun: 1 }),
@@ -179,7 +179,7 @@ describe('recordDueCheckpoint', () => {
   const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: 'In Progress' }]
   const board = snapshot([issue(1, { status: 'In Progress', points: 3, statusEvents: doingSince, overrun: null })])
 
-  it('まだ記録していない節目を記録し、ボードの超過を書き換える', () => {
+  it("records a checkpoint not yet recorded and rewrites the board's overrun", () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-cp-')))
     const applied: unknown[] = []
     const record = recordDueCheckpoint(p, config, board, jst('2026-10-30T13:05:00'), (marks) => applied.push(...marks))
@@ -188,14 +188,14 @@ describe('recordDueCheckpoint', () => {
     assert.deepEqual(applied, [{ itemId: 'PVTI_1', label: 'app#1', value: 2 }])
   })
 
-  it('記録済みなら何もしない', () => {
+  it('does nothing when already recorded', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-cp-')))
     recordDueCheckpoint(p, config, board, jst('2026-10-30T13:05:00'), () => {})
     assert.equal(recordDueCheckpoint(p, config, board, jst('2026-10-30T13:30:00'), () => {}), null)
     assert.equal(loadRecords(p).length, 1)
   })
 
-  it('超過の欄が設定に無ければ、ボードは書き換えない', () => {
+  it('does not rewrite the board when the config has no overrun field', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-cp-')))
     const { overrunField: _o, ...noField } = sprint
     const applied: unknown[] = []

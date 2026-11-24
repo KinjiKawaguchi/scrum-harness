@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-describe('gh と ghWithin', () => {
+describe('gh and ghWithin', () => {
   const module = pathToFileURL(new URL('../src/adapters/github/gh.ts', import.meta.url).pathname).href
   const calls = [
     ['gh', "gh(['x'])"],
@@ -14,7 +14,7 @@ describe('gh と ghWithin', () => {
   ] as const
 
   for (const [name, call] of calls) {
-    it(`${name}: gh の失敗の標準エラーを、親の標準エラーに流さない (待機プロセスが起こす文に混ざるため)。投げる例外には持たせる`, () => {
+    it(`${name}: does not pass the standard error of a gh failure on to the parent's standard error (it would mix into the message a watch process starts); the thrown exception carries it`, () => {
       const dir = mkdtempSync(join(tmpdir(), 'scrum-fake-gh-'))
       writeFileSync(join(dir, 'gh'), '#!/bin/sh\necho "gh error sentence" >&2\nexit 1\n')
       chmodSync(join(dir, 'gh'), 0o755)

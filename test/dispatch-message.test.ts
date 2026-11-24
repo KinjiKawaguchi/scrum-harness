@@ -9,7 +9,7 @@ const withDispatch = {
 }
 
 describe('dispatchMessage', () => {
-  it('issue の番号と題、Status と担当、ブランチの土台、PR の宛先、マージする人、その日の決まりを入れる', () => {
+  it('includes the issue number and title, Status and assignee, the branch base, the PR target, who merges, and the rules of the day', () => {
     const text = dispatchMessage(issue(42, { title: 'Next job' }), 'SWE1', withDispatch)
     const lines = text.split('\n')
     assert.equal(lines[0], 'scrum-harness: handed the next work to SWE1.')
@@ -19,18 +19,18 @@ describe('dispatchMessage', () => {
     assert.match(text, /- note A\n- note B$/)
   })
 
-  it('dispatch の設定が無くても、既定の土台で文面を作る', () => {
+  it('builds the message with the default base even when there is no dispatch config', () => {
     assert.match(dispatchMessage(issue(1), 'SWE2', config), /Branch from origin\/main\. The PR targets main/)
   })
 
-  it('同じ入力から同じ文面を作る (決まった文面)', () => {
+  it('builds the same message from the same input (a fixed text)', () => {
     assert.equal(dispatchMessage(issue(5), 'SWE3', withDispatch), dispatchMessage(issue(5), 'SWE3', withDispatch))
     assert.doesNotMatch(dispatchMessage(issue(5), 'SWE3', withDispatch), /undefined|null/)
   })
 })
 
 describe('nudgeMessage', () => {
-  it('自分の作業中の issue を進めるよう促し、待ちなら理由を付けて TechLead に伝えるよう書く。ボードは書き換えたと言わない', async () => {
+  it('nudges the member to move forward their own In Progress issue, and tells them to report to the TechLead with a reason if waiting; does not claim the board was rewritten', async () => {
     const { nudgeMessage } = await import('../src/dispatch/message.ts')
     const text = nudgeMessage(issue(240, { title: 'Ongoing job' }), 'SWE1', withDispatch)
     assert.equal(text.split('\n')[0], 'scrum-harness: SWE1 is idle. Continue app#240 Ongoing job, which is In Progress.')

@@ -19,29 +19,29 @@ function ctx(techleadState: MemberState['state']): LintContext {
 }
 
 describe('decideWake', () => {
-  it('TechLead が空いていれば、知らせていない中以上の指摘で起こす', () => {
+  it('when the TechLead is idle, wakes them with an unannounced finding of medium or higher', () => {
     assert.deepEqual(decideWake(ctx('idle'), []).map((f) => f.key), ['B-DOING-NO-ASSIGNEE:app#1'])
   })
 
-  it('知らせた指摘では起こさない', () => {
+  it('does not wake them for an announced finding', () => {
     assert.deepEqual(decideWake(ctx('idle'), ['B-DOING-NO-ASSIGNEE:app#1']), [])
   })
 
-  it('TechLead が作業中なら起こさない (フックで入る)', () => {
+  it('does not wake the TechLead when they are busy (the hook delivers it)', () => {
     assert.deepEqual(decideWake(ctx('busy'), []), [])
   })
 })
 
 describe('hasPending', () => {
-  it('TechLead が作業中で、知らせていない指摘があれば印を置く', () => {
+  it('when the TechLead is busy and there is an unannounced finding, places a marker', () => {
     assert.equal(hasPending(ctx('busy'), []), true)
   })
 
-  it('知らせていなければ空いていても印は置かない (起こすので)', () => {
+  it('places no marker when nothing was announced, even if idle (they will be woken)', () => {
     assert.equal(hasPending(ctx('idle'), []), false)
   })
 
-  it('知らせた指摘しか無ければ印を置かない', () => {
+  it('places no marker when there are only announced findings', () => {
     assert.equal(hasPending(ctx('busy'), ['B-DOING-NO-ASSIGNEE:app#1']), false)
   })
 })
@@ -51,14 +51,14 @@ describe('transitions', () => {
   const t0 = new Date('2026-10-08T05:00:00.000Z')
   const t1 = new Date('2026-10-08T05:30:00.000Z')
 
-  it('指摘の始まりと終わりを、続いた分数つきで記録する', () => {
+  it('records the start and end of a finding with the minutes it lasted', () => {
     const first = transitions({ open: {}, members: {} }, [finding], [], t0)
     assert.deepEqual(first.events.map((e) => e.type), ['finding-opened'])
     const second = transitions(first.next, [], [], t1)
     assert.deepEqual(second.events, [{ at: t1.toISOString(), type: 'finding-closed', key: 'B-X:app#1', rule: 'B-X', subject: 'app#1', minutes: 30 }])
   })
 
-  it('部下の状態の変わり目を、前の状態の分数つきで記録する', () => {
+  it("records a change in a member's state with the minutes spent in the previous state", () => {
     const idle: MemberState = { name: 'SWE1', state: 'idle', since: t0.toISOString() }
     const first = transitions({ open: {}, members: {} }, [], [idle], t0)
     assert.deepEqual(first.events, [])
@@ -77,7 +77,7 @@ describe('formatReport', () => {
     { at: '2026-10-01T05:30:00.000Z', type: 'stop-blocked', keys: ['old'] },
   ]
 
-  it('期間の中の指摘の滞留、部下の空き、止めた回数をまとめる', () => {
+  it('summarizes how long findings stayed open, member idle time, and the number of stops within the period', () => {
     const text = formatReport(events, new Date('2026-10-08T00:00:00.000Z'))
     assert.match(text, /B-X: fixed 2, mean 60 min, longest 90 min/)
     assert.match(text, /SWE1: idle 40 min/)
@@ -89,7 +89,7 @@ describe('install', () => {
   const bin = '/opt/scrum-harness/bin/scrum'
   const existing = { hooks: { Stop: [{ matcher: '', hooks: [{ type: 'command', command: '~/.claude/hooks/stop-notify.sh' }] }] }, model: 'opus' }
 
-  it('既存のフックを残してフックを足す', () => {
+  it('adds hooks while keeping the existing hooks', () => {
     const next = withHooks(existing, bin) as unknown as { hooks: Record<string, { hooks: { command: string; asyncRewake?: boolean }[] }[]>; model: string }
     assert.equal(next.model, 'opus')
     assert.equal(next.hooks.Stop?.[0]?.hooks[0]?.command, '~/.claude/hooks/stop-notify.sh')
@@ -98,16 +98,16 @@ describe('install', () => {
     assert.ok(Object.values(next.hooks).flat().some((g) => g.hooks.some((h) => h.asyncRewake === true && h.command === `${bin} watch`)))
   })
 
-  it('二度足しても重ならない', () => {
+  it('adding twice does not duplicate them', () => {
     const once = withHooks(existing, bin)
     assert.deepEqual(withHooks(once, bin), once)
   })
 
-  it('外すと元に戻る', () => {
+  it('removing restores the original', () => {
     assert.deepEqual(withoutHooks(withHooks(existing, bin)), existing)
   })
 
-  it('目印は scrum-harness', () => {
+  it('the marker is scrum-harness', () => {
     assert.equal(MARKER, 'scrum-harness')
   })
 })

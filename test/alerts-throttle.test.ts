@@ -16,7 +16,7 @@ const plain: Notice = { key: 'E-STALL:x', kind: 'owner', text: '- x', desktop: {
 const withPush = (minutes: number) => stateWith({ ownerPushedAt: { 'epic:app#100': minutesAgo(minutes) } })
 
 describe('applyThrottle', () => {
-  it('直前の通知から 24 時間のうちの、新しい指紋の通知は、窓口に読ませる 1 行 (info) に替え、macOS の通知を外す', () => {
+  it('a notification with a new fingerprint within 24 hours of the previous one is replaced by a one-line info for the liaison to read, and its macOS notification is dropped', () => {
     const [held] = applyThrottle([owner()], withPush(60), enabled, NOW)
     assert.equal(held?.kind, 'info')
     assert.equal(held?.key, 'E-STALL:app#100:t1:held')
@@ -27,29 +27,29 @@ describe('applyThrottle', () => {
     )
   })
 
-  it('24 時間ちょうどたてば、そのまま (オーナーに出る)。23 時間 59 分なら 1 行にする', () => {
+  it('exactly 24 hours later it passes as is (it reaches the owner); at 23 hours 59 minutes it becomes one line', () => {
     assert.equal(applyThrottle([owner()], withPush(24 * 60), enabled, NOW)[0]?.kind, 'owner')
     assert.equal(applyThrottle([owner()], withPush(24 * 60 - 1), enabled, NOW)[0]?.kind, 'info')
   })
 
-  it('すでに出した指紋の通知は、そのまま。macOS の通知だけでも、窓口にだけでも、出した指紋として数える', () => {
+  it('a notification whose fingerprint was already emitted passes as is; a macOS notification alone, or a liaison alone, counts as an emitted fingerprint', () => {
     const sentDesktop = stateWith({ ...withPush(5), desktopSent: ['E-STALL:app#100:t1'] })
     const sentLiaison = stateWith({ ...withPush(5), liaisonSent: ['E-STALL:app#100:t1'] })
     assert.equal(applyThrottle([owner()], sentDesktop, enabled, NOW)[0]?.kind, 'owner')
     assert.equal(applyThrottle([owner()], sentLiaison, enabled, NOW)[0]?.kind, 'owner')
   })
 
-  it('通知した記録が無いか、間隔を空ける印が無い通知 (Q-EMPTY-OWNER など) は、そのまま', () => {
+  it('a notification with no record of being sent, or without the marker that spaces them out (such as Q-EMPTY-OWNER), passes as is', () => {
     assert.equal(applyThrottle([owner()], stateWith({}), enabled, NOW)[0]?.kind, 'owner')
     assert.equal(applyThrottle([plain], withPush(5), enabled, NOW)[0]?.kind, 'owner')
   })
 
-  it('別の Epic の通知の記録は、この Epic に効かない', () => {
+  it('the notification record of another Epic does not affect this Epic', () => {
     const other = stateWith({ ownerPushedAt: { 'epic:app#200': minutesAgo(5) } })
     assert.equal(applyThrottle([owner()], other, enabled, NOW)[0]?.kind, 'owner')
   })
 
-  it('間隔は通知の印の minutes に従い、1 行の文にも出る (60 で割り切れなければ分)', () => {
+  it('the interval follows minutes of the notification marker and also appears in the one-line text (in minutes when not divisible by 60)', () => {
     const every = (minutes: number): Notice => ({ ...owner(), throttle: { ...(owner().throttle as NonNullable<Notice['throttle']>), minutes } })
     assert.match(applyThrottle([every(120)], withPush(10), enabled, NOW)[0]?.text ?? '', /once per 2 h/)
     assert.match(applyThrottle([every(90)], withPush(10), enabled, NOW)[0]?.text ?? '', /once per 90 min/)
@@ -57,14 +57,14 @@ describe('applyThrottle', () => {
   })
 })
 
-describe('newlyPushed と recordPushed', () => {
-  it('いま初めて出す、間隔を空ける印のある通知だけを返す', () => {
+describe('newlyPushed and recordPushed', () => {
+  it('returns only notifications that carry a spacing marker and are being emitted for the first time now', () => {
     const sent = stateWith({ desktopSent: ['E-STALL:app#100:t0'] })
     assert.deepEqual(newlyPushed([owner('E-STALL:app#100:t0'), owner('E-STALL:app#100:t1'), plain], sent).map((notice) => notice.key), ['E-STALL:app#100:t1'])
     assert.deepEqual(newlyPushed([{ ...owner(), kind: 'info' }], stateWith({})), [])
   })
 
-  it('通知した時刻を、Epic ごとに、いまの時刻で書く。間隔より前の記録は捨てる', () => {
+  it('writes the notification time per Epic with the current time; drops records older than the interval', () => {
     const before = stateWith({ ownerPushedAt: { 'epic:app#200': minutesAgo(24 * 60), 'epic:app#300': minutesAgo(24 * 60 - 1) } })
     assert.deepEqual(recordPushed(before, [owner()], enabled, NOW), { 'epic:app#100': NOW.toISOString(), 'epic:app#300': minutesAgo(24 * 60 - 1) })
     assert.deepEqual(recordPushed(before, [], enabled, NOW), { 'epic:app#300': minutesAgo(24 * 60 - 1) })

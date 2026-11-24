@@ -39,18 +39,18 @@ beforeEach(() => {
 })
 
 describe('alertStep', () => {
-  it('alerts が有効でなければ、何も書かず、何も出さない', () => {
+  it('when alerts is not enabled, writes nothing and emits nothing', () => {
     assert.deepEqual(step(NOW, true, { ...enabled, alerts: undefined }), [])
     assert.equal(existsSync(p.alertsState), false)
   })
 
-  it('ボードの控えが無ければ、何もしない', () => {
+  it('does nothing when there is no board copy', () => {
     rmSync(p.snapshot)
     assert.deepEqual(step(NOW, true), [])
     assert.equal(existsSync(p.alertsState), false)
   })
 
-  it('最初に見た時刻を書き、60 分に達した回に、macOS の通知を 1 度だけ出す', () => {
+  it('writes the first-seen time and emits the macOS notification only once, on the run that reaches 60 minutes', () => {
     step(NOW)
     assert.deepEqual(readAlertState(p).epics, { 'app#100': NOW.toISOString() })
     step(minutesLater(59))
@@ -64,14 +64,14 @@ describe('alertStep', () => {
     assert.equal(sent.length, 1)
   })
 
-  it('isDesktopEnabled が false なら、macOS の通知は出さない', () => {
+  it('does not emit the macOS notification when isDesktopEnabled is false', () => {
     const quiet = { ...enabled, alerts: { ...enabled.alerts!, isDesktopEnabled: false } }
     step(NOW, false, quiet)
     step(minutesLater(61), false, quiet)
     assert.equal(sent.length, 0)
   })
 
-  it('macOS の通知が失敗したら、エラーを記録し、同じ通知で重ねて試さない', () => {
+  it('when the macOS notification fails, records the error and does not retry for the same notification', () => {
     let attempts = 0
     const failing = () => {
       attempts += 1
@@ -84,7 +84,7 @@ describe('alertStep', () => {
     assert.match(readFileSync(p.errors, 'utf8'), /alert-desktop: osascript failed/)
   })
 
-  it('窓口の待機のときだけ、窓口にまだ送っていない通知を返し、送った通知は重ねて返さない', () => {
+  it('only in a liaison watch, returns notifications not yet sent to the liaison, and does not return sent ones again', () => {
     step(NOW)
     assert.deepEqual(step(minutesLater(60), false), [])
     const first = step(minutesLater(60), true)
@@ -94,7 +94,7 @@ describe('alertStep', () => {
     assert.match(readFileSync(p.events, 'utf8'), /"type":"alert-liaison","key":"E-STALL:app#100:/)
   })
 
-  it('TechLead が E-STALL を受け入れたら、オーナーへの通知も macOS の通知も出さない (空きの 1 行は出る)', () => {
+  it('when the TechLead acknowledges E-STALL, emits neither the owner notification nor the macOS notification (the idle line still appears)', () => {
     const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: 'Intended wait', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
     step(NOW)
@@ -102,7 +102,7 @@ describe('alertStep', () => {
     assert.equal(sent.length, 0)
   })
 
-  it('動き出してから止まり直した同じ Epic は、直前の通知から 24 時間のうちは、オーナーへ通知しない。窓口には 1 行で伝える', () => {
+  it('the same Epic that stalls again after starting to move does not notify the owner within 24 hours of the previous notification; the liaison is told in one line', () => {
     step(NOW)
     step(minutesLater(60))
     assert.equal(sent.length, 1)
@@ -122,7 +122,7 @@ describe('alertStep', () => {
     assert.equal(step(minutesLater(161), true).length, 0)
   })
 
-  it('通知から 24 時間たっても止まったままなら、そのときの新しい通知として、オーナーにまた出す', () => {
+  it('if still stalled 24 hours after the notification, notifies the owner again as a new notification at that time', () => {
     step(NOW)
     step(minutesLater(60))
     saveSnapshot(p, movingBoard())
@@ -140,7 +140,7 @@ describe('alertStep', () => {
     assert.deepEqual(Object.keys(readAlertState(p).ownerPushedAt), ['epic:app#100'])
   })
 
-  it('間隔は Epic ごと。別の Epic の通知は止めず、同じ評価で出た 2 つの Epic は、macOS の通知 1 つにまとまる', () => {
+  it("the interval is per Epic; it does not hold back another Epic's notification, and two Epics found in the same evaluation are merged into one macOS notification", () => {
     const two = snapshot([epic(), child(101, { status: 'Next' }), issue(200, { title: 'Epic 200' }), child(201, { status: 'Next', epic: 'app#200' })])
     saveSnapshot(p, two)
     step(NOW)
@@ -153,7 +153,7 @@ describe('alertStep', () => {
     assert.equal(sent.length, 1)
   })
 
-  it('夜の間に止まった 4 つの Epic が、同じ評価で一度に E-STALL になっても、窓口への通知は 1 通で、1 行ずつ、止まっている理由が付く', () => {
+  it('when 4 Epics that stopped during the night all become E-STALL in the same evaluation, the liaison gets one notification with one line per Epic, each with its stall reason', () => {
     const epics = [100, 200, 300, 400].flatMap((number, index) => [
       issue(number, { title: `Epic ${number}`, labels: [] }),
       child(number + 1, { status: index === 0 ? 'In Progress' : 'Next', assignee: index === 0 ? 'SWE1' : null, reason: index === 0 ? 'Needs decision' : 'None', epic: `app#${number}` }),
@@ -170,7 +170,7 @@ describe('alertStep', () => {
     assert.equal(sent.length, 1)
   })
 
-  it('通知を出していない (macOS の通知も窓口の待機も無い) うちは、通知した時刻を覚えない', () => {
+  it('does not remember the notification time while nothing is emitted (neither a macOS notification nor a liaison watch exists)', () => {
     const quiet = { ...enabled, alerts: { ...enabled.alerts!, isDesktopEnabled: false } }
     step(NOW, false, quiet)
     step(minutesLater(60), false, quiet)
@@ -179,7 +179,7 @@ describe('alertStep', () => {
     assert.deepEqual(Object.keys(readAlertState(p).ownerPushedAt), ['epic:app#100'])
   })
 
-  it('渡せる issue が無い部下は、30 分たったところで、オーナーへの macOS の通知を出す。それまでは TechLead への指摘だけ', () => {
+  it('for a member with no issue to hand over, emits the owner macOS notification at 30 minutes; until then only the finding for the TechLead', () => {
     saveSnapshot(p, snapshot([]))
     step(NOW)
     assert.deepEqual(readAlertState(p).empty, { 'SWE1:no-candidate': NOW.toISOString() })
@@ -192,7 +192,7 @@ describe('alertStep', () => {
     assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(30), sessions)).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')).toSorted(), ['Q-EMPTY', 'Q-EMPTY-OWNER'])
   })
 
-  it('渡せる issue が尽きた部下のオーナーへの通知は、同じ人について 60 分に 1 回まで。間隔が過ぎれば、また出る', () => {
+  it('the owner notification for a member whose issues to hand over ran out goes at most once per 60 minutes for the same person; once the interval passes, it is emitted again', () => {
     saveSnapshot(p, snapshot([]))
     step(NOW)
     step(minutesLater(30))
@@ -210,7 +210,7 @@ describe('alertStep', () => {
     assert.equal(sent.length, 2)
   })
 
-  it('作業中が上限で渡せない部下は、30 分を過ぎても、オーナーへ通知しない (TechLead の Q-EMPTY だけ)', () => {
+  it("a member who cannot be handed work because In Progress is at the limit does not notify the owner even past 30 minutes (only the TechLead's Q-EMPTY)", () => {
     const tight = { ...enabled, wipLimit: 1 }
     saveSnapshot(p, snapshot([issue(1, { status: 'In Progress', assignee: 'SWE2' }), issue(2, { status: 'Next' })]))
     step(NOW, false, tight)
@@ -221,21 +221,21 @@ describe('alertStep', () => {
     assert.ok(!rules.includes('Q-EMPTY-OWNER'))
   })
 
-  it('錠を別の生きているプロセスが持っていれば、何もしない', () => {
+  it('does nothing when another live process holds the lock', () => {
     mkdirSync(dirname(p.alertsLock), { recursive: true })
     writeFileSync(p.alertsLock, String(process.ppid))
     assert.deepEqual(step(minutesLater(60), true), [])
     assert.equal(existsSync(p.alertsState), false)
   })
 
-  it('終わったら錠を返す', () => {
+  it('releases the lock when finished', () => {
     step(NOW)
     assert.equal(existsSync(p.alertsLock), false)
   })
 })
 
-describe('lintAll への組み込み', () => {
-  it('最初に見た時刻から 60 分たった Epic は、lint に E-STALL (高) で出る。alerts が無効なら出ない', () => {
+describe('integration into lintAll', () => {
+  it('an Epic 60 minutes past its first-seen time appears in lint as E-STALL (high); it does not appear when alerts is disabled', () => {
     step(NOW)
     const now = minutesLater(60)
     const stall = lintAll(loadContext(p, enabled, now, sessions)).active.find((finding) => finding.rule === 'E-STALL')
@@ -243,7 +243,7 @@ describe('lintAll への組み込み', () => {
     assert.equal(lintAll(loadContext(p, { ...enabled, alerts: undefined }, now, sessions)).active.some((finding) => finding.rule === 'E-STALL'), false)
   })
 
-  it('受け入れた E-STALL は active から外れ、acked に入る', () => {
+  it('an acknowledged E-STALL leaves active and goes into acked', () => {
     step(NOW)
     const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: 'Intended wait', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
@@ -254,7 +254,7 @@ describe('lintAll への組み込み', () => {
 })
 
 describe('readAlertState', () => {
-  it('無いか壊れているか形が違えば、何も見ていない状態から始める', () => {
+  it('starts from a state where nothing has been seen if the file is missing, broken, or in the wrong shape', () => {
     assert.deepEqual(readAlertState(p), { epics: {}, empty: {}, desktopSent: [], liaisonSent: [], ownerPushedAt: {} })
     mkdirSync(dirname(p.alertsState), { recursive: true })
     writeFileSync(p.alertsState, '{broken')
@@ -269,7 +269,7 @@ describe('runLiaisonWatch', async () => {
   const options = { maxMs: 400, intervalMs: 10 }
   const freshBoard = () => ({ ...stalledBoard(), fetchedAt: new Date().toISOString() })
 
-  it('窓口に送る通知があれば、その文を返し、錠を返す。送った通知は、次の待機では返さない', async () => {
+  it('when there is a notification for the liaison, returns its message and releases the lock; the notification already sent is not returned in the next watch', async () => {
     saveSnapshot(p, freshBoard())
     heartbeat('SWE2', 'idle', new Date(Date.now() - 20 * 60_000))
     const message = await runLiaisonWatch(p, enabled, 'Liaison', options, fakePorts({ notify }))
@@ -279,7 +279,7 @@ describe('runLiaisonWatch', async () => {
     assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', { maxMs: 60, intervalMs: 10 }, fakePorts({ notify })), null)
   })
 
-  it('同じ窓口の待機が動いていれば、重ねて動かない', async () => {
+  it('does not run twice when a watch of the same liaison is already running', async () => {
     saveSnapshot(p, freshBoard())
     heartbeat('SWE2', 'idle', new Date(Date.now() - 20 * 60_000))
     mkdirSync(dirname(p.memberWatchLock('Liaison')), { recursive: true })

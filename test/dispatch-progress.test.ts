@@ -10,36 +10,36 @@ import { issue } from './helpers.ts'
 
 const item = issue(240, { status: 'In Progress', assignee: 'SWE1', reason: 'None', since: '2026-10-08' })
 
-describe('boardToken と hasProgress', () => {
-  it('Status、止まっている理由、担当、止まり始めた日を 1 つの印にする', () => {
+describe('boardToken and hasProgress', () => {
+  it('combines Status, blocked reason, assignee, and the block-start day into one marker', () => {
     assert.equal(boardToken(item), 'In Progress|None|SWE1|2026-10-08')
     assert.equal(boardToken(issue(1, { status: null, reason: null, assignee: null, since: null })), '|||')
   })
 
-  it('ボードの印が違えば、作業が進んだ', () => {
+  it('when the board marker differs, work progressed', () => {
     assert.equal(hasProgress({ board: 'a', github: null }, { board: 'b', github: null }), true)
     assert.equal(hasProgress({ board: 'a', github: null }, { board: 'a', github: null }), false)
   })
 
-  it('gh の印は、両方が読めていて、違うときだけ、作業が進んだ。どちらかが読めなければ、ボードの印だけで比べる', () => {
+  it('the gh marker means progress only when both can be read and they differ; when either cannot be read, compares by the board marker alone', () => {
     assert.equal(hasProgress({ board: 'a', github: 'x' }, { board: 'a', github: 'y' }), true)
     assert.equal(hasProgress({ board: 'a', github: 'x' }, { board: 'a', github: 'x' }), false)
     assert.equal(hasProgress({ board: 'a', github: 'x' }, { board: 'a', github: null }), false)
     assert.equal(hasProgress({ board: 'a', github: null }, { board: 'a', github: 'y' }), false)
   })
 
-  it('比べる印が無い (記録が古い形) ときは、進んだと言わない', () => {
+  it('does not say progress when there is no marker to compare (a record without a marker)', () => {
     assert.equal(hasProgress(undefined, { board: 'a', github: null }), false)
     assert.equal(hasProgress({ board: 'a', github: null }, undefined), false)
   })
 
-  it('boardOnly は gh を使わず、tokenWith は gh の印を足す', () => {
+  it('boardOnly does not use gh, and tokenWith adds the gh marker', () => {
     assert.deepEqual(boardOnly(item), { board: 'In Progress|None|SWE1|2026-10-08', github: null })
     assert.deepEqual(tokenWith(() => 'g')(item), { board: 'In Progress|None|SWE1|2026-10-08', github: 'g' })
     assert.deepEqual(tokenWith(() => null)(item).github, null)
   })
 
-  it('tokenWith は、印の読み取りが投げても止まらず、コードの置き場の印を null にする', () => {
+  it('tokenWith does not stop when reading the marker throws, and sets the code-host marker to null', () => {
     const throwing = () => {
       throw new Error('cannot read')
     }
@@ -52,7 +52,7 @@ describe('activityToken', () => {
 
   const pr = (number: number, headRefName: string, title = 't', extra: Record<string, unknown> = {}) => ({ source: { number, state: 'OPEN', headRefOid: `oid${number}`, headRefName, title, ...extra } })
 
-  it('コメントの数、紐づいたブランチの先頭、そのブランチの PR (番号、状態、先頭のコミット) を、並び順によらない文字列にする', () => {
+  it('turns the comment count, the head of the linked branch, and the PRs of that branch (number, state, head commit) into a string that does not depend on order', () => {
     const a = answer({
       comments: { totalCount: 3 },
       linkedBranches: { nodes: [{ ref: { name: 'feat/2', target: { oid: 'bbb' } } }, { ref: { name: 'feat/1', target: { oid: 'aaa' } } }] },
@@ -61,7 +61,7 @@ describe('activityToken', () => {
     assert.equal(activityToken(a, 240), '{"comments":3,"branches":["feat/1@aaa","feat/2@bbb"],"prs":["#5:MERGED@oid5","#9:OPEN@oid9"]}')
   })
 
-  it('紐づいたブランチがあれば、そのブランチから出た PR だけを印にする。ほかの人の PR (題やブランチ名が同じ番号でも) は拾わない', () => {
+  it("when there is a linked branch, uses only PRs from that branch as the marker; does not pick up another person's PRs (even if the title or branch name has the same number)", () => {
     const a = answer({
       comments: { totalCount: 0 },
       linkedBranches: { nodes: [{ ref: { name: 'feat/240', target: { oid: 'aaa' } } }] },
@@ -70,7 +70,7 @@ describe('activityToken', () => {
     assert.deepEqual(JSON.parse(activityToken(a, 240)).prs, ['#9:OPEN@oid9'])
   })
 
-  it('紐づいたブランチが無ければ、題の括弧の中か、ブランチ名の先頭の番号が、その issue と合う PR だけを印にする', () => {
+  it("when there is no linked branch, uses as the marker only PRs whose number in the title's parentheses or at the start of the branch name matches the issue", () => {
     const a = answer({
       comments: { totalCount: 0 },
       linkedBranches: { nodes: [] },
@@ -81,26 +81,26 @@ describe('activityToken', () => {
     assert.deepEqual(JSON.parse(activityToken(a, 240)).prs, ['#1:OPEN@oid1', '#2:OPEN@oid2', '#3:OPEN@oid3'])
   })
 
-  it('紐づいたブランチも、issue の番号も無ければ、PR は印に入れない', () => {
+  it('when there is neither a linked branch nor an issue number, PRs are not included in the marker', () => {
     const a = answer({ comments: { totalCount: 0 }, linkedBranches: { nodes: [] }, timelineItems: { nodes: [pr(1, 'feat/240-ci')] } })
     assert.deepEqual(JSON.parse(activityToken(a)).prs, [])
   })
 
-  it('PR の先頭のコミットが変われば、印が変わる', () => {
+  it('when the head commit of a PR changes, the marker changes', () => {
     const linked = { nodes: [{ ref: { name: 'feat/240', target: { oid: 'aaa' } } }] }
     const base = { comments: { totalCount: 0 }, linkedBranches: linked, timelineItems: { nodes: [pr(9, 'feat/240')] } }
     const pushed = { ...base, timelineItems: { nodes: [pr(9, 'feat/240', 't', { headRefOid: 'eee' })] } }
     assert.notEqual(activityToken(answer(base), 240), activityToken(answer(pushed), 240))
   })
 
-  it('issue が読めなければ投げる', () => {
+  it('throws when the issue cannot be read', () => {
     assert.throws(() => activityToken(answer(null)), /cannot read the issue/)
     assert.throws(() => activityToken('broken'))
   })
 })
 
 describe('githubProbe', () => {
-  it('項目のリポジトリと番号で、GraphQL を 1 回呼ぶ。番号の無い項目は呼ばない', () => {
+  it("calls GraphQL once with the item's repository and number; does not call for an item without a number", () => {
     const calls: (readonly string[])[] = []
     const probe = githubProbe((args) => {
       calls.push(args)
@@ -112,14 +112,14 @@ describe('githubProbe', () => {
     assert.equal(calls.length, 1)
   })
 
-  it('issue の番号で PR を絞る (紐づいたブランチが無ければ、番号の合う PR だけを印に入れる)', () => {
+  it('narrows PRs by the issue number (with no linked branch, only PRs with a matching number go into the marker)', () => {
     const answer = { data: { repository: { issue: { comments: { totalCount: 0 }, linkedBranches: { nodes: [] }, timelineItems: { nodes: [{ source: { number: 7, state: 'OPEN', headRefOid: 'x', headRefName: 'feat/240-ci', title: 't' } }, { source: { number: 8, state: 'OPEN', headRefOid: 'y', headRefName: 'feat/999-ci', title: 't' } }] } } } } }
     assert.deepEqual(JSON.parse(githubProbe(() => JSON.stringify(answer))(item) ?? '{}').prs, ['#7:OPEN@x'])
   })
 })
 
 describe('cachedProbe', () => {
-  it('同じ issue は ttl の間、使い回し、過ぎたら取り直す', () => {
+  it('reuses the same issue for the ttl and fetches again once it has passed', () => {
     let now = 0
     let calls = 0
     const probe = cachedProbe(() => `v${++calls}`, 1000, () => now)
@@ -131,13 +131,13 @@ describe('cachedProbe', () => {
     assert.equal(calls, 2)
   })
 
-  it('issue ごとに別に持つ', () => {
+  it('keeps each issue separately', () => {
     let calls = 0
     const probe = cachedProbe(() => `v${++calls}`, 1000, () => 0)
     assert.deepEqual([probe(item), probe(issue(241)), probe(item)], ['v1', 'v2', 'v1'])
   })
 
-  it('失敗は null にして、その間は取り直さない (gh が落ちていても、30 秒ごとに叩かない)', () => {
+  it('a failure becomes null and is not fetched again meanwhile (even if gh is down, it is not hit every 30 seconds)', () => {
     let calls = 0
     const probe = cachedProbe(() => {
       calls += 1
@@ -148,15 +148,15 @@ describe('cachedProbe', () => {
   })
 })
 
-describe('observe (見た印)', () => {
+describe('observe (the marker seen)', () => {
   const at = (minutes: number): Date => new Date(Date.UTC(2026, 10, 3, 15, minutes))
   const token = (github: string | null, board = 'In Progress|None|SWE1|') => ({ board, github })
 
-  it('初めて見たときは、いまの時刻を書く', () => {
+  it('when seen for the first time, writes the current time', () => {
     assert.deepEqual(observe({}, 'SWE1', 'app#1', token('a'), at(0)), { 'SWE1|app#1': { token: token('a'), at: at(0).toISOString() } })
   })
 
-  it('印が進んでいれば時刻を今にし、進んでいなければ前の時刻のまま。印は新しいものに替える', () => {
+  it('when the marker progressed, sets the time to now; when not, keeps the earlier time; the marker is replaced with the new one', () => {
     const first = observe({}, 'SWE1', 'app#1', token('a'), at(0))
     const same = observe(first, 'SWE1', 'app#1', token('a'), at(5))
     assert.equal(same['SWE1|app#1']?.at, at(0).toISOString())
@@ -166,13 +166,13 @@ describe('observe (見た印)', () => {
     assert.equal(boardChanged['SWE1|app#1']?.at, at(15).toISOString())
   })
 
-  it('gh の印が読めないとき (null) は、進んだと言わず、時刻は前のまま。印は新しいものに替える', () => {
+  it('when the gh marker cannot be read (null), does not say progress and keeps the earlier time; the marker is replaced with the new one', () => {
     const first = observe({}, 'SWE1', 'app#1', token('a'), at(0))
     const unreadable = observe(first, 'SWE1', 'app#1', token(null), at(5))
     assert.deepEqual(unreadable['SWE1|app#1'], { token: token(null), at: at(0).toISOString() })
   })
 
-  it('同じ部下の別の issue の分は捨てる。ほかの部下の分は残す', () => {
+  it('drops entries for other issues of the same member; keeps entries of other members', () => {
     const seen = { ...observe({}, 'SWE1', 'app#1', token('a'), at(0)), ...observe({}, 'SWE2', 'app#1', token('x'), at(0)) }
     const next = observe(seen, 'SWE1', 'app#2', token('c'), at(5))
     assert.deepEqual(Object.keys(next).toSorted(), ['SWE1|app#2', 'SWE2|app#1'])
@@ -180,8 +180,8 @@ describe('observe (見た印)', () => {
   })
 })
 
-describe('readSeen と writeSeen', () => {
-  it('書いたものを読み戻す。無ければ空', () => {
+describe('readSeen and writeSeen', () => {
+  it('reads back what was written; empty when nothing exists', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-seen-')))
     assert.deepEqual(readSeen(p), {})
     const seen = observe({}, 'SWE1', 'app#1', { board: 'b', github: null }, new Date(Date.UTC(2026, 10, 3, 15, 0)))
@@ -189,7 +189,7 @@ describe('readSeen と writeSeen', () => {
     assert.deepEqual(readSeen(p), seen)
   })
 
-  it('壊れた中身は空、形の違う項目 (印が無い、時刻が読めない、配列) は捨てる', () => {
+  it('broken content is empty; entries of the wrong shape (no marker, unreadable time, an array) are dropped', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-seen-')))
     const write = (value: unknown) => {
       writeSeen(p, value as never)

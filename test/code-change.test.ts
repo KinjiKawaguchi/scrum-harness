@@ -16,17 +16,17 @@ describe('hasCodeChanged', () => {
     return dir
   }
 
-  it('起動より後に変わったソースが無ければ false', () => {
+  it('false when no source changed after startup', () => {
     assert.equal(hasCodeChanged(tree(1000), 2000 * 1000), false)
   })
 
-  it('下のディレクトリのソースが起動より後に変わっていれば true (待機プロセスが古いコードで動き続けないように)', () => {
+  it('true when a source in a subdirectory changed after startup (so a watch process does not keep running old code)', () => {
     const dir = tree(1000)
     utimesSync(join(dir, 'board', 'rules.ts'), 3000, 3000)
     assert.equal(hasCodeChanged(dir, 2000 * 1000), true)
   })
 
-  it('ディレクトリが読めなければ false (止める理由にしない)', () => {
+  it('false when the directory cannot be read (not a reason to stop)', () => {
     assert.equal(hasCodeChanged(join(tmpdir(), 'no-such-dir-scrum'), 0), false)
   })
 })

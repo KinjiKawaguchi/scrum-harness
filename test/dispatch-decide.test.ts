@@ -19,50 +19,50 @@ const doing = (number: number, overrides: Parameters<typeof issue>[1] = {}) => i
 const next = (number: number, overrides: Parameters<typeof issue>[1] = {}) => issue(number, { status: 'Next', ...overrides })
 
 describe('ownDoingIssue', () => {
-  it('その人の作業中で、止まっていない issue を、番号の小さい順に 1 つ返す', () => {
+  it('returns one In Progress issue of that person that is not stalled, smallest number first', () => {
     assert.equal(ownDoingIssue(snapshot([doing(250), doing(240)]), 'SWE1', enabled)?.number, 240)
   })
 
-  it('止まっている、担当が別の人、閉じた、PR のものは返さない', () => {
+  it('does not return an item that is stalled, assigned to someone else, closed, or a PR', () => {
     const items = [doing(1, { reason: 'Needs decision' }), doing(2, { assignee: 'SWE2' }), doing(3, { state: 'CLOSED' }), doing(4, { reason: null })]
     assert.equal(ownDoingIssue(snapshot(items), 'SWE1', enabled), null)
   })
 })
 
 describe('decideAction', () => {
-  it('止まっていない自分の作業中の issue があれば、新しい issue は渡さず、促す', () => {
+  it('when there is own In Progress issue that is not stalled, does not hand over a new issue and nudges instead', () => {
     const action = decideAction(snapshot([doing(240), next(11)]), idle, [], enabled, NOW)
     assert.deepEqual(action.kind === 'nudge' ? [action.kind, action.item.number, action.count] : action.kind, ['nudge', 240, 1])
   })
 
-  it('作業中が止まっていれば (理由がなし以外)、次の issue を渡す', () => {
+  it('when the In Progress work is stalled (a reason other than none), hands over the next issue', () => {
     const action = decideAction(snapshot([doing(240, { reason: 'External wait' }), next(11)]), idle, [], enabled, NOW)
     assert.deepEqual(action.kind === 'dispatch' ? [action.kind, action.item.number] : action.kind, ['dispatch', 11])
   })
 
-  it('作業中が無ければ、次の issue を渡す', () => {
+  it('when there is no In Progress work, hands over the next issue', () => {
     const action = decideAction(snapshot([next(11)]), idle, [], enabled, NOW)
     assert.equal(action.kind, 'dispatch')
   })
 
-  it('作業中が上限に届いていても、自分の作業中があれば促す (上限は新しい issue を渡すときだけ)', () => {
+  it('even when In Progress has reached the limit, nudges if the member has own In Progress work (the limit applies only when handing over a new issue)', () => {
     const others = Array.from({ length: config.wipLimit }, (_, index) => issue(100 + index, { status: 'In Progress', assignee: 'SWE2' }))
     assert.equal(decideAction(snapshot([...others, doing(240)]), idle, [], enabled, NOW).kind, 'nudge')
     assert.deepEqual(decideAction(snapshot([...others, next(11)]), idle, [], enabled, NOW), { kind: 'none', reason: 'wip-limit' })
   })
 
-  it('促しの間隔の待ちは、上限より先に見る (idleMinutes 経つまでは、上限でも待つ)', () => {
+  it('the wait for the nudge interval is checked before the limit (until idleMinutes passes, it waits even at the limit)', () => {
     assert.deepEqual(decideAction(snapshot([doing(240)]), idle, [nudge(25), nudge(config.idleMinutes - 1)], enabled, NOW), { kind: 'none', reason: 'nudge-wait' })
   })
 
-  it('促しは、最後に送ってから idleMinutes 経つまで、重ねて送らない。経てば 2 回目を送る', () => {
+  it('does not send nudges back to back until idleMinutes passes since the last one; sends the second one once it has passed', () => {
     const board = snapshot([doing(240)])
     assert.deepEqual(decideAction(board, idle, [nudge(config.idleMinutes - 1)], enabled, NOW), { kind: 'none', reason: 'nudge-wait' })
     const second = decideAction(board, idle, [nudge(config.idleMinutes)], enabled, NOW)
     assert.deepEqual(second.kind === 'nudge' ? second.count : second.kind, 2)
   })
 
-  it('作業が進んでいる (前に見た印から変わった) 間は促さない。印と issue を返し、見た印を覚えさせる', () => {
+  it('does not nudge while work is progressing (the marker differs from the one seen before); returns the marker and the issue so the marker seen is remembered', () => {
     const board = snapshot([doing(240)])
     const seen = { 'SWE1|app#240': { token: { board: boardToken(ownDoingIssue(board, 'SWE1', enabled)!), github: 'a' }, at: minutesAgo(30) } }
     const token = { board: boardToken(ownDoingIssue(board, 'SWE1', enabled)!), github: 'b' }
@@ -70,7 +70,7 @@ describe('decideAction', () => {
     assert.deepEqual(action.kind === 'none' && action.reason === 'progressing' ? [action.item.number, action.token] : action, [240, token])
   })
 
-  it('印が変わっていなくても、最後に印が変わってから idleMinutes たっていなければ、促さない。たてば促す', () => {
+  it('even when the marker has not changed, does not nudge until idleMinutes has passed since it last changed; nudges once it has', () => {
     const board = snapshot([doing(240)])
     const token = { board: boardToken(ownDoingIssue(board, 'SWE1', enabled)!), github: 'a' }
     const seenAt = (minutes: number) => ({ 'SWE1|app#240': { token, at: minutesAgo(minutes) } })
@@ -78,7 +78,7 @@ describe('decideAction', () => {
     assert.equal(decideAction(board, idle, [], enabled, NOW, () => token, seenAt(config.idleMinutes)).kind, 'nudge')
   })
 
-  it('進んでいるかは、促しの上限より先に見る。2 回促した後でも、進んだなら待つ (進まないまま 2 回続けたときだけ、上限)', () => {
+  it('progress is checked before the nudge limit; even after 2 nudges, waits if work progressed (the limit applies only after 2 in a row without progress)', () => {
     const board = snapshot([doing(240)])
     const base = { board: boardToken(ownDoingIssue(board, 'SWE1', enabled)!), github: 'a' }
     const progressed = decideAction(board, idle, [nudge(25), nudge(12)], enabled, NOW, () => ({ ...base, github: 'b' }), { 'SWE1|app#240': { token: base, at: minutesAgo(25) } })
@@ -87,7 +87,7 @@ describe('decideAction', () => {
     assert.deepEqual(stuck, { kind: 'none', reason: 'nudge-limit' })
   })
 
-  it('見た印が無い (初めて) か、別の issue の分だけなら、これまでどおり促す', () => {
+  it('when there is no marker seen (first time) or only one for another issue, nudges as usual', () => {
     const board = snapshot([doing(240)])
     const token = { board: boardToken(ownDoingIssue(board, 'SWE1', enabled)!), github: 'a' }
     assert.equal(decideAction(board, idle, [], enabled, NOW, () => token, {}).kind, 'nudge')
@@ -95,19 +95,19 @@ describe('decideAction', () => {
     assert.equal(decideAction(board, idle, [], enabled, NOW, () => token, { 'SWE2|app#240': { token, at: minutesAgo(0) } }).kind, 'nudge')
   })
 
-  it('促しを 2 回送ったら、それ以上は送らない (TechLead に出す)', () => {
+  it('after sending 2 nudges, sends no more (reports to the TechLead)', () => {
     const records = [nudge(25), nudge(12)]
     assert.deepEqual(decideAction(snapshot([doing(240)]), idle, records, enabled, NOW), { kind: 'none', reason: 'nudge-limit' })
   })
 
-  it('空きの区間が変わっても (短い 1 ターンで空きに戻っても)、作業が進んでいなければ、促しを続けて数える', () => {
+  it('keeps counting nudges when the idle period changes (even after returning to idle in a short 1-turn run) as long as work has not progressed', () => {
     const lateIdle: MemberState = { name: 'SWE1', state: 'idle', since: minutesAgo(15) }
     assert.deepEqual(decideAction(snapshot([doing(240)]), lateIdle, [nudge(90), nudge(60)], enabled, NOW), { kind: 'none', reason: 'nudge-limit' })
     const action = decideAction(snapshot([doing(240)]), lateIdle, [nudge(90)], enabled, NOW)
     assert.deepEqual(action.kind === 'nudge' ? action.count : action.kind, 2)
   })
 
-  it('促しの後に作業が進んだなら (ボードの印が変わった)、数え直す', () => {
+  it('restarts counting when work progressed after a nudge (the board marker changed)', () => {
     const lateIdle: MemberState = { name: 'SWE1', state: 'idle', since: minutesAgo(15) }
     const withToken = (minutes: number, board: string) => ({ ...nudge(minutes), progress: { board, github: null } })
     const board = snapshot([doing(240)])
@@ -118,7 +118,7 @@ describe('decideAction', () => {
     assert.deepEqual(stuck, { kind: 'none', reason: 'nudge-limit' })
   })
 
-  it('促しの後に、gh の印 (PR の先頭のコミット、コメント) が変わったなら、数え直す。gh の印が読めなければ、ボードの印だけで比べる', () => {
+  it("restarts counting when the gh marker (the PR's head commit, comments) changed after a nudge; when the gh marker cannot be read, compares by the board marker alone", () => {
     const lateIdle: MemberState = { name: 'SWE1', state: 'idle', since: minutesAgo(15) }
     const board = snapshot([doing(240)])
     const same = boardToken(board.items[0] as BoardItem)
@@ -130,7 +130,7 @@ describe('decideAction', () => {
     assert.deepEqual(unknown, { kind: 'none', reason: 'nudge-limit' })
   })
 
-  it('3 時間より前の促しは数えない。ほかの issue への促しも数えない', () => {
+  it('does not count nudges older than 3 hours; does not count nudges for other issues either', () => {
     const lateIdle: MemberState = { name: 'SWE1', state: 'idle', since: minutesAgo(15) }
     const board = snapshot([doing(240)])
     assert.equal(decideAction(board, lateIdle, [nudge(300), nudge(200)], enabled, NOW).kind, 'nudge')
@@ -138,7 +138,7 @@ describe('decideAction', () => {
     assert.deepEqual(decideAction(board, lateIdle, [other(90), other(60)], enabled, NOW), { kind: 'nudge', item: board.items[0], count: 1, token: { board: boardToken(board.items[0] as BoardItem), github: null } })
   })
 
-  it('8 周: 促しの後、2 分で空きに戻るのを繰り返しても、作業が進まなければ、2 回で止まる', () => {
+  it('8 rounds: even if the member returns to idle 2 minutes after each nudge, it stops after 2 nudges as long as work does not progress', () => {
     const board = snapshot([doing(240)])
     const records: DispatchRecord[] = []
     const kinds: string[] = []
@@ -152,13 +152,13 @@ describe('decideAction', () => {
     assert.deepEqual(kinds, ['nudge', 'nudge', 'nudge-limit', 'nudge-limit', 'nudge-limit', 'nudge-limit', 'nudge-limit', 'nudge-limit'])
   })
 
-  it('新しい issue を渡した直後は、重ねて促さず、idleMinutes 待つ', () => {
+  it('right after handing over a new issue, does not nudge on top of it and waits idleMinutes', () => {
     const board = snapshot([doing(240)])
     assert.deepEqual(decideAction(board, idle, [dispatched(1)], enabled, NOW), { kind: 'none', reason: 'nudge-wait' })
     assert.equal(decideAction(board, idle, [dispatched(config.idleMinutes)], enabled, NOW).kind, 'nudge')
   })
 
-  it('作業中が無いとき、渡した後に動かないままなら、重ねて渡さない。促しの記録は数えない', () => {
+  it('when there is no In Progress work and the member is still not moving after a hand-over, does not hand over again; nudge records are not counted', () => {
     const board = snapshot([next(11)])
     assert.deepEqual(decideAction(board, idle, [dispatched(5)], enabled, NOW), { kind: 'none', reason: 'already-dispatched' })
     assert.equal(decideAction(board, idle, [nudge(5)], enabled, NOW).kind, 'dispatch')

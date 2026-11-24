@@ -8,17 +8,17 @@ import { config, issue, pr, snapshot } from './helpers.ts'
 const parse = (command: string) => parseBoardCommands(command, config)
 
 describe('parseBoardCommands', () => {
-  it('set-status の番号と Status を読む', () => {
+  it('reads the number and Status of set-status', () => {
     assert.deepEqual(parse('./set-status 123 "In Progress"'), [
       { kind: 'set-status', label: 'app#123', status: 'In Progress' },
     ])
   })
 
-  it('英語の Status を日本語に揃える', () => {
+  it("normalizes the spelling of an English Status to the board's label", () => {
     assert.deepEqual(parse('./set-status 5 InProgress'), [{ kind: 'set-status', label: 'app#5', status: 'In Progress' }])
   })
 
-  it('&& でつないだ複数のコマンドを読む', () => {
+  it('reads several commands joined with &&', () => {
     const commands = parse('cd t && ./set-status 1 Done && ./set-assignee 1 None; ./set-reason 2 "External wait" 2026-10-07')
     assert.deepEqual(commands, [
       { kind: 'set-status', label: 'app#1', status: 'Done' },
@@ -27,65 +27,65 @@ describe('parseBoardCommands', () => {
     ])
   })
 
-  it('引用符で囲んだ担当の名前を読む', () => {
+  it('reads the assignee name wrapped in quotes', () => {
     assert.deepEqual(parse('set-assignee 9 "Another session"'), [
       { kind: 'set-assignee', label: 'app#9', assignee: 'Another session' },
     ])
   })
 
-  it('bulk-status の Status と対象を読む', () => {
+  it('reads the Status and targets of bulk-status', () => {
     assert.deepEqual(parse('bulk-status Release app#1 app#2'), [
       { kind: 'bulk-status', labels: ['app#1', 'app#2'], status: 'Release' },
     ])
   })
 
-  it('merge-pr と gh pr merge と gh issue close を読む', () => {
+  it('reads merge-pr, gh pr merge, and gh issue close', () => {
     assert.deepEqual(parse('merge-pr example-org/app 210 abc123'), [
       { kind: 'merge-pr', label: 'app#210', repo: 'example-org/app' },
     ])
     assert.deepEqual(parse('gh pr merge 22 -R example-org/app-mobile --squash'), [
       { kind: 'merge-pr', label: 'app-mobile#22', repo: 'example-org/app-mobile' },
     ])
-    // merge-pr のスクリプトの形 (スクリプトの名前、リポジトリ、番号) も、指したリポジトリのまま持つ
+    // The shape of the merge-pr script (script name, repository, number) also keeps the repository that was pointed at
     assert.deepEqual(parse('merge-pr other-owner/tool 3 abc123'), [{ kind: 'merge-pr', label: 'tool#3', repo: 'other-owner/tool' }])
-    // 設定の repos に無いリポジトリは、defaultRepo に取り違えず、指したリポジトリのまま持つ
+    // A repository missing from the config's repos is kept as pointed at, not mistaken for defaultRepo
     assert.deepEqual(parse('gh pr merge 3 -R other-owner/tool --squash'), [{ kind: 'merge-pr', label: 'tool#3', repo: 'other-owner/tool' }])
     assert.deepEqual(parse('gh issue close 11 --comment done'), [{ kind: 'close-issue', label: 'app#11' }])
   })
 
-  it('スクリプトを通さないボードの書き換えを raw-mutation とする', () => {
+  it('treats a board rewrite that bypasses the script as raw-mutation', () => {
     assert.deepEqual(parse('gh project item-edit --id X --field-id Y --clear'), [{ kind: 'raw-mutation' }])
     assert.deepEqual(parse(`gh api graphql -f query='mutation{updateProjectV2ItemFieldValue(input:{})}'`), [
       { kind: 'raw-mutation' },
     ])
   })
 
-  it('ボードに関係の無いコマンドは空', () => {
+  it('a command unrelated to the board yields nothing', () => {
     assert.deepEqual(parse('git status && ls set-status.bak'), [])
   })
 })
 
 describe('applyCommands', () => {
-  it('Status・理由・担当を控えに反映する', () => {
+  it('reflects Status, reason, and assignee in the board copy', () => {
     const before = snapshot([issue(1)])
     const after = applyCommands(before, parse('set-status 1 "In Progress" && set-assignee 1 SWE1'), config, '2026-10-08')
     assert.deepEqual([after.items[0]?.status, after.items[0]?.assignee], ['In Progress', 'SWE1'])
     assert.equal(before.items[0]?.status, 'Backlog')
   })
 
-  it('理由を付けると今日を止まり始めた日にし、なしにすると日を消す', () => {
+  it('setting a reason makes today the day the block began; setting it to none clears the day', () => {
     const stopped = applyCommands(snapshot([issue(1)]), parse('set-reason 1 "External wait"'), config, '2026-10-08')
     assert.deepEqual([stopped.items[0]?.reason, stopped.items[0]?.since], ['External wait', '2026-10-08'])
     const resumed = applyCommands(stopped, parse('set-reason 1 None'), config, '2026-10-08')
     assert.deepEqual([resumed.items[0]?.reason, resumed.items[0]?.since], ['None', null])
   })
 
-  it('閉じた issue とマージした PR の状態を変える', () => {
+  it('changes the state of a closed issue and a merged PR', () => {
     const after = applyCommands(snapshot([issue(1), pr(2, { state: 'OPEN' })]), parse('gh issue close 1 && gh pr merge 2'), config, '2026-10-08')
     assert.deepEqual(after.items.map((item) => item.state), ['CLOSED', 'MERGED'])
   })
 
-  it('ボードに無い issue の Status を変えると項目を足す', () => {
+  it('changing the Status of an issue that is not on the board adds an item', () => {
     const after = applyCommands(snapshot([]), parse('set-status 7 Backlog'), config, '2026-10-08')
     assert.deepEqual(after.items.map((item) => [item.number, item.status]), [[7, 'Backlog']])
   })
@@ -94,33 +94,33 @@ describe('applyCommands', () => {
 describe('checkGuard', () => {
   const full = snapshot(Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' })))
 
-  it('上限に達しているのに作業中を増やすと拒否する', () => {
+  it('refuses to increase In Progress when the limit has been reached', () => {
     const reason = checkGuard(snapshot([...full.items, issue(50)]), parse('set-status 50 "In Progress"'), config)
     assert.match(reason ?? '', /10 items are In Progress, at the limit of 10/)
   })
 
-  it('すでに作業中の issue を作業中にし直すのは許す', () => {
+  it('allows setting an issue that is already In Progress to In Progress again', () => {
     assert.equal(checkGuard(full, parse('set-status 3 "In Progress"'), config), null)
   })
 
-  it('PR に Status を付けようとすると拒否する', () => {
+  it('refuses an attempt to give a PR a Status', () => {
     const reason = checkGuard(snapshot([pr(102)]), parse('set-status 102 "In Progress"'), config)
     assert.match(reason ?? '', /A PR must not have a Status/)
   })
 
-  it('SCRUM_GUARD=off があれば止めない', () => {
+  it('does not block when SCRUM_GUARD=off is set', () => {
     const command = 'SCRUM_GUARD=off set-status 50 "In Progress"'
     assert.equal(checkGuard(snapshot([...full.items, issue(50)]), parse(command), config, command), null)
   })
 })
 
-describe('referencedLabels と mergeContext', () => {
-  it('本文の #番号 と リポジトリ名#番号 を拾う', () => {
+describe('referencedLabels and mergeContext', () => {
+  it('picks up #number and repository#number from the body', () => {
     const body = '#11 continues. Also app-mobile#22. Ignore https://x/y#4, Closes #230'
     assert.deepEqual(referencedLabels(body, 'example-org/app'), ['app#11', 'app-mobile#22', 'app#230'])
   })
 
-  it('ボードにある issue の今の状態を並べる', () => {
+  it('lists the current state of issues that are on the board', () => {
     const board = snapshot([issue(11, { status: 'In Progress', assignee: 'SWE1' })])
     const text = mergeContext(board, 'app#220', ['app#11', 'app#999'], config) ?? ''
     assert.match(text, /app#220 was merged/)
@@ -128,33 +128,33 @@ describe('referencedLabels と mergeContext', () => {
     assert.doesNotMatch(text, /app#999/)
   })
 
-  it('ボードの issue に触れていなければ null', () => {
+  it('returns null when no board issue is touched', () => {
     assert.equal(mergeContext(snapshot([]), 'app#1', ['app#2'], config), null)
   })
 })
 
-describe('スクリプトの設定', () => {
+describe('script configuration', () => {
   const bare = { ...config, scripts: {} }
 
-  it('スクリプトを設定していなければ、スクリプトの呼び出しを読まない', () => {
+  it('does not read script calls when no script is configured', () => {
     assert.deepEqual(parseBoardCommands('set-status 1 "In Progress" && merge-pr example-org/app 2', bare), [])
   })
 
-  it('スクリプトを設定していなくても、gh のコマンドは読む', () => {
+  it('reads gh commands even when no script is configured', () => {
     assert.deepEqual(parseBoardCommands('gh issue close 3 && gh pr merge 4', bare), [
       { kind: 'close-issue', label: 'app#3' },
       { kind: 'merge-pr', label: 'app#4', repo: 'example-org/app' },
     ])
   })
 
-  it('値を空にする語を設定していなければ、担当はそのまま読む', () => {
+  it('reads the assignee as is when no word for emptying a value is configured', () => {
     const noClear = { ...config, scripts: { setAssignee: 'set-assignee' } }
     assert.deepEqual(parseBoardCommands('set-assignee 9 None', noClear), [{ kind: 'set-assignee', label: 'app#9', assignee: 'None' }])
   })
 })
 
 describe('shellPatterns', () => {
-  it('フックが node を起こすコマンドの型に、設定のスクリプト名を入れる', () => {
+  it('puts the configured script name into the command pattern for which the hook starts node', () => {
     const patterns = shellPatterns(config)
     assert.match('set-status 1 "In Progress"', new RegExp(patterns.post))
     assert.match('gh pr merge 3', new RegExp(patterns.post))
@@ -163,12 +163,12 @@ describe('shellPatterns', () => {
     assert.doesNotMatch('set-reason 1 None', new RegExp(patterns.pre))
   })
 
-  it('スクリプト名の記号は型の中でそのまま扱う', () => {
+  it('treats symbols in the script name literally inside the pattern', () => {
     const patterns = shellPatterns({ ...config, scripts: { setStatus: 'update.sh' } })
     assert.doesNotMatch('updateXsh', new RegExp(patterns.pre))
   })
 
-  it('Status を変えるスクリプトが無ければ、書き込みの前の確かめは要らない', () => {
+  it('when there is no script that changes Status, no check before writing is needed', () => {
     assert.equal(shellPatterns({ ...config, scripts: {} }).pre, '')
   })
 })

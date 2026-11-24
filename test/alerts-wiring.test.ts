@@ -17,7 +17,7 @@ import { config } from './helpers.ts'
 import { alerts, enabled } from './alerts-fixtures.ts'
 
 describe('parseAlerts', () => {
-  it('enabled だけで、ほかは既定で埋める', () => {
+  it('with only enabled given, fills the rest with defaults', () => {
     assert.deepEqual(parseAlerts({ enabled: true }), { ...DEFAULT_ALERTS, enabled: true })
     assert.deepEqual(DEFAULT_ALERTS.parkedLabels, ['epic:parked'])
     assert.equal(DEFAULT_ALERTS.epicPushMinutes, 1440)
@@ -29,7 +29,7 @@ describe('parseAlerts', () => {
     )
   })
 
-  it('形が違えば、この機能だけを止める (undefined)', () => {
+  it('when the shape is wrong, stops only this feature (undefined)', () => {
     const bad = [null, 'x', {}, { enabled: 'yes' }, { enabled: true, liaison: '' }, { enabled: true, liaison: 3 }, { enabled: true, epicStallMinutes: 0 }]
     bad.forEach((raw) => assert.equal(parseAlerts(raw), undefined))
     assert.equal(parseAlerts({ enabled: true, emptyEscalateMinutes: '30' }), undefined)
@@ -40,7 +40,7 @@ describe('parseAlerts', () => {
     assert.equal(parseAlerts({ enabled: true, emptyPushMinutes: -1 }), undefined)
   })
 
-  it('config に alerts が無いか壊れていても、設定全体は読め、alerts は既定 (無効) になる', () => {
+  it('even if alerts is missing or broken in the config, the whole config can be read and alerts falls back to the default (disabled)', () => {
     assert.equal(alertsOf(config).enabled, false)
     assert.equal(parseConfig({ ...config, alerts: { enabled: 'yes' } })?.alerts, undefined)
     assert.equal(parseConfig({ ...config, alerts })?.alerts?.liaison, 'Liaison')
@@ -48,13 +48,13 @@ describe('parseAlerts', () => {
 })
 
 describe('roleOf', () => {
-  it('alerts が有効で、窓口の名前なら liaison。無効なら役なし', () => {
+  it("the role is liaison when alerts is enabled and the name is the liaison's; no role when disabled", () => {
     assert.equal(roleOf('Liaison', enabled), 'liaison')
     assert.equal(roleOf('Liaison', { ...enabled, alerts: { ...alerts, enabled: false } }), null)
     assert.equal(roleOf('Liaison', { ...enabled, alerts: { ...alerts, liaison: undefined } }), null)
   })
 
-  it('TechLead と部下の役は変わらない', () => {
+  it('the TechLead and member roles do not change', () => {
     assert.equal(roleOf('TechLead', enabled), 'techlead')
     assert.equal(roleOf('SWE1', enabled), 'member')
     assert.equal(roleOf('someone', enabled), null)
@@ -62,14 +62,14 @@ describe('roleOf', () => {
   })
 })
 
-describe('writeShellPatterns の 4 行目', () => {
+describe('line 4 of writeShellPatterns', () => {
   const line4 = (candidate: typeof config) => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
     writeShellPatterns(p, candidate, bashActionReader(candidate))
     return readFileSync(p.shellPatterns, 'utf8').split('\n')[3]
   }
 
-  it('alerts が有効で窓口の名前があるときだけ 1。bin/scrum が窓口の待機を起こすかを決める', () => {
+  it('is 1 only when alerts is enabled and a liaison name exists; it decides whether bin/scrum starts the liaison watch', () => {
     assert.equal(line4(config), '0')
     assert.equal(line4(enabled), '1')
     assert.equal(line4({ ...enabled, alerts: { ...alerts, liaison: undefined } }), '0')
@@ -78,7 +78,7 @@ describe('writeShellPatterns の 4 行目', () => {
 })
 
 describe('itemsQuery', () => {
-  it('alerts が有効なら、dispatch が無効でも、子の親 (Epic) を取る。どちらも無効なら取らない', () => {
+  it('when alerts is enabled, fetches the parent (Epic) of children even if dispatch is disabled; fetches nothing when both are disabled', () => {
     const alertsOnly = { ...config, alerts }
     assert.match(itemsQuery(alertsOnly), /parent\{ number repository\{ nameWithOwner \} \}/)
     assert.doesNotMatch(itemsQuery(config), /parent\{/)
@@ -86,7 +86,7 @@ describe('itemsQuery', () => {
 })
 
 describe('osascriptArgs', () => {
-  it('本文と題は引数 (argv) で渡し、スクリプトの文字列には埋め込まない。音は指定しない', () => {
+  it('passes the body and title as arguments (argv) and does not embed them in the script string; specifies no sound', () => {
     const body = 'Epic "; do shell script "rm -rf ~"\n-x'
     const args = osascriptArgs('Heading "q"', body)
     const separator = args.indexOf('--')
@@ -103,7 +103,7 @@ describe('liaisonMessage', () => {
   const owner: Notice = { key: 'k1', kind: 'owner', text: '- E-STALL app#100: send the owner one PushNotification', desktop: { title: 't', body: 'b' } }
   const line: Notice = { key: 'k2', kind: 'idle-line', text: '- SWE1 has been idle for 10 minutes. Acknowledgement: none. Harness action: nothing sent yet' }
 
-  it('オーナーへの通知を先に、空きの 1 行を後に並べ、macOS の通知も出していると添える', () => {
+  it('lists the owner notification first, then the idle line, and adds a note that the macOS notification was also emitted', () => {
     assert.equal(
       liaisonMessage([line, owner], enabled),
       [
@@ -115,12 +115,12 @@ describe('liaisonMessage', () => {
     )
   })
 
-  it('オーナーへは送らないと決めた通知 (info) も、オーナーへの通知の後に、窓口への文へ並べる', () => {
+  it('a notification decided not to be sent to the owner (info) is also lined up in the message to the liaison, after the owner notification', () => {
     const info: Notice = { key: 'k3:held', kind: 'info', text: '- E-STALL app#100: the owner was already notified at 16:00, so it is not sent this time' }
     assert.deepEqual(liaisonMessage([info, line, owner], enabled).split('\n').slice(1, 4), [owner.text, info.text, line.text])
   })
 
-  it('空きの 1 行だけなら、通知の添え書きは付けない。macOS の通知が無効でも付けない', () => {
+  it('with only an idle line, no notification note is added; none is added when the macOS notification is disabled either', () => {
     assert.doesNotMatch(liaisonMessage([line], enabled), /macOS/)
     const quiet = { ...enabled, alerts: { ...alerts, isDesktopEnabled: false } }
     assert.doesNotMatch(liaisonMessage([owner], quiet), /macOS/)

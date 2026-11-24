@@ -17,7 +17,7 @@ const config: Config = {
   sprint: { checkpoints: ['08:00', '13:00', '21:00'], utcOffset: '+09:00', pointsField: 'Story points', overrunField: 'Overrun', pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 } },
 }
 const jst = (text: string) => new Date(`${text}+09:00`)
-/** 10/29 09:00 から作業中。またいだ節目は 13:00、21:00、10/30 08:00、13:00。ポイント 3 (目安 2) の超過を出したのは、10/30 08:00 */
+/** In Progress since 10/29 09:00. The checkpoints crossed are 13:00, 21:00, 10/30 08:00, and 13:00. The overrun for 3 points (budget 2) was reported at 10/30 08:00 */
 const NOW = jst('2026-10-30T14:00:00')
 const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: 'In Progress' }]
 const mark = (decision: string, from: number, to: number) => `<!-- scrum:points-overrun decision=${decision} from=${from} to=${to} -->\nTechLead: one line of reasoning`
@@ -35,14 +35,14 @@ const comments = (...list: readonly IssueComment[]) => () => list
 const written = (p: ReturnType<typeof paths>) => readJson<readonly Ack[]>(p.acks, [])
 
 describe('scrum ack S-POINTS-OVER', () => {
-  it('超過を出した節目より後の印があれば、受け入れて、根拠を残す', () => {
+  it('when a marker later than the checkpoint that reported the overrun exists, accepts and keeps the basis', () => {
     const p = setup()
     const text = ack(p, comments({ body: mark('split', 3, 3), createdAt: AFTER, url: 'https://example.invalid/c/1' }))
     assert.match(text, /^Acknowledged: S-POINTS-OVER app#1/)
     assert.equal(written(p)[0]?.basis, 'decision=split from=3 to=3 (https://example.invalid/c/1)')
   })
 
-  it('印が無ければ、受け入れず、何も書かない。メッセージに、印の書き方を出す', () => {
+  it('when there is no marker, does not accept and writes nothing; shows how to write the marker in the message', () => {
     const p = setup()
     const text = ack(p, comments({ body: 'Revise the estimate in the review', createdAt: AFTER }))
     assert.match(text, /^An S-POINTS-OVER acknowledgement is not accepted until a record is added/)
@@ -50,31 +50,31 @@ describe('scrum ack S-POINTS-OVER', () => {
     assert.deepEqual(written(p), [])
   })
 
-  it('超過を出した節目より前の印は、使わない', () => {
+  it('does not use a marker earlier than the checkpoint that reported the overrun', () => {
     const p = setup()
     assert.match(ack(p, comments({ body: mark('keep', 3, 3), createdAt: BEFORE })), /added after the checkpoint that showed the overrun \(2026-10-29T23:00:00\.000Z\)/)
     assert.deepEqual(written(p), [])
   })
 
-  it('reestimate の印は、ボードのポイントが to に直っていなければ、受け入れない。直っていれば受け入れる', () => {
+  it("does not accept a reestimate marker unless the board's points were fixed to to; accepts it when they were", () => {
     const stale = setup(3)
     assert.match(ack(stale, comments({ body: mark('reestimate', 3, 5), createdAt: AFTER })), /to=5 differs from the points on the board \(3\)/)
     assert.deepEqual(written(stale), [])
     const fixed = setup(5)
-    // ポイント 5 (目安 3) は、4 つの節目で 1 つ超え、超過を出した節目は 10/30 13:00。印はそれより後に付ける
+    // 5 points (budget 3) exceed the budget by one over four checkpoints, and the checkpoint that reported the overrun is 10/30 13:00. The marker is placed after it
     const text = ack(fixed, comments({ body: mark('reestimate', 3, 5), createdAt: jst('2026-10-30T13:30:00').toISOString() }))
     assert.match(text, /^Acknowledged/)
     assert.match(written(fixed)[0]?.basis ?? '', /^decision=reestimate from=3 to=5/)
   })
 
-  it('いま超過が出ていない issue と、控えに無い issue は、受け入れない', () => {
+  it('does not accept for an issue with no overrun now or one not in the board copy', () => {
     const p = setup(8)
     assert.match(ack(p, comments({ body: mark('keep', 8, 8), createdAt: AFTER })), /has no S-POINTS-OVER now \(effort 4, budget 5\)/)
     assert.match(ack(p, comments(), 'app#99'), /app#99 is not in the board copy/)
     assert.deepEqual(written(p), [])
   })
 
-  it('issue のコメントを読めなければ、受け入れず、理由を出す', () => {
+  it("when the issue's comments cannot be read, does not accept and shows the reason", () => {
     const p = setup()
     const text = ack(p, () => {
       throw new Error('gh crashed')
@@ -83,19 +83,19 @@ describe('scrum ack S-POINTS-OVER', () => {
     assert.deepEqual(written(p), [])
   })
 
-  it('sprint の設定が無ければ、受け入れない', () => {
+  it('does not accept when there is no sprint config', () => {
     const p = setup()
     assert.match(ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: 'x' }, null, NOW, { comments: comments() }), /There is no sprint configuration/)
     assert.deepEqual(written(p), [])
   })
 
-  it('S-POINTS-OVER 以外の受け入れは、印を求めない', () => {
+  it('acknowledgements other than S-POINTS-OVER do not ask for a marker', () => {
     const p = setup()
     assert.match(ackCommand(p, ['B-BLOCK-STALE', 'app#12'], { for: '2h', reason: 'Waiting for the night run' }, config, NOW), /^Acknowledged: B-BLOCK-STALE app#12/)
   })
 })
 
-describe('S-POINTS-OVER の受け入れが、指摘を消す条件', () => {
+describe('the condition under which an S-POINTS-OVER acknowledgement clears the finding', () => {
   const over = (snap: ReturnType<typeof snapshot>) => lintSprint(snap, historyOf(), config, NOW).filter((one) => one.rule === 'S-POINTS-OVER')
   const live = (extra: Partial<Ack> = {}): Ack => ({
     rule: 'S-POINTS-OVER',
@@ -106,19 +106,19 @@ describe('S-POINTS-OVER の受け入れが、指摘を消す条件', () => {
     ...extra,
   })
 
-  it('根拠 (basis) の無い受け入れは、期限内でも指摘を消さない。根拠が付いていれば消す', () => {
+  it('an acknowledgement without a basis does not clear the finding even within its expiry; one with a basis clears it', () => {
     const findings = over(snapshot([issue(1, { status: 'In Progress', assignee: 'SWE1', points: 3, statusEvents: doingSince })]))
     assert.equal(findings.length, 1)
     assert.equal(applyAcks(findings, [live()], NOW).active.length, 1)
     assert.equal(applyAcks(findings, [live({ basis: 'decision=keep from=3 to=3' })], NOW).active.length, 0)
   })
 
-  it('ほかの規則の受け入れは、根拠が無くても指摘を消す', () => {
+  it('an acknowledgement of another rule clears the finding even without a basis', () => {
     const finding = makeFinding({ rule: 'B-BLOCK-STALE', subject: 'app#1', severity: 'medium', message: 'x', fix: 'y' })
     assert.equal(applyAcks([finding], [live({ rule: 'B-BLOCK-STALE' })], NOW).active.length, 0)
   })
 
-  it('scrum acks は、根拠を出す。根拠の無い S-POINTS-OVER の受け入れには、指摘が消えないと書く', () => {
+  it('scrum acks shows the basis; for an S-POINTS-OVER acknowledgement without a basis, writes that the finding will not clear', () => {
     const p = setup()
     writeJson(p.acks, [live({ until: new Date(Date.now() + 3_600_000).toISOString(), basis: 'decision=keep from=2 to=2' }), live({ subject: 'app#2', until: new Date(Date.now() + 3_600_000).toISOString() })])
     const lines = acksCommand(p).split('\n')

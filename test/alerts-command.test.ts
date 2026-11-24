@@ -15,16 +15,16 @@ import { config, NOW, snapshot } from './helpers.ts'
 import { child, enabled, epic } from './alerts-fixtures.ts'
 import { fakePorts } from './fake-ports.ts'
 
-/** 取り直しを、渡した関数で置き換えたポート。関数は、取り直した控えを返す。 */
+/** A port whose re-fetch is replaced by the given function. The function returns the re-fetched board copy. */
 const refreshing = (fetchSnapshot: () => Snapshot) => fakePorts({ board: { ...fakePorts().board, fetchSnapshot } })
 
 describe('alertsCommand (scrum alerts)', () => {
-  it('alerts が有効でなければ、何もせず、理由を返す', () => {
+  it('does nothing and returns the reason when alerts is not enabled', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
     assert.match(alertsCommand(p, config, NOW, fakePorts()), /alerts is not enabled/)
   })
 
-  it('有効なら、検知を 1 回進め、macOS の通知を、まだなら出し、動く人のいない Epic と、渡せる issue が無い部下の数を返す', () => {
+  it('when enabled, advances detection once, sends the macOS notification if not yet sent, and returns the number of Epics nobody is working on and of members with no issue to hand over', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
     const board = { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: NOW.toISOString() }
     saveSnapshot(p, board)
@@ -37,10 +37,10 @@ describe('alertsCommand (scrum alerts)', () => {
   })
 })
 
-describe('alertsCommand の控えの取り直し', () => {
+describe('alertsCommand board copy refresh', () => {
   const stale = (p: ReturnType<typeof paths>) => saveSnapshot(p, { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() })
 
-  it('控えが古ければ、検知の前に取り直す (launchd の夜は、ほかに取り直す人がいない)', () => {
+  it('refreshes a stale board copy before detection (on a launchd night nobody else refreshes it)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
     const order: string[] = []
@@ -56,7 +56,7 @@ describe('alertsCommand の控えの取り直し', () => {
     assert.deepEqual(order, ['refresh'])
   })
 
-  it('控えが新しければ、取り直さない', () => {
+  it('does not refresh a fresh board copy', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     saveSnapshot(p, { ...snapshot([epic()]), fetchedAt: NOW.toISOString() })
     let called = false
@@ -72,7 +72,7 @@ describe('alertsCommand の控えの取り直し', () => {
     assert.equal(called, false)
   })
 
-  it('取り直した後の控えで、検知する (取り直しが控えを新しくすれば、その控えを使う)', () => {
+  it('detects with the board copy obtained by the refresh (if the refresh makes the copy fresh, that copy is used)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
     const refreshed = { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: NOW.toISOString() }
@@ -80,7 +80,7 @@ describe('alertsCommand の控えの取り直し', () => {
     assert.match(text, /Epics with nobody moving: 1/)
   })
 
-  it('本物の取り直しは、gh を呼ぶ前に、試した時刻を書く (gh が使えなくても、5 分ごとに叩き続けない)', () => {
+  it('the real refresh writes the attempt time before calling gh (so it does not hit gh every 5 minutes when gh is unusable)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
     const savedPath = process.env.PATH
@@ -94,22 +94,22 @@ describe('alertsCommand の控えの取り直し', () => {
   })
 })
 
-describe('launchd の雛形', () => {
+describe('launchd template', () => {
   const plist = readFileSync(fileURLToPath(new URL('../launchd/scrum-alerts.plist', import.meta.url)), 'utf8')
 
-  it('5 分ごとに、bin/scrum alerts を流し、読み込んだ直後には流さない', () => {
+  it('runs bin/scrum alerts every 5 minutes and not right after being loaded', () => {
     assert.match(plist, /<key>StartInterval<\/key>\s*<integer>300<\/integer>/)
     assert.match(plist, /<key>RunAtLoad<\/key>\s*<false\/>/)
     assert.match(plist, /<string>\{\{SCRUM_DIR\}\}\/bin\/scrum<\/string>\s*<string>alerts<\/string>/)
   })
 
-  it('置き換える場所 ({{HOME}}、{{SCRUM_DIR}}、{{PATH}}) 以外に、決め打ちのパスを持たない (node と gh の場所は、置くときに読む)', () => {
+  it('holds no hardcoded path other than the placeholders ({{HOME}}, {{SCRUM_DIR}}, {{PATH}}); the locations of node and gh are read at install time', () => {
     assert.doesNotMatch(plist.replaceAll('{{HOME}}', '').replaceAll('{{SCRUM_DIR}}', '').replaceAll('{{PATH}}', ''), /\/Users\/|\/opt\/homebrew|\/usr\/local/)
     assert.match(plist, /<key>PATH<\/key>\s*<string>\{\{PATH\}\}<\/string>/)
   })
 })
 
-describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => {
+describe('launchd/render.sh (fills the template with the values of this Mac)', () => {
   const script = fileURLToPath(new URL('../launchd/render.sh', import.meta.url))
   const fakeTool = (dir: string, name: string) => {
     mkdirSync(dir, { recursive: true })
@@ -127,7 +127,7 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     return dir
   }
 
-  it('{{ を残さず、PATH に node と gh のあるディレクトリを入れる (node と gh が別の場所でも)', () => {
+  it('leaves no {{ behind and puts the directories of node and gh into PATH (even when node and gh live in different places)', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
     fakeTool(join(root, 'nodebin'), 'node')
     fakeTool(join(root, 'ghbin'), 'gh')
@@ -139,7 +139,7 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     assert.match(result.stdout, /<string>[^<]*\/bin\/scrum<\/string>\s*<string>alerts<\/string>/)
   })
 
-  it('node と gh が同じ場所なら、1 つにまとめる', () => {
+  it('merges node and gh into one entry when they are in the same place', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
     fakeTool(join(root, 'bin'), 'node')
     fakeTool(join(root, 'bin'), 'gh')
@@ -147,7 +147,7 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     assert.match(result.stdout, new RegExp(`<string>${join(root, 'bin')}:/usr/bin:/bin</string>`))
   })
 
-  it('node か gh が見つからなければ、何も出さず、理由を出して止まる', () => {
+  it('prints nothing and stops with the reason when node or gh cannot be found', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
     fakeTool(join(root, 'bin'), 'node')
     const tools = systemTools()
@@ -161,7 +161,7 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     assert.match(noNode.stderr, /node not found/)
   })
 
-  it('置き換えた後に、plutil の検査を通る (macOS のときだけ)', { skip: process.platform !== 'darwin' }, () => {
+  it('passes the plutil check after substitution (macOS only)', { skip: process.platform !== 'darwin' }, () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
     fakeTool(join(root, 'bin'), 'node')
     fakeTool(join(root, 'bin'), 'gh')

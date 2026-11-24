@@ -15,7 +15,7 @@ let p: Paths
 let refreshes = 0
 let checkpoints = 0
 
-/** prBody は、マージした PR の本文 (読めなければ null)。本文から issue を拾うのは GitHub のアダプタのまま使う。 */
+/** prBody is the body of the merged PR (null if it cannot be read). Picking the issue out of the body still goes through the GitHub adapter. */
 type DepsOverrides = Partial<HookDeps> & { readonly prBody?: (prLabel: string, repo: string) => string | null }
 
 function deps(name: string | null, overrides: DepsOverrides = {}): HookDeps {
@@ -52,39 +52,39 @@ beforeEach(() => {
 })
 
 describe('TechLead', () => {
-  it('SessionStart で要約を入れ、知らせた指摘を覚える', () => {
+  it('puts the summary in at SessionStart and remembers the findings announced', () => {
     const result = handleHook('SessionStart', { session_id: 'sid', source: 'startup' }, deps('TechLead'))
     assert.match(context(result), /B-DOING-NO-ASSIGNEE app#1 is In Progress but has no assignee/)
     assert.deepEqual(readJson(p.notified, []), ['B-DOING-NO-ASSIGNEE:app#1'])
   })
 
-  it('UserPromptSubmit では知らせていない指摘だけを入れる', () => {
+  it('at UserPromptSubmit, puts in only the findings not yet announced', () => {
     handleHook('SessionStart', { source: 'startup' }, deps('TechLead'))
     assert.equal(context(handleHook('UserPromptSubmit', {}, deps('TechLead'))), '')
     saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), issue(3, { state: 'CLOSED', status: 'In Progress' })]))
     assert.match(context(handleHook('UserPromptSubmit', {}, deps('TechLead'))), /B-CLOSED-NOT-DONE app#3/)
   })
 
-  it('set-status の後に控えを直し、その issue の指摘を入れる', () => {
+  it('after set-status, updates the board copy and puts in the findings for that issue', () => {
     const input = { tool_name: 'Bash', tool_input: { command: 'set-status 2 "In Progress"' } }
     const text = context(handleHook('PostToolUse', input, deps('TechLead')))
     assert.match(text, /app#2 is In Progress but has no assignee/)
     assert.equal(loadSnapshot(p)?.items.find((item) => item.number === 2)?.status, 'In Progress')
   })
 
-  it('マージの後に、本文が触れる issue の状態を入れる', () => {
+  it('after a merge, puts in the state of the issues the body touches', () => {
     const input = { tool_name: 'Bash', tool_input: { command: 'merge-pr example-org/app 102' } }
     assert.match(context(handleHook('PostToolUse', input, deps('TechLead'))), /app#102 was merged[\s\S]*app#1 Status=In Progress/)
   })
 
-  it('PR の本文は、コマンドが指したリポジトリで読む (設定に無いリポジトリを defaultRepo と取り違えない)', () => {
+  it('reads the PR body in the repository the command pointed at (does not mistake a repository missing from the config for defaultRepo)', () => {
     const asked: (readonly [string, string])[] = []
     const input = { tool_name: 'Bash', tool_input: { command: 'gh pr merge 3 -R other-owner/tool --squash' } }
     handleHook('PostToolUse', input, deps('TechLead', { prBody: (prLabel, repo) => (asked.push([prLabel, repo]), null) }))
     assert.deepEqual(asked, [['tool#3', 'other-owner/tool']])
   })
 
-  it('merge-pr のスクリプトの形のマージも、defaultRepo と違うリポジトリの PR は、そのリポジトリの本文を読み、案内を作る', () => {
+  it('even a merge in the shape of the merge-pr script reads the body of a PR from a repository different from defaultRepo, in that repository, and builds the guidance', () => {
     saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: 'In Progress' }), repo: 'other-owner/tool' }]))
     const asked: (readonly [string, string])[] = []
     const input = { tool_name: 'Bash', tool_input: { command: 'merge-pr other-owner/tool 3 abc123' } }
@@ -95,7 +95,7 @@ describe('TechLead', () => {
     assert.match(text, /tool#3 was merged[\s\S]*tool#1 Status=In Progress/)
   })
 
-  it('別のリポジトリの PR のマージは、本文が触れる番号を、そのリポジトリの issue として読む', () => {
+  it('the merge of a PR in another repository reads the numbers the body touches as issues of that repository', () => {
     saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: 'In Progress' }), repo: 'other-owner/tool' }]))
     const input = { tool_name: 'Bash', tool_input: { command: 'gh pr merge 3 -R other-owner/tool --squash' } }
     const text = context(handleHook('PostToolUse', input, deps('TechLead', { prBody: () => '#1 continues' })))
@@ -103,41 +103,41 @@ describe('TechLead', () => {
     assert.doesNotMatch(text, /tool#3 was merged[\s\S]*app#1 Status/)
   })
 
-  it('知らせたら、待機プロセスの印を消す', () => {
+  it("once announced, clears the watch process's marker", () => {
     writeJson(p.pending, true)
     handleHook('UserPromptSubmit', {}, deps('TechLead'))
     assert.equal(existsSync(p.pending), false)
   })
 
-  it('スクリプトを通さない書き換えの後はボードを取り直す', () => {
+  it('after a board rewrite that bypasses the script, refreshes the board', () => {
     handleHook('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'gh project item-edit --id X' } }, deps('TechLead'))
     assert.equal(refreshes, 1)
   })
 
-  it('PreToolUse で PR への Status を拒否する', () => {
+  it('at PreToolUse, refuses a Status on a PR', () => {
     const result = handleHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'set-status 102 "In Progress"' } }, deps('TechLead'))
     assert.deepEqual((result.stdout as { hookSpecificOutput: { permissionDecision: string } }).hookSpecificOutput.permissionDecision, 'deny')
   })
 
-  it('Stop は止めたことのない高い指摘があるときだけ一度止める', () => {
+  it('Stop blocks once, only when there is a high finding that has never been blocked', () => {
     const first = handleHook('Stop', { stop_hook_active: false }, deps('TechLead'))
     assert.equal((first.stdout as { decision?: string }).decision, 'block')
     assert.match((first.stdout as { reason: string }).reason, /app#1/)
     assert.equal(handleHook('Stop', { stop_hook_active: false }, deps('TechLead')).stdout, undefined)
   })
 
-  it('Stop は stop_hook_active のときは止めない', () => {
+  it('Stop does not block when stop_hook_active is set', () => {
     assert.equal(handleHook('Stop', { stop_hook_active: true }, deps('TechLead')).stdout, undefined)
   })
 
-  it('isStopBlockEnabled が false なら止めない', () => {
+  it('does not block when isStopBlockEnabled is false', () => {
     const off = deps('TechLead', { config: { ...config, isStopBlockEnabled: false } })
     assert.equal(handleHook('Stop', { stop_hook_active: false }, off).stdout, undefined)
   })
 })
 
-describe('部下とほかのセッション', () => {
-  it('部下のフックは心拍だけを書き、何も入れない', () => {
+describe('members and other sessions', () => {
+  it("a member's hook writes only the heartbeat and puts nothing in", () => {
     const busy = handleHook('PostToolUse', { tool_name: 'Read', tool_input: {} }, deps('SWE1'))
     assert.equal(busy.stdout, undefined)
     const beat = readJson<{ state: string } | null>(join(p.heartbeats, 'sid-SWE1.json'), null)
@@ -146,19 +146,19 @@ describe('部下とほかのセッション', () => {
     assert.equal(readJson<{ state: string } | null>(join(p.heartbeats, 'sid-SWE1.json'), null)?.state, 'idle')
   })
 
-  it('許可の確認の通知で許可待ちにする', () => {
+  it('a notification asking for permission marks the member as waiting for permission', () => {
     handleHook('Notification', { notification_type: 'permission_prompt' }, deps('SWE1'))
     assert.equal(readJson<{ state: string } | null>(join(p.heartbeats, 'sid-SWE1.json'), null)?.state, 'waiting')
   })
 
-  it('チームの外のセッションでは何もしない', () => {
+  it('does nothing in a session outside the team', () => {
     const result = handleHook('Stop', { stop_hook_active: false }, deps(null))
     assert.equal(result.stdout, undefined)
     assert.throws(() => readdirSync(p.heartbeats))
   })
 })
 
-describe('節目の記録の起動', () => {
+describe('starting the checkpoint record', () => {
   const sprint = {
     checkpoints: ['08:00', '13:00', '21:00'],
     utcOffset: '+09:00',
@@ -167,17 +167,17 @@ describe('節目の記録の起動', () => {
   }
   const withSprint = (name: string | null) => deps(name, { config: { ...config, sprint } })
 
-  it('記録していない節目があれば、部下のフックからでも裏で記録を始める', () => {
+  it("when there is a checkpoint not yet recorded, starts recording in the background even from a member's hook", () => {
     handleHook('Stop', { stop_hook_active: false }, withSprint('SWE1'))
     assert.equal(checkpoints, 1)
   })
 
-  it('TechLead のフックからも始める', () => {
+  it("also starts from the TechLead's hook", () => {
     handleHook('UserPromptSubmit', {}, withSprint('TechLead'))
     assert.equal(checkpoints, 1)
   })
 
-  it('チームの外のセッションと、sprint の設定が無いときは始めない', () => {
+  it('does not start in a session outside the team or when there is no sprint config', () => {
     handleHook('Stop', { stop_hook_active: false }, withSprint(null))
     handleHook('Stop', { stop_hook_active: false }, deps('SWE1'))
     assert.equal(checkpoints, 0)

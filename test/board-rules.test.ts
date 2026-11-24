@@ -8,111 +8,111 @@ function rulesOf(items: Parameters<typeof snapshot>[0], openIssues?: Parameters<
 }
 
 describe('lintBoard', () => {
-  it('作業中が上限を超えると B-WIP-OVER を出す', () => {
+  it('emits B-WIP-OVER when In Progress exceeds the limit', () => {
     const doing = Array.from({ length: 11 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' }))
     assert.deepEqual(rulesOf(doing), ['B-WIP-OVER board'])
   })
 
-  it('作業中がちょうど上限なら何も出さない', () => {
+  it('emits nothing when In Progress is exactly at the limit', () => {
     const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' }))
     assert.deepEqual(rulesOf(doing), [])
   })
 
-  it('閉じた issue の作業中は上限に数えない', () => {
+  it('does not count the In Progress of a closed issue toward the limit', () => {
     const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' }))
     const closed = issue(99, { status: 'In Progress', state: 'CLOSED', assignee: 'SWE1' })
     assert.deepEqual(rulesOf([...doing, closed]), ['B-CLOSED-NOT-DONE app#99'])
   })
 
-  it('作業中に担当が無いと B-DOING-NO-ASSIGNEE を出す', () => {
+  it('emits B-DOING-NO-ASSIGNEE when In Progress has no assignee', () => {
     assert.deepEqual(rulesOf([issue(5, { status: 'In Progress' })]), ['B-DOING-NO-ASSIGNEE app#5'])
   })
 
-  it('閉じた issue が完了でないと B-CLOSED-NOT-DONE を出す', () => {
+  it('emits B-CLOSED-NOT-DONE when a closed issue is not Done', () => {
     assert.deepEqual(rulesOf([issue(7, { state: 'CLOSED', status: 'Release' })]), ['B-CLOSED-NOT-DONE app#7'])
   })
 
-  it('開いた issue が完了なら B-OPEN-DONE を出す', () => {
+  it('emits B-OPEN-DONE when an open issue is Done', () => {
     assert.deepEqual(rulesOf([issue(8, { status: 'Done' })]), ['B-OPEN-DONE app#8'])
   })
 
-  it('PR に Status があると B-PR-STATUS を出す', () => {
+  it('emits B-PR-STATUS when a PR has a Status', () => {
     assert.deepEqual(rulesOf([pr(102, { status: 'In Progress' })]), ['B-PR-STATUS app#102'])
   })
 
-  it('Status の無い PR は何も出さない', () => {
+  it('emits nothing for a PR without a Status', () => {
     assert.deepEqual(rulesOf([pr(103)]), [])
   })
 
-  it('開いた issue に Status が無いと B-NO-STATUS を出す', () => {
+  it('emits B-NO-STATUS when an open issue has no Status', () => {
     assert.deepEqual(rulesOf([issue(9, { status: null })]), ['B-NO-STATUS app#9'])
   })
 
-  it('開いた issue がボードに無いと B-OFF-BOARD を出す', () => {
+  it('emits B-OFF-BOARD when an open issue is not on the board', () => {
     const openIssues = [{ repo: 'example-org/app', number: 42, author: 'owner' }]
     assert.deepEqual(rulesOf([], openIssues), ['B-OFF-BOARD app#42'])
   })
 
-  it('次にやるが止まっていると B-NEXT-BLOCKED を出す', () => {
+  it('emits B-NEXT-BLOCKED when a Next item is blocked', () => {
     const item = issue(10, { status: 'Next', reason: 'External wait', since: '2026-10-07' })
     assert.deepEqual(rulesOf([item]), ['B-NEXT-BLOCKED app#10'])
   })
 
-  it('判断待ちの Owner がオーナーでないと B-JUDGE-OWNER を出す', () => {
+  it('emits B-JUDGE-OWNER when the Owner of a decision-pending item is not the owner', () => {
     const item = issue(11, { reason: 'Needs decision', since: '2026-10-07', owner: 'AI' })
     assert.deepEqual(rulesOf([item]), ['B-JUDGE-OWNER app#11'])
   })
 
-  it('止まっているのに止まり始めた日が無いと B-SINCE-MISSING を出す', () => {
+  it('emits B-SINCE-MISSING when blocked but no block-start day exists', () => {
     assert.deepEqual(rulesOf([issue(12, { reason: 'External wait' })]), ['B-SINCE-MISSING app#12'])
   })
 
-  it('止まっている理由が空だと B-REASON-MISSING を出す', () => {
+  it('emits B-REASON-MISSING when the blocked reason is empty', () => {
     assert.deepEqual(rulesOf([issue(13, { reason: null })]), ['B-REASON-MISSING app#13'])
   })
 
-  it('理由がなしなのに日が残っていると B-SINCE-STRAY を出す', () => {
+  it('emits B-SINCE-STRAY when the reason is none but a day remains', () => {
     assert.deepEqual(rulesOf([issue(14, { since: '2026-10-01' })]), ['B-SINCE-STRAY app#14'])
   })
 
-  it('止まり始めた日が古いと B-BLOCK-STALE を出す', () => {
+  it('emits B-BLOCK-STALE when the block-start day is old', () => {
     const item = issue(15, { reason: 'External wait', since: '2026-09-30' })
     assert.deepEqual(rulesOf([item]), ['B-BLOCK-STALE app#15'])
   })
 
-  it('止まり始めて上限の日数ちょうどなら古いとしない', () => {
+  it('does not call it stale when exactly the limit in days has passed since the block began', () => {
     const item = issue(16, { reason: 'External wait', since: '2026-10-01' })
     assert.deepEqual(rulesOf([item]), [])
   })
 
-  it('対象外の作者の issue は検査しない', () => {
+  it('does not check issues by excluded authors', () => {
     const item = issue(17, { author: 'external-dev', status: null, reason: null })
     const openIssues = [{ repo: 'example-org/app', number: 18, author: 'external-dev' }]
     assert.deepEqual(rulesOf([item], openIssues), [])
   })
 
-  it('指摘に重さと直し方が付く', () => {
+  it('a finding carries a severity and a fix', () => {
     const [finding] = lintBoard(snapshot([issue(5, { status: 'In Progress' })]), config, NOW)
     assert.equal(finding?.severity, 'high')
     assert.equal(finding?.key, 'B-DOING-NO-ASSIGNEE:app#5')
     assert.match(finding?.fix ?? '', /set-assignee 5 /)
   })
 
-  it('中身の読めない項目があれば、B-OFF-BOARD は判じられないので出さず、B-UNREADABLE を1件出す', () => {
+  it('when an item has unreadable content, does not emit B-OFF-BOARD since it cannot be judged, and emits one B-UNREADABLE', () => {
     const unreadable = issue(0, { number: null, repo: '' })
     const openIssues = [{ repo: 'example-org/app', number: 42, author: 'owner' }]
     assert.deepEqual(rulesOf([unreadable], openIssues), ['B-UNREADABLE board'])
   })
 })
 
-describe('直し方と呼び方の設定', () => {
-  it('スクリプトを設定していなければ、直し方を文で返す', () => {
+describe('fix and naming configuration', () => {
+  it('when no script is configured, returns the fix as a sentence', () => {
     const bare = { ...config, scripts: {} }
     const [finding] = lintBoard(snapshot([issue(7, { state: 'CLOSED', status: 'Release' })]), bare, NOW)
     assert.equal(finding?.fix, 'Set Status to Done')
   })
 
-  it('判断待ちの指摘に、設定の呼び方を使う', () => {
+  it('uses the configured name in the finding about a decision-pending item', () => {
     const named = { ...config, ownerLabel: 'PM' }
     const [finding] = lintBoard(snapshot([issue(11, { reason: 'Needs decision', since: '2026-10-07', owner: 'AI' })]), named, NOW)
     assert.match(finding?.message ?? '', /does not show in PM's view/)

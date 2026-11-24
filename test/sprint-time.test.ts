@@ -15,24 +15,24 @@ const sprint: SprintConfig = {
 const jst = (text: string) => new Date(`${text}+09:00`)
 const iso = (dates: readonly Date[]) => dates.map((date) => date.toISOString())
 
-describe('節目の時刻', () => {
-  it('期間 (from, to] にある節目を、日をまたいで並べる', () => {
+describe('checkpoint times', () => {
+  it('lists the checkpoints in the period (from, to], across days', () => {
     const found = checkpointsBetween(jst('2026-10-29T12:00:00'), jst('2026-10-30T08:00:00'), sprint)
     assert.deepEqual(iso(found), iso([jst('2026-10-29T13:00:00'), jst('2026-10-29T21:00:00'), jst('2026-10-30T08:00:00')]))
   })
 
-  it('始まりちょうどの節目は含めない', () => {
+  it('does not include a checkpoint exactly at the start', () => {
     assert.deepEqual(checkpointsBetween(jst('2026-10-30T08:00:00'), jst('2026-10-30T12:59:00'), sprint), [])
   })
 
-  it('今以前の最後の節目と、次の節目', () => {
+  it('the last checkpoint up to now, and the next checkpoint', () => {
     assert.equal(latestCheckpoint(jst('2026-10-30T07:59:00'), sprint).toISOString(), jst('2026-10-29T21:00:00').toISOString())
     assert.equal(latestCheckpoint(jst('2026-10-30T13:00:00'), sprint).toISOString(), jst('2026-10-30T13:00:00').toISOString())
     assert.equal(nextCheckpoint(jst('2026-10-30T13:00:00'), sprint).toISOString(), jst('2026-10-30T21:00:00').toISOString())
   })
 })
 
-describe('作業中の期間', () => {
+describe('In Progress periods', () => {
   const events = [
     { at: '2026-10-22T22:39:31Z', status: 'Next' },
     { at: '2026-10-22T23:02:25Z', status: 'In Progress' },
@@ -40,7 +40,7 @@ describe('作業中の期間', () => {
     { at: '2026-10-29T00:36:02Z', status: 'In Progress' },
   ]
 
-  it('作業中に入ってから出るまでを、出入りの回数だけ並べ、今も作業中なら今で閉じる', () => {
+  it('lists the span from entering In Progress to leaving it, once per entry and exit, and closes it at now if still In Progress', () => {
     const now = new Date('2026-10-30T01:00:00Z')
     assert.deepEqual(doingIntervals(events, 'In Progress', now), [
       { start: Date.parse('2026-10-22T23:02:25Z'), end: Date.parse('2026-10-24T01:58:51Z') },
@@ -48,26 +48,26 @@ describe('作業中の期間', () => {
     ])
   })
 
-  it('時刻の順に並べ直してから数える', () => {
+  it('counts after re-sorting by time', () => {
     const now = new Date('2026-10-30T01:00:00Z')
     assert.deepEqual(doingIntervals(events.toReversed(), 'In Progress', now), doingIntervals(events, 'In Progress', now))
   })
 })
 
-describe('手間と目安', () => {
+describe('effort and budget', () => {
   const intervals = [{ start: jst('2026-10-29T09:00:00').getTime(), end: jst('2026-10-30T14:00:00').getTime() }]
 
-  it('作業中の期間にまたいだ節目を数える', () => {
-    // 10/29 13:00、21:00、10/30 08:00、13:00
+  it('counts the checkpoints crossed during the In Progress period', () => {
+    // 10/29 13:00, 21:00, 10/30 08:00, 13:00
     assert.equal(countEffort(intervals, sprint, () => false), 4)
   })
 
-  it('止まっていた節目は数えない', () => {
+  it('does not count checkpoints during which the team was stalled', () => {
     const blocked = (at: Date) => at.getTime() >= jst('2026-10-30T00:00:00').getTime()
     assert.equal(countEffort(intervals, sprint, blocked), 2)
   })
 
-  it('ポイントから目安の節目の数を引く。段に無いポイントは null', () => {
+  it('subtracts the number of budget checkpoints from the points; points not in the tier table give null', () => {
     assert.equal(budgetFor(3, sprint), 2)
     assert.equal(budgetFor(8, sprint), 5)
     assert.equal(budgetFor(4, sprint), null)
