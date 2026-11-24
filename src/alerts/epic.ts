@@ -38,7 +38,7 @@ export function epicViews(snapshot: Snapshot, members: readonly MemberState[], c
     const isExcludedAuthor = self !== undefined && config.excludeAuthors.includes(self.author ?? '')
     if (!isLive || isParked || isExcludedAuthor || (self !== undefined && self.state !== 'OPEN')) return []
     const doing = openChildren.filter((child) => child.status === config.statuses.doing)
-    const movers = [...new Set(doing.flatMap((child) => (child.tanto !== null && busy.has(child.tanto) ? [child.tanto] : [])))]
+    const movers = [...new Set(doing.flatMap((child) => (child.assignee !== null && busy.has(child.assignee) ? [child.assignee] : [])))]
     return [{ epic, title: self?.title ?? null, openChildren, doing, movers }]
   })
 }

@@ -46,7 +46,7 @@ export function workItems(items: readonly BoardItem[], config: Config, fetchedAt
           ref: label(item),
           title: item.title,
           status,
-          ...(item.tanto === null || item.tanto === '' ? {} : { assignee: item.tanto }),
+          ...(item.assignee === null || item.assignee === '' ? {} : { assignee: item.assignee }),
           ...(reason === null ? {} : { blocked: { reason, since: blockedSince(item, fetchedAt) } }),
           ...(item.epic === null || item.epic === undefined ? {} : { epic: item.epic }),
           ...(hasPoints ? { points: item.points as number } : {}),

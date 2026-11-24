@@ -34,7 +34,7 @@ function numbered(repo: string, value: string | undefined): string | null {
 
 type ScriptKey = Exclude<keyof BoardScripts, 'clearValue'>
 
-const SCRIPT_KEYS: readonly ScriptKey[] = ['setStatus', 'setReason', 'setTanto', 'bulkStatus', 'mergePr']
+const SCRIPT_KEYS: readonly ScriptKey[] = ['setStatus', 'setReason', 'setAssignee', 'bulkStatus', 'mergePr']
 
 const baseName = (name: string): string => name.split('/').pop() ?? name
 
@@ -54,9 +54,9 @@ function parseScript(key: ScriptKey, args: readonly string[], config: Config): B
       const reason = normalizeReason(args[1], config)
       return issueLabel && reason ? { kind: 'set-reason', label: issueLabel, reason, since: args[2] ?? null } : null
     }
-    case 'setTanto': {
-      const tanto = args[1] === config.scripts.clearValue ? null : (args[1] ?? null)
-      return issueLabel && args[1] ? { kind: 'set-tanto', label: issueLabel, tanto } : null
+    case 'setAssignee': {
+      const assignee = args[1] === config.scripts.clearValue ? null : (args[1] ?? null)
+      return issueLabel && args[1] ? { kind: 'set-assignee', label: issueLabel, assignee } : null
     }
     case 'bulkStatus': {
       const status = normalizeStatus(args[0], config)

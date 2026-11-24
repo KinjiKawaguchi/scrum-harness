@@ -3,10 +3,17 @@ import type { BoardSource } from '../ports/index.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
+import { withAssignee } from '../compat.ts'
 import type { Snapshot } from './types.ts'
 
+/** A saved board copy, with every item's `tanto` read as `assignee`. */
+function readSnapshot(path: string): Snapshot | null {
+  const snapshot = readJson<Snapshot | null>(path, null)
+  return snapshot === null ? null : { ...snapshot, items: snapshot.items.map(withAssignee) }
+}
+
 export function loadSnapshot(p: Paths): Snapshot | null {
-  return readJson<Snapshot | null>(p.snapshot, null)
+  return readSnapshot(p.snapshot)
 }
 
 export function saveSnapshot(p: Paths, snapshot: Snapshot): void {
@@ -15,7 +22,7 @@ export function saveSnapshot(p: Paths, snapshot: Snapshot): void {
 
 /** 最後に取り直して取れた控え。済んだ issue を見つける比べの元で、フックが Status を直して書く控え (loadSnapshot) とは別にする。 */
 export function loadFetchedSnapshot(p: Paths): Snapshot | null {
-  return readJson<Snapshot | null>(p.fetchedSnapshot, null)
+  return readSnapshot(p.fetchedSnapshot)
 }
 
 export function isStale(snapshot: Snapshot | null, config: Config, now: Date): boolean {

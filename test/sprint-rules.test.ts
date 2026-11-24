@@ -24,7 +24,7 @@ const NOW = jst('2026-10-30T14:00:00')
 const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: '作業中' }]
 
 function doing(number: number, overrides: Parameters<typeof issue>[1] = {}) {
-  return issue(number, { status: '作業中', tanto: 'SWE1', statusEvents: doingSince, ...overrides })
+  return issue(number, { status: '作業中', assignee: 'SWE1', statusEvents: doingSince, ...overrides })
 }
 
 describe('countedCheckpoints', () => {
@@ -61,7 +61,7 @@ describe('assessItem', () => {
     const record: CheckpointRecord = {
       scheduledFor: jst('2026-10-29T21:00:00').toISOString(),
       recordedAt: jst('2026-10-29T21:01:00').toISOString(),
-      items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', tanto: 'SWE1' }],
+      items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', assignee: 'SWE1' }],
     }
     assert.equal(assessItem(doing(1, { points: 3 }), historyOf([record]), config, NOW).effort, 3)
   })
@@ -87,7 +87,7 @@ describe('assessItem', () => {
       const record: CheckpointRecord = {
         scheduledFor: jst('2026-10-29T13:00:00').toISOString(),
         recordedAt: jst('2026-10-29T13:01:00').toISOString(),
-        items: [{ label: 'app#1', points: 3, budget: 2, effort: 1, over: 0, reason: '判断待ち', tanto: 'SWE1' }],
+        items: [{ label: 'app#1', points: 3, budget: 2, effort: 1, over: 0, reason: '判断待ち', assignee: 'SWE1' }],
       }
       assert.equal(assessItem(doing(1, { points: 3 }), historyOf([record]), config, NOW).overSince, jst('2026-10-30T13:00:00').toISOString())
     })
@@ -128,7 +128,7 @@ describe('lintSprint', () => {
     const record: CheckpointRecord = {
       scheduledFor: jst('2026-10-30T13:00:00').toISOString(),
       recordedAt: jst('2026-10-30T13:01:00').toISOString(),
-      items: [{ label: 'app#1', points: 3, budget: 2, effort: 4, over: 2, reason: 'なし', tanto: 'SWE1' }],
+      items: [{ label: 'app#1', points: 3, budget: 2, effort: 4, over: 2, reason: 'なし', assignee: 'SWE1' }],
     }
     const atCheckpoint = lintSprint(snapshot([]), historyOf([record]), config, jst('2026-10-30T13:30:00'))
     assert.deepEqual(atCheckpoint.map((f) => f.rule), ['S-CHECKPOINT'])
@@ -159,7 +159,7 @@ describe('節目の記録', () => {
     assert.equal(record.scheduledFor, jst('2026-10-30T13:00:00').toISOString())
     assert.equal(record.snapshotAt, snapshot([]).fetchedAt)
     assert.deepEqual(record.items, [
-      { label: 'app#1', points: 3, budget: 2, effort: 4, over: 2, overSince: jst('2026-10-30T08:00:00').toISOString(), reason: 'なし', tanto: 'SWE1' },
+      { label: 'app#1', points: 3, budget: 2, effort: 4, over: 2, overSince: jst('2026-10-30T08:00:00').toISOString(), reason: 'なし', assignee: 'SWE1' },
     ])
   })
 
@@ -200,7 +200,7 @@ describe('組み込み', async () => {
     const record: CheckpointRecord = {
       scheduledFor: jst('2026-10-29T21:00:00').toISOString(),
       recordedAt: jst('2026-10-29T21:01:00').toISOString(),
-      items: [{ label: 'app#2', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', tanto: 'SWE1' }],
+      items: [{ label: 'app#2', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', assignee: 'SWE1' }],
     }
     const text = formatPoints(snapshot([doing(2, { points: 3 })]), historyOf([record]), config, NOW)
     assert.equal(text.split('\n')[1], 'app#2\t3\t2\t3\t+1\tなし\tSWE1')

@@ -5,7 +5,7 @@ import type { BoardItem, Snapshot } from './types.ts'
 export type BoardCommand =
   | { readonly kind: 'set-status'; readonly label: string; readonly status: string }
   | { readonly kind: 'set-reason'; readonly label: string; readonly reason: string; readonly since: string | null }
-  | { readonly kind: 'set-tanto'; readonly label: string; readonly tanto: string | null }
+  | { readonly kind: 'set-assignee'; readonly label: string; readonly assignee: string | null }
   | { readonly kind: 'bulk-status'; readonly labels: readonly string[]; readonly status: string }
   /** repo は、コマンドが指したリポジトリの full の名前 (owner/name)。ラベルの短い名前から引き直すと、設定に無いリポジトリを defaultRepo と取り違える */
   | { readonly kind: 'merge-pr'; readonly label: string; readonly repo: string }
@@ -17,7 +17,7 @@ function newIssue(itemLabel: string, config: Config): BoardItem {
   const repo = config.repos.find((full) => shortRepo(full) === repoName) ?? config.defaultRepo
   return {
     itemId: '', kind: 'issue', repo, number: Number(number), title: '', state: 'OPEN', author: null,
-    status: null, reason: null, since: null, owner: null, tanto: null,
+    status: null, reason: null, since: null, owner: null, assignee: null,
   }
 }
 
@@ -36,8 +36,8 @@ function applyOne(snapshot: Snapshot, command: BoardCommand, config: Config, tod
       const since = command.reason === config.reasonNone ? null : (command.since ?? today)
       return patchItem(snapshot, command.label, { reason: command.reason, since }, config, false)
     }
-    case 'set-tanto':
-      return patchItem(snapshot, command.label, { tanto: command.tanto }, config, true)
+    case 'set-assignee':
+      return patchItem(snapshot, command.label, { assignee: command.assignee }, config, true)
     case 'bulk-status':
       return command.labels.reduce((acc, one) => patchItem(acc, one, { status: command.status }, config, false), snapshot)
     case 'merge-pr':
@@ -90,7 +90,7 @@ export function mergeContext(snapshot: Snapshot, prLabel: string, refs: readonly
   if (issues.length === 0) return null
   const lines = issues.map(
     (item) =>
-      `- ${label(item)} Status=${item.status ?? '空'} 理由=${item.reason ?? '空'} 担当=${item.tanto ?? 'なし'} (${item.state === 'CLOSED' ? '閉じている' : '開いている'})`,
+      `- ${label(item)} Status=${item.status ?? '空'} 理由=${item.reason ?? '空'} 担当=${item.assignee ?? 'なし'} (${item.state === 'CLOSED' ? '閉じている' : '開いている'})`,
   )
   return [
     `${prLabel} をマージした。本文が触れているボードの issue:`,

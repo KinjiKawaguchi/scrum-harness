@@ -18,25 +18,25 @@ describe('emptyChoices', () => {
 
   it('次にやるに担当なしの issue があれば、渡せるので返さない。他の人の担当のものは渡せない', () => {
     assert.deepEqual(choices(snapshot([issue(1, { status: '次にやる' })])), [])
-    assert.equal(choices(snapshot([issue(1, { status: '次にやる', tanto: 'SWE2' })])).length, 1)
+    assert.equal(choices(snapshot([issue(1, { status: '次にやる', assignee: 'SWE2' })])).length, 1)
   })
 
   it('バックログでも、その人の担当なら渡せるので返さない', () => {
-    assert.deepEqual(choices(snapshot([issue(1, { status: 'バックログ', tanto: 'SWE1' })])), [])
+    assert.deepEqual(choices(snapshot([issue(1, { status: 'バックログ', assignee: 'SWE1' })])), [])
   })
 
   it('作業中が上限に達していれば wip-limit で返す', () => {
-    const busyBoard = snapshot([issue(1, { status: '作業中', tanto: 'SWE2' }), issue(2, { status: '次にやる' })])
+    const busyBoard = snapshot([issue(1, { status: '作業中', assignee: 'SWE2' }), issue(2, { status: '次にやる' })])
     const tight = { ...enabled, wipLimit: 1 }
     assert.deepEqual(choices(busyBoard, [idle('SWE1')], [], [], tight).map((one) => one.reason), ['wip-limit'])
   })
 
   it('止まっていない自分の作業中があれば、渡せないのではなく促す場合なので返さない', () => {
-    assert.deepEqual(choices(snapshot([issue(1, { status: '作業中', tanto: 'SWE1' })])), [])
+    assert.deepEqual(choices(snapshot([issue(1, { status: '作業中', assignee: 'SWE1' })])), [])
   })
 
   it('自分の作業中が止まっていれば、渡せるものが無い扱いになる', () => {
-    const stuck = snapshot([issue(1, { status: '作業中', tanto: 'SWE1', reason: '判断待ち' })])
+    const stuck = snapshot([issue(1, { status: '作業中', assignee: 'SWE1', reason: '判断待ち' })])
     assert.equal(choices(stuck).length, 1)
   })
 
@@ -67,7 +67,7 @@ describe('advanceEmpty', () => {
   })
 
   it('理由が変われば、その時から数え直す (作業中が上限で空いていた人が、渡せる issue が無いに変わっても、前の時刻を持ち越さない)', () => {
-    const limited = advanceEmpty({}, choices(snapshot([issue(1, { status: '作業中', tanto: 'SWE2' })]), [idle('SWE1')], [], [], { ...enabled, wipLimit: 1 }), new Date(minutesAgo(120)))
+    const limited = advanceEmpty({}, choices(snapshot([issue(1, { status: '作業中', assignee: 'SWE2' })]), [idle('SWE1')], [], [], { ...enabled, wipLimit: 1 }), new Date(minutesAgo(120)))
     assert.deepEqual(Object.keys(limited), ['SWE1:wip-limit'])
     const changed = advanceEmpty(limited, now, NOW)
     assert.deepEqual(changed, { 'SWE1:no-candidate': NOW.toISOString() })
@@ -106,7 +106,7 @@ describe('evaluateEmpty', () => {
 
   it('wip-limit の理由は、作業中の上限の件数で書く', () => {
     const tight = { ...enabled, wipLimit: 1 }
-    const board = snapshot([issue(1, { status: '作業中', tanto: 'SWE2' })])
+    const board = snapshot([issue(1, { status: '作業中', assignee: 'SWE2' })])
     const result = evaluateEmpty(choices(board, [idle('SWE1')], [], [], tight), { 'SWE1:wip-limit': minutesAgo(1) }, tight, NOW)
     assert.match(result.findings[0]?.message ?? '', /作業中が上限 1 件に達している/)
   })
@@ -118,7 +118,7 @@ describe('evaluateEmpty', () => {
 
 describe('Q-EMPTY の、作業中が上限のとき', () => {
   const tight = { ...enabled, wipLimit: 1 }
-  const busyBoard = snapshot([issue(1, { status: '作業中', tanto: 'SWE2' })])
+  const busyBoard = snapshot([issue(1, { status: '作業中', assignee: 'SWE2' })])
   const limited = () => evaluateEmpty(choices(busyBoard, [idle('SWE1')], [], [], tight), { 'SWE1:wip-limit': minutesAgo(45) }, tight, NOW)
 
   it('TechLead には Q-EMPTY を出すが、渡すものが尽きたのではないので、Q-EMPTY-OWNER も、オーナーへの通知も出さない (30 分を過ぎても)', () => {

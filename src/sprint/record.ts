@@ -1,11 +1,12 @@
 import type { Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
+import { withAssignee } from '../compat.ts'
 import { appendLine, readText, type Paths } from '../store.ts'
 import { assessItem, type Assessment } from './assess.ts'
 import { latestCheckpoint } from './checkpoints.ts'
 import type { CountingHistory } from './counting-history.ts'
 
-export type CheckpointItem = Assessment & { readonly reason: string | null; readonly tanto: string | null }
+export type CheckpointItem = Assessment & { readonly reason: string | null; readonly assignee: string | null }
 
 /** 節目の記録。その時点の作業中の issue ごとの見積もりと手間を残す。 */
 export type CheckpointRecord = {
@@ -37,7 +38,7 @@ export function buildRecord(
   const items = doingIssues(snapshot, config).map((item) => ({
     ...assessItem(item, history, config, now),
     reason: item.reason,
-    tanto: item.tanto,
+    assignee: item.assignee,
   }))
   return { scheduledFor: scheduledFor.toISOString(), recordedAt: now.toISOString(), snapshotAt: snapshot.fetchedAt, items }
 }
@@ -55,7 +56,8 @@ export function loadRecords(p: Paths): readonly CheckpointRecord[] {
     .filter((line) => line !== '')
     .flatMap((line): readonly CheckpointRecord[] => {
       try {
-        return [JSON.parse(line) as CheckpointRecord]
+        const record = JSON.parse(line) as CheckpointRecord
+        return [{ ...record, items: record.items.map(withAssignee) }]
       } catch {
         return []
       }

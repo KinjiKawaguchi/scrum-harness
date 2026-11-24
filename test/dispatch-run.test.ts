@@ -39,19 +39,19 @@ describe('dispatchStep', () => {
     saveSnapshot(p, snapshot([issue(11, { status: '次にやる', title: '次の仕事' }), issue(12, { status: '次にやる' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
     assert.deepEqual(calls, [
-      ['set-tanto', ['11', 'SWE1']],
+      ['set-assignee', ['11', 'SWE1']],
       ['set-status', ['11', '作業中']],
     ])
     assert.match(outcome?.message ?? '', /^scrum-harness: SWE1 に次の仕事を渡した。\napp#11 次の仕事\n/)
     assert.deepEqual(readDispatches(p).map((record) => `${record.member} ${record.label}`), ['SWE1 app#11'])
     const item = loadSnapshot(p)?.items.find((one) => one.number === 11)
-    assert.deepEqual([item?.status, item?.tanto], ['作業中', 'SWE1'])
+    assert.deepEqual([item?.status, item?.assignee], ['作業中', 'SWE1'])
     assert.match(readFileSync(p.events, 'utf8'), /"type":"dispatched"/)
   })
 
   it('担当がすでにその人なら、担当は書き直さない', () => {
     idleSince('SWE1', 20)
-    saveSnapshot(p, snapshot([issue(11, { status: '次にやる', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(11, { status: '次にやる', assignee: 'SWE1' })]))
     dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
     assert.deepEqual(calls, [['set-status', ['11', '作業中']]])
   })
@@ -137,7 +137,7 @@ describe('dispatchStep の促し', () => {
 
   it('止まっていない自分の作業中があれば、新しい issue は渡さず、ボードを書き換えずに、進めるよう促す', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1', title: '作業中の仕事' }), issue(11, { status: '次にやる' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1', title: '作業中の仕事' }), issue(11, { status: '次にやる' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, noGithub))
     assert.match(outcome?.message ?? '', /^scrum-harness: SWE1 が空いている。作業中の app#240 作業中の仕事 を進める。/)
     assert.deepEqual(calls, [])
@@ -148,7 +148,7 @@ describe('dispatchStep の促し', () => {
 
   it('促しは idleMinutes ごとに、2 回まで。3 回目は送らない', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     assert.notEqual(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, noGithub)), null)
     assert.equal(dispatchStep(p, enabled, 'SWE1', later(5), dispatchPorts(enabled, exec, noGithub)), null)
     assert.notEqual(dispatchStep(p, enabled, 'SWE1', later(11), dispatchPorts(enabled, exec, noGithub)), null)
@@ -159,7 +159,7 @@ describe('dispatchStep の促し', () => {
 
   it('作業中が止まっていれば、促さずに次の issue を渡す', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1', reason: '外部待ち' }), issue(11, { status: '次にやる' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1', reason: '外部待ち' }), issue(11, { status: '次にやる' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
     assert.match(outcome?.message ?? '', /次の仕事を渡した。\napp#11/)
     assert.equal(calls.length, 2)
@@ -177,7 +177,7 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('促しの後、短い 1 ターンで空きに戻るのを繰り返しても、作業が進まなければ、2 回で止まり、A-NUDGE-IGNORED が出る', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     const sent: boolean[] = []
     for (let round = 0; round < 6; round++) {
       const start = round * 12
@@ -191,14 +191,14 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('促しの記録に、そのときの作業の印 (ボードの印と gh の印) を残す', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, () => 'comments=3'))
     assert.deepEqual(readDispatches(p)[0]?.progress, { board: '作業中|なし|SWE1|', github: 'comments=3' })
   })
 
   it('促しの後に、gh の印 (PR の先頭のコミットなど) が変われば、進んでいる間は促さず、idleMinutes たって進まなければ、数え直して促す', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     let token = 'a'
     const probe = (): string => token
     assert.notEqual(dispatchStep(p, enabled, 'SWE1', at(0), dispatchPorts(enabled, exec, probe)), null)
@@ -215,7 +215,7 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('進んでいる部下 (コメントが増え続ける) には、促しを続けない。進んだ時刻から idleMinutes たって、進まなければ促す', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     let comments = 1
     const probe = (): string => `comments=${comments}`
     const results: boolean[] = []
@@ -232,7 +232,7 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('見た印は、促したときと、進んでいて促さなかったときに残す。進んでいなければ、前の時刻のまま', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     let token = 'a'
     const probe = (): string => token
     dispatchStep(p, enabled, 'SWE1', at(0), dispatchPorts(enabled, exec, probe))
@@ -248,7 +248,7 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('2 回目の促しの後に、gh の印だけが進んだとき、促しの判断と A-NUDGE-IGNORED が同じ印で、どちらも進んだと見る', () => {
     idleSince('SWE1', 40)
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     let token = 'a'
     const probe = (): string => token
     dispatchStep(p, enabled, 'SWE1', at(0), dispatchPorts(enabled, exec, probe))
@@ -264,7 +264,7 @@ describe('dispatchStep の促しの数え方', () => {
 
   it('除く作者の作業中も数えて、作業中が上限なら、次の issue を渡さない (書き込みの守りと同じ数え方)', () => {
     idleSince('SWE1', 40)
-    const others = Array.from({ length: enabled.wipLimit }, (_, index) => issue(100 + index, { status: '作業中', tanto: 'SWE2', author: 'external-dev' }))
+    const others = Array.from({ length: enabled.wipLimit }, (_, index) => issue(100 + index, { status: '作業中', assignee: 'SWE2', author: 'external-dev' }))
     saveSnapshot(p, snapshot([...others, issue(11, { status: '次にやる' })]))
     assert.equal(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, noGithub)), null)
     assert.deepEqual(calls, [])

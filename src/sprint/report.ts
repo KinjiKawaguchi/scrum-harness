@@ -79,7 +79,7 @@ export function formatPoints(
         effortCell(assessment),
         overCell(assessment.over),
         item.reason ?? '-',
-        item.tanto ?? '-',
+        item.assignee ?? '-',
       ].join('\t'),
     )
   return [

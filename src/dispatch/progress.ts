@@ -16,7 +16,7 @@ export type TokenOf = (item: BoardItem) => ProgressToken
 export type ProgressProbe = (item: BoardItem) => string | null
 
 export function boardToken(item: BoardItem): string {
-  return [item.status ?? '', item.reason ?? '', item.tanto ?? '', item.since ?? ''].join('|')
+  return [item.status ?? '', item.reason ?? '', item.assignee ?? '', item.since ?? ''].join('|')
 }
 
 /** 印が変わっていれば、作業が進んだ。どちらかが無い (記録の前の形) ときと、コードの置き場の印がどちらかで読めていないときは、進んだとは言わない。 */

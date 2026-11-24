@@ -11,7 +11,7 @@ function member(name: string, state: MemberState['state'], minutes: number): Mem
 }
 
 const board = snapshot([
-  issue(240, { status: '作業中', tanto: 'SWE3' }),
+  issue(240, { status: '作業中', assignee: 'SWE3' }),
   issue(11, { status: '次にやる' }),
   issue(12, { status: '次にやる' }),
 ])

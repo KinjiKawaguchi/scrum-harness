@@ -25,7 +25,7 @@ describe('normalizeNodes', () => {
       reason: '前の作業待ち',
       since: '2026-10-01',
       owner: null,
-      tanto: 'SWE4',
+      assignee: 'SWE4',
       points: null,
       overrun: null,
     })
@@ -38,7 +38,7 @@ describe('normalizeNodes', () => {
   })
 
   it('値の無い項目は null にする', () => {
-    assert.deepEqual([items[2]?.reason, items[2]?.tanto], [null, null])
+    assert.deepEqual([items[2]?.reason, items[2]?.assignee], [null, null])
   })
 })
 

@@ -15,7 +15,7 @@
 | 規則 | 重さ | 条件 | 直し方 |
 |---|---|---|---|
 | B-WIP-OVER | 高 | 開いている issue の作業中が上限 (`wipLimit`) を超えている | 止まっているものから見直し、バックログに戻す |
-| B-DOING-NO-TANTO | 高 | 作業中なのに担当が無い | 担当を付ける。決められなければバックログへ |
+| B-DOING-NO-ASSIGNEE | 高 | 作業中なのに担当が無い | 担当を付ける。決められなければバックログへ |
 | B-CLOSED-NOT-DONE | 中 | 閉じた issue の Status が完了でない | Status を完了にする |
 | B-OPEN-DONE | 中 | 開いている issue が完了 | 閉じるか、作業中・バックログに戻す |
 | B-PR-STATUS | 中 | PR に Status が付いている | 指摘に出る `gh project item-edit ... --clear` |
@@ -66,7 +66,7 @@ B-OFF-BOARD は、控えを取るとき、ボードのページの一覧に出�
 
 **飛ばすもの**: 止まっている理由がなし以外、作業中が `wipLimit` に届いているとき (何も渡さない)、`dispatch.skipLabels` のラベルが付いたもの (渡さない印)、題が `release/<番号>` で始まるもの (リリースの issue は人が手で切り出すので、渡す文が合わない)、`defaultRepo` 以外の issue (ボードを書き換えるスクリプトが番号だけで指すため)、PR、閉じた issue、`excludeAuthors` の作者の issue。
 
-**渡し方**: `scripts.setTanto` と `scripts.setStatus` で、担当をその人、Status を作業中にし (スクリプトは `dispatch.scriptDir` から探す)、決まった文面をその人のセッションに送る (部下の Stop と SessionStart の待機プロセスが、TechLead と同じく asyncRewake の exit 2 で起こす)。文面は、issue の番号と題、`origin/<dispatch.baseBranch>` から切ること、PR の宛先、マージする人 (`techlead`)、`dispatch.notes`。同じ issue を 2 人に渡さないよう、錠の中で控えを読み直す。スクリプトが失敗したら記録も控えの書き換えもせず、5 分は試さない。
+**渡し方**: `scripts.setAssignee` と `scripts.setStatus` で、担当をその人、Status を作業中にし (スクリプトは `dispatch.scriptDir` から探す)、決まった文面をその人のセッションに送る (部下の Stop と SessionStart の待機プロセスが、TechLead と同じく asyncRewake の exit 2 で起こす)。文面は、issue の番号と題、`origin/<dispatch.baseBranch>` から切ること、PR の宛先、マージする人 (`techlead`)、`dispatch.notes`。同じ issue を 2 人に渡さないよう、錠の中で控えを読み直す。スクリプトが失敗したら記録も控えの書き換えもせず、5 分は試さない。
 
 **促し**: 空いた人が、止まっていない (理由がなし) 自分の作業中の issue を持っていれば、新しい issue は渡さず、「作業中の #N を進める」と促す文を送る (ボードは書き換えない)。作業中を増やさないため、また CI やレビューの待ちで空いて見える人に別の仕事を足すと両方が遅れるため。最後に送ってから `idleMinutes` ごとに、**作業が進まないまま** 2 回まで (新しい issue を渡した直後も、`idleMinutes` 待つ)。作業が進んだかは、促した時点と、いまの issue の印を比べて決める。印は、ボードの Status、止まっている理由、担当、止まり始めた日と、gh で読む issue のコメントの数、紐づいたブランチの先頭、その issue の PR の番号と状態と先頭のコミット (gh が読めないときは、ボードの印だけで比べる)。PR は、ほかの人の PR を拾わないよう絞る: 紐づいたブランチ (仕事を渡したときに作る) があれば、そのブランチから出た PR だけ、無ければ、題の括弧の中かブランチ名の先頭の番号が、その issue と合う PR だけ。印が変われば、数え直す。**作業が進んでいる間は、促さない**: 前に見た印から変わった (コメントが増えた、PR に push した) か、最後に印が変わってから `idleMinutes` たっていなければ、促しの上限より先に、待つ。見た印は、部下ごと、issue ごとに `~/.claude/scrum/cache/dispatch-seen.json` に残し、A-NUDGE-IGNORED も、同じ印 (ボードの印は今のボード、gh の印は最後に見た分) で比べる。促しの後、短い 1 ターンで空きに戻り、空きの区間が変わっても、数え直さない (直近 3 時間の、その人のその issue への促しを数える)。作業中が止まっている (理由がなし以外) か、無ければ、次を渡す。作業中が `wipLimit` に届いていても、促しは送る (上限は新しい issue を渡すときだけ見る)。
 

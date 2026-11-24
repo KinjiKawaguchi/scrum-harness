@@ -8,7 +8,7 @@ import type { AlertEvaluation } from './types.ts'
 
 function doingDetail(view: EpicView): string {
   if (view.doing.length === 0) return '作業中の子なし'
-  const shown = view.doing.slice(0, 3).map((child) => `${label(child)} 担当 ${child.tanto ?? 'なし'} 理由 ${child.reason ?? '-'}`)
+  const shown = view.doing.slice(0, 3).map((child) => `${label(child)} 担当 ${child.assignee ?? 'なし'} 理由 ${child.reason ?? '-'}`)
   return `作業中の子: ${shown.join('、')}${view.doing.length > 3 ? ` ほか ${view.doing.length - 3} 件` : ''}`
 }
 

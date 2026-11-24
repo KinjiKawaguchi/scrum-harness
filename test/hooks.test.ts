@@ -54,8 +54,8 @@ beforeEach(() => {
 describe('TechLead', () => {
   it('SessionStart で要約を入れ、知らせた指摘を覚える', () => {
     const result = handleHook('SessionStart', { session_id: 'sid', source: 'startup' }, deps('TechLead'))
-    assert.match(context(result), /B-DOING-NO-TANTO app#1 は作業中なのに担当が無い/)
-    assert.deepEqual(readJson(p.notified, []), ['B-DOING-NO-TANTO:app#1'])
+    assert.match(context(result), /B-DOING-NO-ASSIGNEE app#1 は作業中なのに担当が無い/)
+    assert.deepEqual(readJson(p.notified, []), ['B-DOING-NO-ASSIGNEE:app#1'])
   })
 
   it('UserPromptSubmit では知らせていない指摘だけを入れる', () => {

@@ -6,7 +6,7 @@ import type { MemberState } from '../src/team/types.ts'
 import { config, NOW, snapshot } from './helpers.ts'
 import { busy, child, enabled, epic, idle, minutesAgo } from './alerts-fixtures.ts'
 
-const doing = (number: number, tanto: string | null, reason = 'なし') => child(number, { status: '作業中', tanto, reason })
+const doing = (number: number, assignee: string | null, reason = 'なし') => child(number, { status: '作業中', assignee, reason })
 
 describe('epicViews', () => {
   it('作業中の子を持つ人が動いていれば、その人が動いている人になる', () => {
@@ -28,7 +28,7 @@ describe('epicViews', () => {
   })
 
   it('動いている人が別の Epic の作業中の子を持っていても、この Epic を動かしている人には数えない', () => {
-    const other = child(201, { epic: 'app#200', status: '作業中', tanto: 'SWE2' })
+    const other = child(201, { epic: 'app#200', status: '作業中', assignee: 'SWE2' })
     const views = epicViews(snapshot([epic(), child(101, { status: '次にやる' }), other]), [busy('SWE2')], enabled)
     assert.deepEqual(views.map((view) => [view.epic, view.movers]), [['app#100', []], ['app#200', ['SWE2']]])
   })
@@ -86,7 +86,7 @@ describe('epicViews', () => {
   })
 
   it('親を取っていない (epic の欄が無い) issue しか無ければ、Epic は無い', () => {
-    assert.deepEqual(epicViews(snapshot([epic({ status: '作業中', tanto: 'SWE1' })]), [busy('SWE1')], enabled), [])
+    assert.deepEqual(epicViews(snapshot([epic({ status: '作業中', assignee: 'SWE1' })]), [busy('SWE1')], enabled), [])
   })
 })
 

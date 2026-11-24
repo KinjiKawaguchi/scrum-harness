@@ -103,13 +103,13 @@ describe('readMissingItems', () => {
   })
 
   it('ボードに入っていた issue を、項目として返す', () => {
-    const { run } = recorder(() => readResult([projectNode(8, { status: { name: '作業中' }, tanto: { name: 'SWE1' } })]))
+    const { run } = recorder(() => readResult([projectNode(8, { status: { name: '作業中' }, assignee: { name: 'SWE1' } })]))
     const [item, ...rest] = readMissingItems([issue(1)], [open(1), open(8)], config, run)
     assert.equal(rest.length, 0)
     assert.equal(item?.itemId, 'PVTI_8')
     assert.equal(item?.number, 8)
     assert.equal(item?.status, '作業中')
-    assert.equal(item?.tanto, 'SWE1')
+    assert.equal(item?.assignee, 'SWE1')
     assert.equal(item?.kind, 'issue')
   })
 

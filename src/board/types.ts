@@ -18,7 +18,7 @@ export type BoardItem = {
   /** 止まり始めた日 (YYYY-MM-DD) */
   readonly since: string | null
   readonly owner: string | null
-  readonly tanto: string | null
+  readonly assignee: string | null
   /** ストーリーポイント (sprint の設定があるときだけ取る) */
   readonly points?: number | null
   /** ハーネスがボードに書いた、超えた節目の数 */

@@ -26,7 +26,7 @@ const BEFORE = jst('2026-10-30T07:00:00').toISOString()
 
 function setup(points = 3) {
   const p = paths(mkdtempSync(join(tmpdir(), 'scrum-overrun-')))
-  writeJson(p.snapshot, snapshot([issue(1, { status: '作業中', tanto: 'SWE1', points, statusEvents: doingSince })]))
+  writeJson(p.snapshot, snapshot([issue(1, { status: '作業中', assignee: 'SWE1', points, statusEvents: doingSince })]))
   return p
 }
 const ack = (p: ReturnType<typeof paths>, comments: () => readonly IssueComment[], subject = 'app#1') =>
@@ -107,7 +107,7 @@ describe('S-POINTS-OVER の受け入れが、指摘を消す条件', () => {
   })
 
   it('根拠 (basis) の無い受け入れは、期限内でも指摘を消さない。根拠が付いていれば消す', () => {
-    const findings = over(snapshot([issue(1, { status: '作業中', tanto: 'SWE1', points: 3, statusEvents: doingSince })]))
+    const findings = over(snapshot([issue(1, { status: '作業中', assignee: 'SWE1', points: 3, statusEvents: doingSince })]))
     assert.equal(findings.length, 1)
     assert.equal(applyAcks(findings, [live()], NOW).active.length, 1)
     assert.equal(applyAcks(findings, [live({ basis: 'decision=keep from=3 to=3' })], NOW).active.length, 0)

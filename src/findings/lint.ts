@@ -17,6 +17,7 @@ import { readDispatches } from '../dispatch/records.ts'
 import { readSeen, type SeenMap } from '../dispatch/progress.ts'
 import { lintDispatch } from '../dispatch/rules.ts'
 import type { DispatchRecord } from '../dispatch/types.ts'
+import { currentRuleName } from '../compat.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
 import { lintRequests } from '../requests/rules.ts'
 import { readRequests } from '../requests/store.ts'
@@ -92,7 +93,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
   return {
     snapshot: snapshot === undefined ? loadSnapshot(p) : snapshot,
     members: aggregateMembers(collectSignals(p, now, sessions), names),
-    acks: readJson<readonly Ack[]>(p.acks, []),
+    acks: readJson<readonly Ack[]>(p.acks, []).map((ack) => ({ ...ack, rule: currentRuleName(ack.rule) })),
     config,
     now,
     history: config.sprint === undefined ? EMPTY_HISTORY : loadCountingHistory(p, now),

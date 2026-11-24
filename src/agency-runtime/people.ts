@@ -15,7 +15,7 @@ const plural = (count: number, one: string, many: string): string => `${count} $
 /** Refs of the open items assigned to a person that are not finished. */
 function holdingOf(name: string, items: readonly BoardItem[], config: Config): readonly string[] {
   return items
-    .filter((item) => item.kind === 'issue' && item.state === 'OPEN' && item.tanto === name && !isFinished(workStatusOf(item, config)) && workStatusOf(item, config) !== null)
+    .filter((item) => item.kind === 'issue' && item.state === 'OPEN' && item.assignee === name && !isFinished(workStatusOf(item, config)) && workStatusOf(item, config) !== null)
     .map(label)
 }
 

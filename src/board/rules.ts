@@ -16,7 +16,7 @@ export function label(item: { readonly repo: string; readonly number: number | n
 function fixWith(
   config: Config,
   item: { readonly repo: string; readonly number: number | null },
-  script: 'setStatus' | 'setReason' | 'setTanto',
+  script: 'setStatus' | 'setReason' | 'setAssignee',
   args: string,
   fallback: string,
 ): string {
@@ -42,11 +42,11 @@ function daysSince(date: string, now: Date): number {
 
 const ITEM_RULES: readonly ItemRule[] = [
   {
-    rule: 'B-DOING-NO-TANTO',
+    rule: 'B-DOING-NO-ASSIGNEE',
     severity: 'high',
-    applies: (item, config) => isOpenIssue(item) && item.status === config.statuses.doing && item.tanto === null,
+    applies: (item, config) => isOpenIssue(item) && item.status === config.statuses.doing && item.assignee === null,
     message: (item) => `${label(item)} は作業中なのに担当が無い`,
-    fix: (item, config) => fixWith(config, item, 'setTanto', '<担当>', '担当を付けるか、決められないならバックログに戻す'),
+    fix: (item, config) => fixWith(config, item, 'setAssignee', '<担当>', '担当を付けるか、決められないならバックログに戻す'),
   },
   {
     rule: 'B-CLOSED-NOT-DONE',

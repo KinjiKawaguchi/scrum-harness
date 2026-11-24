@@ -20,7 +20,7 @@ function openIssues(snapshot: Snapshot, config: Config, status: string) {
 }
 
 function idleFinding(member: MemberState, minutes: number, snapshot: Snapshot, config: Config): Finding {
-  const doing = openIssues(snapshot, config, config.statuses.doing).filter((item) => item.tanto === member.name)
+  const doing = openIssues(snapshot, config, config.statuses.doing).filter((item) => item.assignee === member.name)
   const next = openIssues(snapshot, config, config.statuses.next)
   const doingText = doing.length > 0 ? doing.map((item) => `${label(item)} (${item.reason ?? '理由なし'})`).join(' ') : 'なし'
   const nextText = next.length > 0 ? next.map(label).join(' ') : 'なし'
@@ -54,9 +54,9 @@ function untrackedFinding(member: MemberState, minutes: number, config: Config):
     severity: 'low',
     message: `${member.name} は ${minutes} 分動いているが、担当の作業中の issue がボードに無い`,
     fix:
-      config.scripts.setTanto === undefined
+      config.scripts.setAssignee === undefined
         ? `今の作業の issue の担当を ${member.name} にする`
-        : `今の作業の issue に ${config.scripts.setTanto} <番号> ${member.name}`,
+        : `今の作業の issue に ${config.scripts.setAssignee} <番号> ${member.name}`,
   })
 }
 
@@ -68,7 +68,7 @@ function lintMember(member: MemberState, snapshot: Snapshot, config: Config, now
   }
   if (member.state === 'waiting' && minutes >= config.waitingMinutes) return [waitingFinding(member, minutes, config)]
   if (member.state !== 'busy' || minutes < config.untrackedMinutes) return []
-  const hasDoing = openIssues(snapshot, config, config.statuses.doing).some((item) => item.tanto === member.name)
+  const hasDoing = openIssues(snapshot, config, config.statuses.doing).some((item) => item.assignee === member.name)
   return hasDoing ? [] : [untrackedFinding(member, minutes, config)]
 }
 
