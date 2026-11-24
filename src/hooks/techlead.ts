@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
 import { SCRUM_CLI } from '../cli-path.ts'
-import { applyCommands, mergeContext, parseBoardCommands, referencedLabels, type BoardCommand } from '../board/commands.ts'
+import { applyCommands, mergeContext, type BoardCommand } from '../board/commands.ts'
 import { isRefreshDue, loadSnapshot, saveSnapshot } from '../board/snapshot.ts'
 import { formatList, formatSummary } from '../findings/format.ts'
 import { lintAll, loadContext, type LintResult } from '../findings/lint.ts'
@@ -12,7 +12,7 @@ import type { HookDeps } from './handlers.ts'
 const INJECT_LIMIT = 6
 
 function lintNow(deps: HookDeps): LintResult {
-  return lintAll(loadContext(deps.p, deps.config, deps.now))
+  return lintAll(loadContext(deps.p, deps.config, deps.now, deps.ports.sessions))
 }
 
 function markNotified(deps: HookDeps, current: readonly Finding[], added: readonly Finding[]): void {
@@ -61,17 +61,16 @@ function mergeNotes(deps: HookDeps, commands: readonly BoardCommand[]): readonly
   if (snapshot === null) return []
   return commands.flatMap((command) => {
     if (command.kind !== 'merge-pr') return []
-    const body = deps.fetchPrBody(command.label, command.repo)
-    if (body === null) return []
-    const repo = command.repo
-    const note = mergeContext(snapshot, command.label, referencedLabels(body, repo), deps.config)
+    const refs = deps.ports.code.referencedIssues(command.label, command.repo)
+    if (refs === null) return []
+    const note = mergeContext(snapshot, command.label, refs, deps.config)
     return note === null ? [] : [note]
   })
 }
 
 /** ボードを触るコマンドの後: 控えを直し、触った issue の指摘とマージの案内を入れる。 */
 export function techleadAfterBash(deps: HookDeps, command: string): string {
-  const commands = parseBoardCommands(command, deps.config)
+  const commands = deps.ports.actions.commandsOf(command)
   if (commands.length === 0) return techleadDiff(deps)
   const snapshot = loadSnapshot(deps.p)
   if (snapshot !== null) saveSnapshot(deps.p, applyCommands(snapshot, commands, deps.config, deps.now.toISOString().slice(0, 10)))

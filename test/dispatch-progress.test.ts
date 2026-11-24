@@ -4,7 +4,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { paths } from '../src/store.ts'
-import { activityToken, boardOnly, boardToken, cachedProbe, githubProbe, hasProgress, observe, readSeen, seenKey, tokenWith, writeSeen } from '../src/dispatch/progress.ts'
+import { activityToken, githubProbe } from '../src/adapters/github/activity.ts'
+import { boardOnly, boardToken, cachedProbe, hasProgress, observe, readSeen, seenKey, tokenWith, writeSeen } from '../src/dispatch/progress.ts'
 import { issue } from './helpers.ts'
 
 const item = issue(240, { status: '作業中', tanto: 'SWE1', reason: 'なし', since: '2026-10-08' })
@@ -36,6 +37,13 @@ describe('boardToken と hasProgress', () => {
     assert.deepEqual(boardOnly(item), { board: '作業中|なし|SWE1|2026-10-08', github: null })
     assert.deepEqual(tokenWith(() => 'g')(item), { board: '作業中|なし|SWE1|2026-10-08', github: 'g' })
     assert.deepEqual(tokenWith(() => null)(item).github, null)
+  })
+
+  it('tokenWith は、印の読み取りが投げても止まらず、コードの置き場の印を null にする', () => {
+    const throwing = () => {
+      throw new Error('読めない')
+    }
+    assert.deepEqual(tokenWith(throwing)(item), { board: '作業中|なし|SWE1|2026-10-08', github: null })
   })
 })
 

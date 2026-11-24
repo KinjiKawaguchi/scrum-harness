@@ -1,8 +1,9 @@
 import { loadSnapshot, refreshSnapshot } from '../board/snapshot.ts'
 import type { Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
+import type { Ports } from '../ports/index.ts'
 import { appendLine, logError, releaseLock, tryLock, type Paths } from '../store.ts'
-import { applyMarks, planMarks, type Mark } from './marks.ts'
+import { planMarks, type Mark } from './marks.ts'
 import { appendRecord, buildRecord, dueCheckpoint, loadRecords, type CheckpointRecord } from './record.ts'
 import { loadCountingHistory } from './counting-history.ts'
 
@@ -33,27 +34,27 @@ export function recordDueCheckpoint(
  * 待機プロセスと `scrum checkpoint` から呼ぶ。節目の時刻より前の控えなら取り直してから記録し
  * (節目の直前に入れたポイントを拾うため)、ボードの「超過」を書く。書けなかったものは errors.log に残す。
  */
-export function runCheckpoint(p: Paths, config: Config, now: Date): CheckpointRecord | null {
+export function runCheckpoint(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'writer'>): CheckpointRecord | null {
   if (config.sprint === undefined || dueCheckpoint(loadRecords(p), config, now) === null) return null
   if (!tryLock(p.checkpointLock)) return null
   try {
-    return recordWithFreshSnapshot(p, config, now)
+    return recordWithFreshSnapshot(p, config, now, ports)
   } finally {
     releaseLock(p.checkpointLock)
   }
 }
 
 /** 錠を取ったあとに節目をもう一度確かめ (ほかのプロセスが先に記録したかもしれない)、記録する。 */
-function recordWithFreshSnapshot(p: Paths, config: Config, now: Date): CheckpointRecord | null {
+function recordWithFreshSnapshot(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'writer'>): CheckpointRecord | null {
   const due = dueCheckpoint(loadRecords(p), config, now)
   if (due === null) return null
   const current = loadSnapshot(p)
   const isBeforeDue = current === null || Date.parse(current.fetchedAt) < due.getTime()
-  const snapshot = (isBeforeDue ? refreshSnapshot(p, config, now) : null) ?? current
+  const snapshot = (isBeforeDue ? refreshSnapshot(p, config, now, ports.board) : null) ?? current
   if (snapshot === null) return null
   return recordDueCheckpoint(p, config, snapshot, now, (marks) => {
     try {
-      const failed = applyMarks(marks, config)
+      const failed = ports.writer.writeOverrun(marks)
       if (failed.length > 0) logError(p, 'marks', failed.join('; '))
       appendLine(p.events, JSON.stringify({ at: now.toISOString(), type: 'marked', count: marks.length - failed.length }))
     } catch (error) {

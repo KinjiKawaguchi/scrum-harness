@@ -91,10 +91,12 @@ describe('parseConfig の任意の値', () => {
 
 describe('writeShellPatterns', async () => {
   const { writeShellPatterns } = await import('../src/cli-commands.ts')
+  const { bashActionReader } = await import('../src/adapters/github/action-reader.ts')
+  const write = (p: ReturnType<typeof paths>, candidate: typeof config) => writeShellPatterns(p, candidate, bashActionReader(candidate))
 
   it('bin/scrum が読む型を、1行目に post、2行目に pre で書く', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
-    writeShellPatterns(p, config)
+    write(p, config)
     const [post, pre, dispatch] = readFileSync(p.shellPatterns, 'utf8').split('\n')
     assert.match(post ?? '', /set-status/)
     assert.equal(pre, 'set-status|bulk-status')
@@ -103,15 +105,15 @@ describe('writeShellPatterns', async () => {
 
   it('3 行目は、dispatch が有効なときだけ 1 にする (bin/scrum が部下の待機を起こすかを決める)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
-    writeShellPatterns(p, { ...config, dispatch: { enabled: true, baseBranch: 'develop', skipLabels: [], utcOffset: '+09:00', notes: [] } })
+    write(p, { ...config, dispatch: { enabled: true, baseBranch: 'develop', skipLabels: [], utcOffset: '+09:00', notes: [] } })
     assert.equal(readFileSync(p.shellPatterns, 'utf8').split('\n')[2], '1')
   })
 
   it('中身が同じなら書き直さない (フックのたびに書かない)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
-    writeShellPatterns(p, config)
+    write(p, config)
     const before = statSync(p.shellPatterns).mtimeMs
-    writeShellPatterns(p, config)
+    write(p, config)
     assert.equal(statSync(p.shellPatterns).mtimeMs, before)
   })
 })

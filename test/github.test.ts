@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 describe('gh と ghWithin', () => {
-  const module = pathToFileURL(new URL('../src/github.ts', import.meta.url).pathname).href
+  const module = pathToFileURL(new URL('../src/adapters/github/gh.ts', import.meta.url).pathname).href
   const calls = [
     ['gh', "gh(['x'])"],
     ['ghWithin', "ghWithin(5000)(['x'])"],

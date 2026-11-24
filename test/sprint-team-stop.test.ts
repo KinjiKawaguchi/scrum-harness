@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,6 +16,7 @@ import { formatPoints } from '../src/sprint/report.ts'
 import { lintSprint } from '../src/sprint/rules.ts'
 import { activityTimes, loadTeamStop, stoppedSpans, teamStopFrom, TEAM_STOP_MS } from '../src/sprint/team-stop.ts'
 import { appendLine, paths, writeJson } from '../src/store.ts'
+import { fakePorts } from './fake-ports.ts'
 import { config as base, historyOf, issue, snapshot } from './helpers.ts'
 
 const config: Config = {
@@ -161,13 +162,6 @@ describe('S-POINTS-OVER の文', () => {
 })
 
 describe('止まっていた節目を使う 5 つの経路は、どれも events.jsonl の抜けを読む', () => {
-  beforeEach(() => {
-    process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
-  })
-  afterEach(() => {
-    delete process.env.SCRUM_SESSIONS_DIR
-  })
-
   it('節目の記録 (buildRecord に渡す)。記録した時点の手間と、除いた節目を残す', () => {
     const record = buildRecord(snapshot([doing()]), historyOf([], stopAt(C1)), config, C4, NOW)
     assert.deepEqual([record.items[0]?.effort, record.items[0]?.teamStopped], [3, 1])
@@ -196,7 +190,7 @@ describe('止まっていた節目を使う 5 つの経路は、どれも events
   it('S-POINTS-OVER の指摘 (loadContext と lintAll が events.jsonl から読む)', () => {
     const p = setup()
     writeActivityWithGapAtC1(p)
-    const found = lintAll(loadContext(p, config, NOW, snapshot([doing()]))).active.filter((one) => one.rule === 'S-POINTS-OVER')
+    const found = lintAll(loadContext(p, config, NOW, fakePorts().sessions, snapshot([doing()]))).active.filter((one) => one.rule === 'S-POINTS-OVER')
     assert.match(found[0]?.message ?? '', /除いた節目 1$/)
   })
 
@@ -206,7 +200,7 @@ describe('止まっていた節目を使う 5 つの経路は、どれも events
     writeJson(p.snapshot, snapshot([doing()]))
     const mark = '<!-- scrum:points-overrun decision=keep from=3 to=3 -->\nTechLead: 理由の 1 行'
     const ack = (createdAt: Date) =>
-      ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: '振り返りで決める' }, config, NOW, () => [{ body: mark, createdAt: createdAt.toISOString() } satisfies IssueComment])
+      ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: '振り返りで決める' }, config, NOW, { comments: () => [{ body: mark, createdAt: createdAt.toISOString() } satisfies IssueComment] })
     // 止まっていた C1 を除くと、超過を出した節目は C3 (08:00) でなく C4 (13:00)。C3 と C4 の間の印は使えない
     assert.match(ack(new Date(C3.getTime() + 60 * MINUTE)), new RegExp(`超過を出した節目 \\(${C4.toISOString().replaceAll('.', '\\.')}\\) より後に付いた`))
     assert.match(ack(new Date(C4.getTime() + 30 * MINUTE)), /^受け入れた: S-POINTS-OVER app#1/)

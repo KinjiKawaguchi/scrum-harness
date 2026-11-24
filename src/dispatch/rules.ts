@@ -21,7 +21,7 @@ function nudgesByIssue(records: readonly DispatchRecord[], member: string, now: 
 /**
  * 作業が進まないまま促しを NUDGE_LIMIT 回続けて送り、いまも空きの部下。TechLead に出す (A-NUDGE-IGNORED、重さ中)。
  * 短い 1 つのターンで空きに戻っても、空きの区間が変わっても、続けて数える。作業が進んだかは、促した時点の印と、いまの印で比べる。
- * いまの印は、ボードの印を今のボードから、gh の印を、待機プロセスが最後に見た分 (seen) から取り、促しの判断と同じ印で比べる。
+ * いまの印は、ボードの印を今のボードから、コードの置き場の印を、待機プロセスが最後に見た分 (seen) から取り、促しの判断と同じ印で比べる。
  * 指紋は、続いた促しの最初の時刻ごと (続く間は 1 回だけ出る)。
  */
 function lintIgnoredNudges(records: readonly DispatchRecord[], members: readonly MemberState[], now: Date, snapshot: Snapshot | null, seen: SeenMap): readonly Finding[] {

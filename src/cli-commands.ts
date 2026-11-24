@@ -17,12 +17,11 @@ import { appendLine, readJson, readText, writeJson, type Paths } from './store.t
 import { resolveIdentity, roleOf } from './team/identity.ts'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { shellPatterns } from './board/commands.ts'
 import { alertsOf } from './alerts/config.ts'
 import { dispatchOf } from './config.ts'
 import { checkIdleAck, type IdleAckCheck } from './dispatch/idle-ack.ts'
 import { checkOverrunAck } from './sprint/overrun-ack.ts'
-import type { IssueComment } from './sprint/overrun-mark.ts'
+import type { ActionReader, IssueThread, Ports, SessionDirectory } from './ports/index.ts'
 
 export type Flags = Readonly<Record<string, string | true>>
 
@@ -48,19 +47,19 @@ export function parseFlags(args: readonly string[]): { readonly positional: read
   return { positional, flags }
 }
 
-export function lintCommand(p: Paths, config: Config, flags: Flags): string {
+export function lintCommand(p: Paths, config: Config, flags: Flags, ports: Pick<Ports, 'board' | 'sessions'>): string {
   const now = new Date()
-  const snapshot = flags.refresh === true ? refreshSnapshot(p, config, now) : undefined
-  const { active, acked } = lintAll(loadContext(p, config, now, snapshot ?? undefined))
+  const snapshot = flags.refresh === true ? refreshSnapshot(p, config, now, ports.board) : undefined
+  const { active, acked } = lintAll(loadContext(p, config, now, ports.sessions, snapshot ?? undefined))
   if (flags.json === true) return JSON.stringify({ active, acked }, null, 2)
   const fetchedAt = readJson<{ fetchedAt?: string }>(p.snapshot, {}).fetchedAt ?? '未取得'
   const lines = active.length === 0 ? ['指摘なし'] : active.map(formatFinding)
   return [`ボードの控え: ${fetchedAt}`, ...lines, `受け入れ済み ${acked.length} 件 (scrum acks)`].join('\n')
 }
 
-export function teamCommand(p: Paths, config: Config): string {
+export function teamCommand(p: Paths, config: Config, sessions: SessionDirectory): string {
   const now = new Date()
-  const { members } = loadContext(p, config, now)
+  const { members } = loadContext(p, config, now, sessions)
   return members
     .map((member) => {
       const minutes = member.since === null ? '' : ` ${Math.floor((now.getTime() - Date.parse(member.since)) / 60_000)} 分`
@@ -81,7 +80,7 @@ export function ackCommand(
   flags: Flags,
   config: Config | null = null,
   now: Date = new Date(),
-  readComments?: (repo: string, number: number) => readonly IssueComment[],
+  issues: Pick<IssueThread, 'comments'> | null = null,
 ): string {
   const [rule, subject] = positional
   const reason = typeof flags.reason === 'string' ? flags.reason : null
@@ -93,7 +92,7 @@ export function ackCommand(
   const idle = rule === 'T-IDLE' ? checkIdle(config, reason, until.getTime() - now.getTime(), now) : null
   if (idle !== null && !idle.ok) return idle.message
   const slotAt = idle?.ok === true ? idle.slotAt : null
-  const overrun = rule === OVERRUN_RULE ? checkOverrunAck(p, subject, config, now, readComments) : null
+  const overrun = rule === OVERRUN_RULE ? checkOverrunAck(p, subject, config, now, issues) : null
   if (overrun !== null && !overrun.ok) return overrun.message
   const basis = overrun?.ok === true ? overrun.basis : null
   const ack: Ack = {
@@ -133,12 +132,12 @@ export function reportCommand(p: Paths, flags: Flags): string {
 }
 
 /** statusline から呼ぶ。TechLead のセッションでだけ、控えから短い表示を返す。ボードは取りに行かない。 */
-export function statuslineCommand(p: Paths, config: Config, input: Record<string, unknown>): string {
+export function statuslineCommand(p: Paths, config: Config, input: Record<string, unknown>, sessions: SessionDirectory): string {
   const sessionId = typeof input.session_id === 'string' ? input.session_id : ''
   const now = new Date()
-  const identity = sessionId === '' ? null : resolveIdentity(p, sessionId, now, config)
+  const identity = sessionId === '' ? null : resolveIdentity(p, sessionId, now, config, sessions)
   if (identity === null || roleOf(identity.name, config) !== 'techlead') return ''
-  return formatStatusline(lintAll(loadContext(p, config, now)).active)
+  return formatStatusline(lintAll(loadContext(p, config, now, sessions)).active)
 }
 
 function settingsPath(): string {
@@ -156,8 +155,8 @@ export function installCommand(p: Paths, isInstall: boolean): string {
 }
 
 /** 設定のスクリプト名から、bin/scrum が読む型を書く。中身が変わったときだけ書く。 */
-export function writeShellPatterns(p: Paths, config: Config): void {
-  const { post, pre } = shellPatterns(config)
+export function writeShellPatterns(p: Paths, config: Config, actions: ActionReader): void {
+  const { post, pre } = actions.shellPatterns()
   // 3 行目: 部下の待機 (空いたら次の仕事を渡す) を起こすか。bin/scrum が、部下の watch で node を起こすかを決めるのに読む
   // 4 行目: 窓口の待機 (止まりの検知を進め、窓口に送る文を受け取る) を起こすか。窓口の名前が決まっているときだけ 1
   const alerts = alertsOf(config)
@@ -168,9 +167,9 @@ export function writeShellPatterns(p: Paths, config: Config): void {
   writeFileSync(p.shellPatterns, content)
 }
 
-export function checkpointCommand(p: Paths, config: Config): string {
+export function checkpointCommand(p: Paths, config: Config, ports: Pick<Ports, 'board' | 'writer'>): string {
   const now = new Date()
-  const record = runCheckpoint(p, config, now)
+  const record = runCheckpoint(p, config, now, ports)
   if (record === null) return '記録する節目は無い (最後の節目は記録済みか、sprint の設定が無い)'
   const over = record.items.filter((item) => item.over !== null && item.over > 0).length
   const clock = config.sprint === undefined ? record.scheduledFor : localClock(Date.parse(record.scheduledFor), config.sprint)

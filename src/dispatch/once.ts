@@ -4,8 +4,8 @@ import { loadContext } from '../findings/lint.ts'
 import type { Paths } from '../store.ts'
 import { decideAction } from './decide.ts'
 import { idleGate } from './due.ts'
-import { defaultProbe, readSeen, tokenWith, type ProgressProbe } from './progress.ts'
-import { dispatchStep, type DispatchOutcome, type Exec } from './run.ts'
+import { readSeen, tokenWith } from './progress.ts'
+import { dispatchStep, type DispatchOutcome, type DispatchPorts } from './run.ts'
 
 export type OnceResult = { readonly member: string; readonly outcome: DispatchOutcome | null; readonly reason: string }
 
@@ -32,19 +32,19 @@ const ACTION_REASON: Readonly<Record<string, string>> = {
  * ボードの書き換え (担当と Status) は、待機プロセスと同じ道 (dispatchStep) で行う。部下のセッションを起こすことは、ここではできないので、
  * 返した文面を、呼んだ人が、その部下のセッションに送る。names を渡せばその人だけ、無ければ渡す相手の全員を見る。
  */
-export function dispatchOnce(p: Paths, config: Config, now: Date, exec: Exec, names: readonly string[] = [], probe: ProgressProbe = defaultProbe): readonly OnceResult[] {
+export function dispatchOnce(p: Paths, config: Config, now: Date, ports: DispatchPorts, names: readonly string[] = []): readonly OnceResult[] {
   const dispatch = dispatchOf(config)
   const targets = names.length > 0 ? names : (dispatch.members ?? config.members)
   return targets.map((member): OnceResult => {
-    const outcome = dispatchStep(p, config, member, now, exec, probe)
+    const outcome = dispatchStep(p, config, member, now, ports)
     if (outcome !== null) return { member, outcome, reason: '' }
-    const ctx = loadContext(p, config, now)
+    const ctx = loadContext(p, config, now, ports.sessions)
     const state = ctx.members.find((one) => one.name === member)
     if (state === undefined) return { member, outcome: null, reason: 'セッションの稼働を読めない (チームの外の名前か、心拍が無い)' }
     const gate = idleGate(state, ctx.acks, config, now)
     if (!gate.isDue) return { member, outcome: null, reason: GATE_REASON[gate.reason] ?? gate.reason }
     if (ctx.snapshot === null) return { member, outcome: null, reason: 'ボードの控えが無い' }
-    const action = decideAction(ctx.snapshot, state, ctx.dispatches ?? [], config, now, tokenWith(probe), readSeen(p))
+    const action = decideAction(ctx.snapshot, state, ctx.dispatches ?? [], config, now, tokenWith(ports.code.activity), readSeen(p))
     return { member, outcome: null, reason: action.kind === 'none' ? (ACTION_REASON[action.reason] ?? action.reason) : '書き込みの守り (作業中の上限) か、失敗の後の待ち (5 分) で止まった' }
   })
 }

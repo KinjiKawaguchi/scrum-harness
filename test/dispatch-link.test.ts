@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,16 +6,15 @@ import { join } from 'node:path'
 import { saveSnapshot } from '../src/board/snapshot.ts'
 import { parseConfig } from '../src/config.ts'
 import { readDispatches } from '../src/dispatch/records.ts'
-import { branchName, ensureLinkedBranch, LINK_GH_TIMEOUT_MS, linkBranchWith, parseLookup, type GhRun, type LinkBranch } from '../src/dispatch/linked-branch.ts'
-import { ghWithin } from '../src/github.ts'
+import { ghWithin, type GhRun } from '../src/adapters/github/gh.ts'
+import { branchName, ensureLinkedBranch, LINK_GH_TIMEOUT_MS, linkBranchWith, parseLookup } from '../src/adapters/github/linked-branch.ts'
 import { dispatchMessage } from '../src/dispatch/message.ts'
-import { dispatchStep, type Exec } from '../src/dispatch/run.ts'
+import { dispatchStep } from '../src/dispatch/run.ts'
+import type { CodeHost } from '../src/ports/index.ts'
 import { paths, type Paths } from '../src/store.ts'
 import { writeHeartbeat } from '../src/team/heartbeat.ts'
+import { fakePorts } from './fake-ports.ts'
 import { config, issue, NOW, snapshot } from './helpers.ts'
-
-/** gh の印を読まない (本物の gh を呼ばない) */
-const noProbe = () => null
 
 const withPrefix = { ...config, dispatch: { enabled: true, baseBranch: 'develop', skipLabels: [], utcOffset: '+09:00', notes: [], linkedBranchPrefix: 'feat' } }
 
@@ -97,19 +96,19 @@ describe('ensureLinkedBranch', () => {
 describe('linkBranchWith', () => {
   it('linkedBranchPrefix が無ければ、gh を呼ばず null', () => {
     const { run, calls } = fakeGh([])
-    assert.equal(linkBranchWith(run)(issue(11), { ...config, dispatch: { ...withPrefix.dispatch, linkedBranchPrefix: undefined } }), null)
+    assert.equal(linkBranchWith(run, { ...config, dispatch: { ...withPrefix.dispatch, linkedBranchPrefix: undefined } })(issue(11)), null)
     assert.equal(calls.length, 0)
   })
 
   it('番号の無い項目 (下書き) は null', () => {
     const { run, calls } = fakeGh([])
-    assert.equal(linkBranchWith(run)(issue(11, { number: null }), withPrefix), null)
+    assert.equal(linkBranchWith(run, withPrefix)(issue(11, { number: null })), null)
     assert.equal(calls.length, 0)
   })
 
   it('項目のリポジトリと、設定の baseBranch を使う', () => {
     const { run, calls } = fakeGh([lookup(), '{}'])
-    assert.deepEqual(linkBranchWith(run)(issue(11), withPrefix), { name: 'feat/11', isNew: true })
+    assert.deepEqual(linkBranchWith(run, withPrefix)(issue(11)), { name: 'feat/11', isNew: true })
     assert.ok((calls[0] ?? []).includes('owner=example-org') && (calls[0] ?? []).includes('ref=refs/heads/develop'))
   })
 })
@@ -159,23 +158,18 @@ describe('parseConfig の linkedBranchPrefix', () => {
 
 describe('dispatchStep のブランチ', () => {
   let p: Paths
-  const exec: Exec = () => undefined
+  /** ブランチの用意だけを差し替えた、外に出ないポート */
+  const withLink = (prepareBranch: CodeHost['prepareBranch']) => fakePorts({ code: { ...fakePorts().code, prepareBranch } })
   const board = () => saveSnapshot(p, snapshot([issue(11, { status: '次にやる', title: '次の仕事' })]))
 
   beforeEach(() => {
     p = paths(mkdtempSync(join(tmpdir(), 'scrum-link-')))
-    process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
     writeHeartbeat(p, { sessionId: 'session-SWE1', name: 'SWE1', pid: null }, 'idle', new Date(NOW.getTime() - 20 * 60_000))
     board()
   })
 
-  afterEach(() => {
-    delete process.env.SCRUM_SESSIONS_DIR
-  })
-
   it('紐づいたブランチを用意し、記録と文面に残す', () => {
-    const link: LinkBranch = () => ({ name: 'feat/11', isNew: true })
-    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, exec, noProbe, link)
+    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, withLink(() => ({ name: 'feat/11', isNew: true })))
     assert.match(outcome?.message ?? '', /ブランチ feat\/11 を、origin\/develop の先頭から作ってある/)
     assert.equal(outcome?.record.branch, 'feat/11')
     assert.equal(readDispatches(p)[0]?.branch, 'feat/11')
@@ -183,10 +177,15 @@ describe('dispatchStep のブランチ', () => {
   })
 
   it('用意に失敗しても、渡すことは止めない。失敗は記録し、文面に書く', () => {
-    const link: LinkBranch = () => {
-      throw new Error('ブランチを作れない')
-    }
-    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, exec, noProbe, link)
+    const outcome = dispatchStep(
+      p,
+      withPrefix,
+      'SWE1',
+      NOW,
+      withLink(() => {
+        throw new Error('ブランチを作れない')
+      }),
+    )
     assert.match(outcome?.message ?? '', /紐づいたブランチは用意できなかった/)
     assert.equal(outcome?.record.branch, undefined)
     assert.match(readFileSync(p.errors, 'utf8'), /dispatch-link: ブランチを作れない/)
@@ -194,14 +193,16 @@ describe('dispatchStep のブランチ', () => {
   })
 
   it('ブランチを扱わない設定では、用意の呼び出しの結果 (null) を文面に出さない', () => {
-    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, exec, noProbe, () => null)
+    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, withLink(() => null))
     assert.doesNotMatch(outcome?.message ?? '', /ブランチ feat|用意できなかった/)
     assert.equal(outcome?.record.branch, undefined)
   })
 
-  it('既定の呼び出しは、linkedBranchPrefix が無ければ gh を呼ばない (今までの動き)', () => {
+  it('GitHub の用意は、linkedBranchPrefix が無ければ gh を呼ばない', () => {
     const plain = { ...withPrefix, dispatch: { ...withPrefix.dispatch, linkedBranchPrefix: undefined } }
-    const outcome = dispatchStep(p, plain, 'SWE1', NOW, exec)
+    const { run, calls } = fakeGh([])
+    const outcome = dispatchStep(p, plain, 'SWE1', NOW, withLink(linkBranchWith(run, plain)))
+    assert.equal(calls.length, 0)
     assert.match(outcome?.message ?? '', /^scrum-harness: SWE1 に次の仕事を渡した/)
     assert.doesNotMatch(outcome?.message ?? '', /ブランチ feat/)
   })
@@ -209,10 +210,16 @@ describe('dispatchStep のブランチ', () => {
   it('促しの文面は、ブランチを用意しない', () => {
     saveSnapshot(p, snapshot([issue(12, { status: '作業中', tanto: 'SWE1', title: '進行中' })]))
     let called = false
-    const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, exec, noProbe, () => {
-      called = true
-      return null
-    })
+    const outcome = dispatchStep(
+      p,
+      withPrefix,
+      'SWE1',
+      NOW,
+      withLink(() => {
+        called = true
+        return null
+      }),
+    )
     assert.match(outcome?.message ?? '', /進める/)
     assert.equal(called, false)
   })

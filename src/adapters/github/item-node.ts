@@ -1,6 +1,6 @@
-import { alertsOf } from '../alerts/config.ts'
-import { shortRepo, type Config } from '../config.ts'
-import type { BoardItem, ContentState, ItemKind } from './types.ts'
+import { alertsOf } from '../../alerts/config.ts'
+import { shortRepo, type Config } from '../../config.ts'
+import type { BoardItem, ContentState, ItemKind } from '../../board/types.ts'
 
 /** GraphQL が返す、ボードの1項目 (ProjectV2Item)。 */
 export type RawNode = {

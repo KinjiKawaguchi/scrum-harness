@@ -1,7 +1,8 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import type { Config } from './config.ts'
 import type { HookDeps } from './hooks/handlers.ts'
+import type { Ports } from './ports/index.ts'
 import type { Paths } from './store.ts'
 import type { Identity } from './team/identity.ts'
 
@@ -19,20 +20,8 @@ export function spawnCheckpoint(): void {
   child.unref()
 }
 
-export function fetchPrBody(prLabel: string, repo: string): string | null {
-  const number = prLabel.split('#')[1] ?? ''
-  try {
-    return execFileSync('gh', ['pr', 'view', number, '-R', repo, '--json', 'body', '--jq', '.body'], {
-      encoding: 'utf8',
-      timeout: 15_000,
-    })
-  } catch {
-    return null
-  }
-}
-
-export function hookDeps(p: Paths, config: Config, identity: Identity | null, now: Date): HookDeps {
-  return { p, config, now, identity, fetchPrBody, spawnRefresh, spawnCheckpoint }
+export function hookDeps(p: Paths, config: Config, identity: Identity | null, now: Date, ports: Ports): HookDeps {
+  return { p, config, now, identity, ports, spawnRefresh, spawnCheckpoint }
 }
 
 export async function readStdin(): Promise<string> {

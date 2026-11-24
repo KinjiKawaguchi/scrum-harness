@@ -1,8 +1,4 @@
-import { execFileSync } from 'node:child_process'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
-import { realNotify } from '../alerts/desktop.ts'
 import { alertStep } from '../alerts/run.ts'
 import { applyCommands, checkGuard } from '../board/commands.ts'
 import { label } from '../board/rules.ts'
@@ -11,40 +7,27 @@ import { isRefreshDue, refreshSnapshot, saveSnapshot } from '../board/snapshot.t
 import { hasCodeChanged, SOURCE_DIR } from '../code-change.ts'
 import { dispatchOf, type Config } from '../config.ts'
 import { loadContext } from '../findings/lint.ts'
+import type { LinkOutcome, Ports } from '../ports/index.ts'
 import { appendLine, logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { decideAction } from './decide.ts'
 import { idleGate } from './due.ts'
-import { defaultLink, type LinkBranch, type LinkOutcome } from './linked-branch.ts'
 import { dispatchMessage, nudgeMessage } from './message.ts'
-import { defaultProbe, observe, readSeen, tokenWith, writeSeen, type ProgressProbe } from './progress.ts'
+import { observe, readSeen, tokenWith, writeSeen } from './progress.ts'
 import { appendDispatch } from './records.ts'
 import type { DispatchRecord } from './types.ts'
 
-/** ボードを書き換えるスクリプトを実行する。失敗したら投げる。 */
-export type Exec = (script: string, args: readonly string[]) => void
-
 /** 渡すのに失敗したあと、次に試すまで待つ時間。失敗が続いても、30 秒ごとには試さない。 */
 const FAILURE_BACKOFF_MS = 5 * 60_000
-const SCRIPT_TIMEOUT_MS = 60_000
 
 export type DispatchOutcome = { readonly message: string; readonly record: DispatchRecord }
 
-function scriptPath(config: Config, script: string): string {
-  const dir = dispatchOf(config).scriptDir
-  if (dir === undefined) return script
-  return join(dir.startsWith('~/') ? join(homedir(), dir.slice(2)) : dir, script)
-}
-
-export function realExec(config: Config): Exec {
-  return (script, args) => {
-    execFileSync(scriptPath(config, script), [...args], { timeout: SCRIPT_TIMEOUT_MS, stdio: 'ignore' })
-  }
-}
+/** 渡すときに使うポート。ボードに書き、ブランチを用意し、作業の印を読み、部下の稼働を読む。 */
+export type DispatchPorts = Pick<Ports, 'writer' | 'code' | 'sessions'>
 
 /** 紐づいたブランチを用意する。失敗しても、渡すことは止めない (文面に、用意できなかったと書く)。 */
-function linkBranch(p: Paths, link: LinkBranch, item: BoardItem, config: Config): LinkOutcome {
+function linkBranch(p: Paths, code: Ports['code'], item: BoardItem): LinkOutcome {
   try {
-    return link(item, config)
+    return code.prepareBranch(item)
   } catch (error) {
     logError(p, 'dispatch-link', error)
     return 'failed'
@@ -68,22 +51,19 @@ export function dispatchStep(
   config: Config,
   memberName: string,
   now: Date,
-  exec: Exec,
-  probe: ProgressProbe = defaultProbe,
-  link: LinkBranch = defaultLink,
+  ports: DispatchPorts,
 ): DispatchOutcome | null {
-  const { setStatus, setTanto } = config.scripts
-  if (!dispatchOf(config).enabled || setStatus === undefined || setTanto === undefined || isBackingOff(p, now)) return null
-  const quick = loadContext(p, config, now)
+  if (!dispatchOf(config).enabled || !ports.writer.canAssign || isBackingOff(p, now)) return null
+  const quick = loadContext(p, config, now, ports.sessions)
   const quickMember = quick.members.find((member) => member.name === memberName)
   if (quickMember === undefined || !idleGate(quickMember, quick.acks, config, now).isDue) return null
   if (!tryLock(p.dispatchLock)) return null
   try {
-    const ctx = loadContext(p, config, now)
+    const ctx = loadContext(p, config, now, ports.sessions)
     const member = ctx.members.find((one) => one.name === memberName)
     if (member === undefined || ctx.snapshot === null || !idleGate(member, ctx.acks, config, now).isDue) return null
     const seen = readSeen(p)
-    const action = decideAction(ctx.snapshot, member, ctx.dispatches ?? [], config, now, tokenWith(probe), seen)
+    const action = decideAction(ctx.snapshot, member, ctx.dispatches ?? [], config, now, tokenWith(ports.code.activity), seen)
     if (action.kind === 'none') {
       if (action.reason === 'progressing') writeSeen(p, observe(seen, memberName, label(action.item), action.token, now))
       return null
@@ -99,9 +79,9 @@ export function dispatchStep(
     // 書き込む前に、ボードへの書き込みの守りと同じ検査 (作業中の上限、除く作者の作業中も数える) を通す。通らなければ、渡さない
     const setDoing = { kind: 'set-status', label: label(item), status: config.statuses.doing } as const
     if (checkGuard(ctx.snapshot, [setDoing], config) !== null) return null
-    if (item.tanto !== memberName) exec(setTanto, [String(item.number), memberName])
-    exec(setStatus, [String(item.number), config.statuses.doing])
-    const branch = linkBranch(p, link, item, config)
+    if (item.tanto !== memberName) ports.writer.assign(item, memberName)
+    ports.writer.setStatus(item, config.statuses.doing)
+    const branch = linkBranch(p, ports.code, item)
     const record: DispatchRecord = { at: now.toISOString(), member: memberName, label: label(item), title: item.title, ...(typeof branch === 'object' && branch !== null ? { branch: branch.name } : {}) }
     appendDispatch(p, record)
     appendLine(p.events, JSON.stringify({ type: 'dispatched', tier: action.tier, ...record }))
@@ -131,8 +111,7 @@ export async function runMemberWatch(
   config: Config,
   memberName: string,
   options: MemberWatchOptions,
-  exec: Exec = realExec(config),
-  probe: ProgressProbe = defaultProbe,
+  ports: Ports,
 ): Promise<string | null> {
   const lock = p.memberWatchLock(memberName)
   if (!tryLock(lock)) return null
@@ -141,9 +120,9 @@ export async function runMemberWatch(
   try {
     while (Date.now() < deadline && !hasCodeChanged(SOURCE_DIR, startedAt)) {
       const now = new Date()
-      if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now)
-      const outcome = dispatchStep(p, config, memberName, now, exec, probe)
-      alertStep(p, config, now, { notify: realNotify, isLiaison: false })
+      if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now, ports.board)
+      const outcome = dispatchStep(p, config, memberName, now, ports)
+      alertStep(p, config, now, { notify: ports.notify, sessions: ports.sessions, isLiaison: false })
       if (outcome !== null) return outcome.message
       await sleep(options.intervalMs)
     }

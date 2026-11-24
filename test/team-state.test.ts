@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { aggregateMembers, parseSessionFile } from '../src/team/state.ts'
+import { parseSessionFile } from '../src/adapters/claude-code/sessions.ts'
+import { aggregateMembers } from '../src/team/state.ts'
 import type { SessionSignal } from '../src/team/types.ts'
 
 function signal(overrides: Partial<SessionSignal>): SessionSignal {

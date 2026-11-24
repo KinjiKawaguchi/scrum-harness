@@ -4,7 +4,7 @@ import { hasCodeChanged, SOURCE_DIR } from '../code-change.ts'
 import type { Config } from '../config.ts'
 import { logError, releaseLock, tryLock, type Paths } from '../store.ts'
 import { alertsOf } from './config.ts'
-import { realNotify, type Notify } from './desktop.ts'
+import type { Ports } from '../ports/index.ts'
 import { alertStep } from './run.ts'
 import type { Notice } from './types.ts'
 
@@ -35,7 +35,7 @@ export async function runLiaisonWatch(
   config: Config,
   name: string,
   options: LiaisonWatchOptions,
-  notify: Notify = realNotify,
+  ports: Ports,
 ): Promise<string | null> {
   const lock = p.memberWatchLock(name)
   if (!tryLock(lock)) return null
@@ -44,8 +44,8 @@ export async function runLiaisonWatch(
   try {
     while (Date.now() < deadline && !hasCodeChanged(SOURCE_DIR, startedAt)) {
       const now = new Date()
-      if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now)
-      const notices = alertStep(p, config, now, { notify, isLiaison: true })
+      if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now, ports.board)
+      const notices = alertStep(p, config, now, { notify: ports.notify, sessions: ports.sessions, isLiaison: true })
       if (notices.length > 0) return liaisonMessage(notices, config)
       await sleep(options.intervalMs)
     }

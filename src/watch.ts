@@ -1,12 +1,9 @@
 import { rmSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { isRefreshDue, refreshSnapshot } from './board/snapshot.ts'
-import { realNotify } from './alerts/desktop.ts'
 import { alertStep } from './alerts/run.ts'
 import { hasCodeChanged, SOURCE_DIR } from './code-change.ts'
 import type { Config } from './config.ts'
-import type { GhRun } from './dispatch/linked-branch.ts'
-import { gh } from './github.ts'
 import { runLinksIfDue } from './links/run.ts'
 import { runCheckpoint } from './sprint/checkpoint-run.ts'
 import { formatList } from './findings/format.ts'
@@ -14,6 +11,7 @@ import { lintAll, loadContext, type LintContext } from './findings/lint.ts'
 import { remember, unseen } from './findings/notify.ts'
 import { atLeast, type Finding } from './findings/types.ts'
 import { transitions, type MetricsState } from './metrics/events.ts'
+import type { Ports } from './ports/index.ts'
 import { appendLine, logError, readJson, releaseLock, tryLock, writeJson, type Paths } from './store.ts'
 
 /** 待機中の TechLead を起こす指摘。TechLead が作業中なら、フックで入るので起こさない。 */
@@ -46,13 +44,13 @@ function recordMetrics(p: Paths, ctx: LintContext): void {
 
 export type WatchOptions = { readonly maxMs: number; readonly intervalMs: number }
 
-function step(p: Paths, config: Config, run: GhRun): string | null {
+function step(p: Paths, config: Config, ports: Ports): string | null {
   const now = new Date()
-  if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now)
-  runLinksIfDue(p, config, now, run)
-  runCheckpoint(p, config, now)
-  alertStep(p, config, now, { notify: realNotify, isLiaison: false })
-  const ctx = loadContext(p, config, now)
+  if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now, ports.board)
+  runLinksIfDue(p, config, now, ports)
+  runCheckpoint(p, config, now, ports)
+  alertStep(p, config, now, { notify: ports.notify, sessions: ports.sessions, isLiaison: false })
+  const ctx = loadContext(p, config, now, ports.sessions)
   recordMetrics(p, ctx)
   const notified = readJson<readonly string[]>(p.notified, [])
   markPending(p, hasPending(ctx, notified))
@@ -67,13 +65,13 @@ function step(p: Paths, config: Config, run: GhRun): string | null {
  * TechLead の Stop と SessionStart から asyncRewake で起動する。ボードを定期的に取り直し、
  * 知らせていない指摘が出たら、その文を返して exit 2 で TechLead を起こす。1つだけ動く。
  */
-export async function runWatch(p: Paths, config: Config, options: WatchOptions, run: GhRun = gh): Promise<string | null> {
+export async function runWatch(p: Paths, config: Config, options: WatchOptions, ports: Ports): Promise<string | null> {
   if (!tryLock(p.watchLock)) return null
   const startedAt = Date.now()
   const deadline = startedAt + options.maxMs
   try {
     while (Date.now() < deadline && !hasCodeChanged(SOURCE_DIR, startedAt)) {
-      const message = step(p, config, run)
+      const message = step(p, config, ports)
       if (message !== null) return message
       await sleep(options.intervalMs)
     }

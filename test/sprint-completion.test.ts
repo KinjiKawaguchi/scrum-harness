@@ -3,13 +3,18 @@ import assert from 'node:assert/strict'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadFetchedSnapshot, refreshSnapshot } from '../src/board/snapshot.ts'
+import { gh } from '../src/adapters/github/gh.ts'
+import { projectBoardSource } from '../src/adapters/github/project-board.ts'
+import { loadFetchedSnapshot, refreshSnapshot as refreshWith } from '../src/board/snapshot.ts'
 import type { Config } from '../src/config.ts'
 import { loadCompletions, newlyFinished, recordCompletions, type Completion } from '../src/sprint/completion.ts'
 import type { StatusEvent } from '../src/sprint/effort.ts'
 import { formatCompletions, formatPoints } from '../src/sprint/report.ts'
-import { appendLine, paths, readText, writeJson } from '../src/store.ts'
+import { appendLine, paths, readText, writeJson, type Paths } from '../src/store.ts'
 import { config as base, historyOf, issue, snapshot } from './helpers.ts'
+
+/** GitHub のアダプタで取り直す。gh は、試験ごとに PATH の先頭に置いた偽物が答える。 */
+const refreshSnapshot = (p: Paths, c: Config, now: Date) => refreshWith(p, c, now, projectBoardSource(gh, c))
 
 const config: Config = {
   ...base,

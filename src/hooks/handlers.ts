@@ -1,6 +1,7 @@
-import { checkGuard, parseBoardCommands } from '../board/commands.ts'
+import { checkGuard } from '../board/commands.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
 import type { Config } from '../config.ts'
+import type { Ports } from '../ports/index.ts'
 import type { Paths } from '../store.ts'
 import { dueCheckpoint, loadRecords } from '../sprint/record.ts'
 import { writeHeartbeat } from '../team/heartbeat.ts'
@@ -13,9 +14,8 @@ export type HookDeps = {
   readonly config: Config
   readonly now: Date
   readonly identity: Identity | null
-  /** PR の本文。取れなければ null。ラベルは "<リポジトリ名>#123" の形 */
-  /** PR の本文を読む。repo は、コマンドが指したリポジトリの full の名前 */
-  readonly fetchPrBody: (prLabel: string, repo: string) => string | null
+  /** 操作の読み取り (actions)、PR が触れている issue (code)、稼働 (sessions) を使う */
+  readonly ports: Pick<Ports, 'actions' | 'code' | 'sessions'>
   /** ボードの取り直しを裏で始める */
   readonly spawnRefresh: () => void
   /** 節目の記録を裏で始める */
@@ -57,7 +57,7 @@ function guard(input: HookInput, deps: HookDeps): HookResult {
   const command = bashCommand(input)
   const snapshot = loadSnapshot(deps.p)
   if (command === null || snapshot === null) return NOTHING
-  const reason = checkGuard(snapshot, parseBoardCommands(command, deps.config), deps.config, command)
+  const reason = checkGuard(snapshot, deps.ports.actions.commandsOf(command), deps.config, command)
   if (reason === null) return NOTHING
   return {
     exitCode: 0,

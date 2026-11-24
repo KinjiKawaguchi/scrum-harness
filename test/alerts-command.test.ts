@@ -7,43 +7,52 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { alertsCommand } from '../src/alerts/command.ts'
 import { saveSnapshot } from '../src/board/snapshot.ts'
+import { gh } from '../src/adapters/github/gh.ts'
+import { projectBoardSource } from '../src/adapters/github/project-board.ts'
+import type { Snapshot } from '../src/board/types.ts'
 import { paths } from '../src/store.ts'
 import { config, NOW, snapshot } from './helpers.ts'
 import { child, enabled, epic } from './alerts-fixtures.ts'
+import { fakePorts } from './fake-ports.ts'
+
+/** 取り直しを、渡した関数で置き換えたポート。関数は、取り直した控えを返す。 */
+const refreshing = (fetchSnapshot: () => Snapshot) => fakePorts({ board: { ...fakePorts().board, fetchSnapshot } })
 
 describe('alertsCommand (scrum alerts)', () => {
   it('alerts が有効でなければ、何もせず、理由を返す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
-    assert.match(alertsCommand(p, config, NOW, { notify: () => undefined }), /alerts が有効でない/)
+    assert.match(alertsCommand(p, config, NOW, fakePorts()), /alerts が有効でない/)
   })
 
   it('有効なら、検知を 1 回進め、macOS の通知を、まだなら出し、動く人のいない Epic と、渡せる issue が無い部下の数を返す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
-    process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
-    try {
-      const board = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
-      saveSnapshot(p, board)
-      const sent: string[] = []
-      const notify = (_title: string, body: string) => sent.push(body)
-      assert.equal(alertsCommand(p, enabled, NOW, { notify }), '止まりの検知を進めた: 動く人のいない Epic 1 件、渡せる issue が無い部下 0 人')
-      assert.equal(sent.length, 0)
-      alertsCommand(p, enabled, new Date(NOW.getTime() + 60 * 60_000), { notify })
-      assert.equal(sent.length, 1)
-    } finally {
-      delete process.env.SCRUM_SESSIONS_DIR
-    }
+    const board = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
+    saveSnapshot(p, board)
+    const sent: string[] = []
+    const notify = (_title: string, body: string) => sent.push(body)
+    assert.equal(alertsCommand(p, enabled, NOW, fakePorts({ notify })), '止まりの検知を進めた: 動く人のいない Epic 1 件、渡せる issue が無い部下 0 人')
+    assert.equal(sent.length, 0)
+    alertsCommand(p, enabled, new Date(NOW.getTime() + 60 * 60_000), fakePorts({ notify }))
+    assert.equal(sent.length, 1)
   })
 })
 
 describe('alertsCommand の控えの取り直し', () => {
   const stale = (p: ReturnType<typeof paths>) => saveSnapshot(p, { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() })
-  const quiet = { notify: () => undefined }
 
   it('控えが古ければ、検知の前に取り直す (launchd の夜は、ほかに取り直す人がいない)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
     const order: string[] = []
-    alertsCommand(p, enabled, NOW, { ...quiet, refresh: () => order.push('refresh') })
+    alertsCommand(
+      p,
+      enabled,
+      NOW,
+      refreshing(() => {
+        order.push('refresh')
+        throw new Error('取り直しは試しただけ')
+      }),
+    )
     assert.deepEqual(order, ['refresh'])
   })
 
@@ -51,21 +60,24 @@ describe('alertsCommand の控えの取り直し', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     saveSnapshot(p, { ...snapshot([epic()]), fetchedAt: NOW.toISOString() })
     let called = false
-    alertsCommand(p, enabled, NOW, { ...quiet, refresh: () => (called = true) })
+    alertsCommand(
+      p,
+      enabled,
+      NOW,
+      refreshing(() => {
+        called = true
+        throw new Error('呼ばれない')
+      }),
+    )
     assert.equal(called, false)
   })
 
   it('取り直した後の控えで、検知する (取り直しが控えを新しくすれば、その控えを使う)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
-    process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
-    try {
-      stale(p)
-      const refreshed = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
-      const text = alertsCommand(p, enabled, NOW, { ...quiet, refresh: () => saveSnapshot(p, refreshed) })
-      assert.match(text, /動く人のいない Epic 1 件/)
-    } finally {
-      delete process.env.SCRUM_SESSIONS_DIR
-    }
+    stale(p)
+    const refreshed = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
+    const text = alertsCommand(p, enabled, NOW, refreshing(() => refreshed))
+    assert.match(text, /動く人のいない Epic 1 件/)
   })
 
   it('本物の取り直しは、gh を呼ぶ前に、試した時刻を書く (gh が使えなくても、5 分ごとに叩き続けない)', () => {
@@ -74,7 +86,7 @@ describe('alertsCommand の控えの取り直し', () => {
     const savedPath = process.env.PATH
     process.env.PATH = mkdtempSync(join(tmpdir(), 'scrum-no-gh-'))
     try {
-      alertsCommand(p, enabled, NOW, quiet)
+      alertsCommand(p, enabled, NOW, fakePorts({ board: projectBoardSource(gh, enabled) }))
     } finally {
       process.env.PATH = savedPath
     }

@@ -1,7 +1,5 @@
 import { execFileSync } from 'node:child_process'
-
-/** macOS の通知を出す。失敗したら投げる。 */
-export type Notify = (title: string, body: string) => void
+import type { Notifier } from '../../ports/index.ts'
 
 const TIMEOUT_MS = 10_000
 
@@ -13,8 +11,8 @@ export function osascriptArgs(title: string, body: string): readonly string[] {
   return ['-e', 'on run argv', '-e', 'display notification (item 1 of argv) with title (item 2 of argv)', '-e', 'end run', '--', body, title]
 }
 
-/** macOS 以外では何もしない。 */
-export const realNotify: Notify = (title, body) => {
+/** macOS の通知を出す。失敗したら投げる。macOS 以外では何もしない。 */
+export const macosNotify: Notifier = (title, body) => {
   if (process.platform !== 'darwin') return
   execFileSync('osascript', [...osascriptArgs(title, body)], { timeout: TIMEOUT_MS, stdio: 'ignore' })
 }

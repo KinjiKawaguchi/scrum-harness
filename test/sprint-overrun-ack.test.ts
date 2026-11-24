@@ -30,7 +30,7 @@ function setup(points = 3) {
   return p
 }
 const ack = (p: ReturnType<typeof paths>, comments: () => readonly IssueComment[], subject = 'app#1') =>
-  ackCommand(p, ['S-POINTS-OVER', subject], { for: '1d', reason: '08:00 の振り返りで決める' }, config, NOW, comments)
+  ackCommand(p, ['S-POINTS-OVER', subject], { for: '1d', reason: '08:00 の振り返りで決める' }, config, NOW, { comments })
 const comments = (...list: readonly IssueComment[]) => () => list
 const written = (p: ReturnType<typeof paths>) => readJson<readonly Ack[]>(p.acks, [])
 
@@ -85,7 +85,7 @@ describe('scrum ack S-POINTS-OVER', () => {
 
   it('sprint の設定が無ければ、受け入れない', () => {
     const p = setup()
-    assert.match(ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: 'x' }, null, NOW, comments()), /sprint の設定が無い/)
+    assert.match(ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: 'x' }, null, NOW, { comments: comments() }), /sprint の設定が無い/)
     assert.deepEqual(written(p), [])
   })
 

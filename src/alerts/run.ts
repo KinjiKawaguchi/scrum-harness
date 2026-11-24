@@ -2,7 +2,7 @@ import { appendLine, logError, releaseLock, tryLock, type Paths } from '../store
 import type { Config } from '../config.ts'
 import { lintAll, loadContext } from '../findings/lint.ts'
 import { alertsOf } from './config.ts'
-import type { Notify } from './desktop.ts'
+import type { Notifier, SessionDirectory } from '../ports/index.ts'
 import { idleLines } from './idle-lines.ts'
 import { mergeOwner } from './merge.ts'
 import { evaluateAlerts, type AlertInput } from './rules.ts'
@@ -11,7 +11,8 @@ import { applyThrottle, newlyPushed, recordPushed } from './throttle.ts'
 import { EMPTY_ALERT_STATE, type AlertState, type Notice } from './types.ts'
 
 export type AlertOptions = {
-  readonly notify: Notify
+  readonly notify: Notifier
+  readonly sessions: SessionDirectory
   /** 窓口の待機プロセスのとき true。窓口に送る通知を返し、送った指紋を覚える */
   readonly isLiaison: boolean
 }
@@ -26,7 +27,7 @@ function prune(keys: readonly string[], current: readonly Notice[]): readonly st
  * オーナーへの通知のうち、macOS の通知としてまだ出していないものを、1 つにまとめて出す。失敗しても、同じ通知を重ねて試さない。
  * 出した (試した) 通知の指紋を返す。
  */
-function sendDesktop(p: Paths, owner: readonly Notice[], sent: readonly string[], notify: Notify, config: Config, now: Date): readonly string[] {
+function sendDesktop(p: Paths, owner: readonly Notice[], sent: readonly string[], notify: Notifier, config: Config, now: Date): readonly string[] {
   const fresh = owner.filter((notice) => notice.desktop !== undefined && !sent.includes(notice.key))
   const merged = mergeOwner(fresh, config)
   if (merged?.desktop === undefined) return []
@@ -58,7 +59,7 @@ function nextState(advanced: AlertState, notices: readonly Notice[], sent: Sent)
 export function alertStep(p: Paths, config: Config, now: Date, options: AlertOptions): readonly Notice[] {
   if (!alertsOf(config).enabled || !tryLock(p.alertsLock)) return []
   try {
-    const ctx = loadContext(p, config, now)
+    const ctx = loadContext(p, config, now, options.sessions)
     if (ctx.snapshot === null) return []
     const base: AlertInput = { ...ctx, alerts: ctx.alerts ?? EMPTY_ALERT_STATE, dispatches: ctx.dispatches ?? [] }
     const advanced = advanceAlertState(base)

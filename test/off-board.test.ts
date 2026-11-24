@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { itemsQuery } from '../src/board/snapshot.ts'
-import { offBoardCandidates, READ_BATCH_SIZE, readMissingItems, readQuery } from '../src/board/off-board.ts'
+import { itemsQuery } from '../src/adapters/github/project-board.ts'
+import { offBoardCandidates, READ_BATCH_SIZE, readMissingItems, readQuery } from '../src/adapters/github/off-board.ts'
 import type { OpenIssue } from '../src/board/types.ts'
 import { config, issue, pr, REPO } from './helpers.ts'
 

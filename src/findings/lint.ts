@@ -2,11 +2,11 @@ import { lintBoard } from '../board/rules.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
 import type { Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
-import { isPidAlive, readJson, type Paths } from '../store.ts'
+import type { SessionDirectory } from '../ports/index.ts'
+import { readJson, type Paths } from '../store.ts'
 import { readHeartbeats } from '../team/heartbeat.ts'
-import { readSessionRecords } from '../team/identity.ts'
 import { lintTeam } from '../team/rules.ts'
-import { aggregateMembers, parseSessionFile } from '../team/state.ts'
+import { aggregateMembers } from '../team/state.ts'
 import type { MemberState, SessionSignal } from '../team/types.ts'
 import { EMPTY_HISTORY, loadCountingHistory, type CountingHistory } from '../sprint/counting-history.ts'
 import { lintSprint } from '../sprint/rules.ts'
@@ -76,20 +76,16 @@ export function lintAll(ctx: LintContext): LintResult {
   return { active: active.toSorted(bySeverity), acked }
 }
 
-/** フックの心拍と Claude Code のセッションの記録を合わせる。心拍が無い部下も、空いていることが分かる。 */
-export function collectSignals(p: Paths, now: Date): readonly SessionSignal[] {
-  const fromSessions = readSessionRecords().flatMap((record) => {
-    const signal = parseSessionFile(record, isPidAlive)
-    return signal === null ? [] : [signal]
-  })
-  return [...fromSessions, ...readHeartbeats(p, now)]
+/** フックの心拍とセッションの記録を合わせる。心拍が無い部下も、空いていることが分かる。 */
+export function collectSignals(p: Paths, now: Date, sessions: SessionDirectory): readonly SessionSignal[] {
+  return [...sessions.signals(), ...readHeartbeats(p, now)]
 }
 
-export function loadContext(p: Paths, config: Config, now: Date, snapshot?: Snapshot | null): LintContext {
+export function loadContext(p: Paths, config: Config, now: Date, sessions: SessionDirectory, snapshot?: Snapshot | null): LintContext {
   const names = [config.techlead, ...config.members]
   return {
     snapshot: snapshot === undefined ? loadSnapshot(p) : snapshot,
-    members: aggregateMembers(collectSignals(p, now), names),
+    members: aggregateMembers(collectSignals(p, now, sessions), names),
     acks: readJson<readonly Ack[]>(p.acks, []),
     config,
     now,

@@ -1,6 +1,5 @@
 import type { Config } from '../config.ts'
-import type { GhRun } from '../dispatch/linked-branch.ts'
-import { gh } from '../github.ts'
+import type { CodeHost, IssueBody, IssueThread } from '../ports/index.ts'
 import { appendLine, logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { linksOf, type LinksConfig } from './config.ts'
 import { isSkipped, referencedNumbers, type OpenPr } from './extract.ts'
@@ -15,8 +14,6 @@ export type LinkPlan = {
   readonly after: string
 }
 
-export type OpenIssue = { readonly number: number; readonly body: string }
-
 /** 計画と、書き換えない issue の番号 (印が壊れている、書いた後の本文でも印が読めない。どちらも issue の番号の小さい順)。 */
 export type Planning = { readonly plans: readonly LinkPlan[]; readonly broken: readonly number[] }
 
@@ -29,7 +26,7 @@ export type Planning = { readonly plans: readonly LinkPlan[]; readonly broken: r
  * 流すたびに印の組が足される。そういう本文も broken に入れる。
  * issue の一覧は新しい順で返ってくるので、番号の小さい順に並べ直す (1 回に書き換える件数の上限は、小さい順に当てる)。
  */
-export function planLinks(repo: string, prs: readonly OpenPr[], issues: readonly OpenIssue[], links: LinksConfig): Planning {
+export function planLinks(repo: string, prs: readonly OpenPr[], issues: readonly IssueBody[], links: LinksConfig): Planning {
   const byIssue = new Map<number, PrEntry[]>()
   prs
     .filter((pr) => !isSkipped(pr, links))
@@ -50,28 +47,8 @@ export function planLinks(repo: string, prs: readonly OpenPr[], issues: readonly
   }
 }
 
-function parseList<T>(output: string, pick: (record: Record<string, any>) => T | null): readonly T[] {
-  const list: unknown = JSON.parse(output)
-  if (!Array.isArray(list)) throw new Error('gh の出力が配列でない')
-  return list.flatMap((record) => {
-    const one = pick(record as Record<string, any>)
-    return one === null ? [] : [one]
-  })
-}
-
-export function listOpenPrs(run: GhRun, repo: string): readonly OpenPr[] {
-  const output = run(['pr', 'list', '-R', repo, '--state', 'open', '--limit', '300', '--json', 'number,title,body,headRefName,author'])
-  return parseList(output, (record) =>
-    typeof record.number === 'number' && typeof record.title === 'string' && typeof record.headRefName === 'string'
-      ? { number: record.number, title: record.title, body: typeof record.body === 'string' ? record.body : '', headRefName: record.headRefName, author: String(record.author?.login ?? '') }
-      : null,
-  )
-}
-
-export function listOpenIssues(run: GhRun, repo: string): readonly OpenIssue[] {
-  const output = run(['issue', 'list', '-R', repo, '--state', 'open', '--limit', '1000', '--json', 'number,body'])
-  return parseList(output, (record) => (typeof record.number === 'number' ? { number: record.number, body: typeof record.body === 'string' ? record.body : '' } : null))
-}
+/** PR を読み、issue の本文を読み書きする。 */
+export type LinkPorts = { readonly code: Pick<CodeHost, 'openPullRequests'>; readonly issues: IssueThread }
 
 export type SkipReason = 'changed' | 'closed' | 'failed'
 export type LinkResult = {
@@ -83,27 +60,21 @@ export type LinkResult = {
 
 const EMPTY_RESULT: LinkResult = { planned: [], applied: [], skipped: [], broken: [] }
 
-/** いまの issue の状態。書く直前に読み直す。 */
-function readCurrent(run: GhRun, plan: LinkPlan): { readonly state: string; readonly body: string } {
-  const issue = JSON.parse(run(['api', `repos/${plan.repo}/issues/${plan.issue}`])) as { state?: unknown; body?: unknown }
-  return { state: String(issue.state ?? ''), body: typeof issue.body === 'string' ? issue.body : '' }
-}
-
 /**
  * 1 つの issue を書き換える。書く直前に、本文を読み直し、計画を作ったときの本文と違えば (人が直した) 書かない。
- * 書く前の本文は、log/links-before.jsonl に残す。本文は -f で渡す (-F だと、@ で始まる本文がファイルとして読まれる)。
+ * 書く前の本文は、log/links-before.jsonl に残す。
  */
-function apply(p: Paths, run: GhRun, plan: LinkPlan, now: Date): SkipReason | null {
+function apply(p: Paths, issues: IssueThread, plan: LinkPlan, now: Date): SkipReason | null {
   const at = now.toISOString()
   try {
-    const current = readCurrent(run, plan)
-    const reason: SkipReason | null = current.state !== 'open' ? 'closed' : current.body !== plan.before ? 'changed' : null
+    const current = issues.read(plan.repo, plan.issue)
+    const reason: SkipReason | null = !current.isOpen ? 'closed' : current.body !== plan.before ? 'changed' : null
     if (reason !== null) {
       appendLine(p.events, JSON.stringify({ at, type: 'link-skipped', repo: plan.repo, issue: plan.issue, reason }))
       return reason
     }
     appendLine(p.linksBefore, JSON.stringify({ at, repo: plan.repo, issue: plan.issue, body: plan.before }))
-    run(['api', '-X', 'PATCH', `repos/${plan.repo}/issues/${plan.issue}`, '-f', `body=${plan.after}`])
+    issues.writeBody(plan.repo, plan.issue, plan.after)
     appendLine(p.events, JSON.stringify({ at, type: 'link-prs', repo: plan.repo, issue: plan.issue, prs: plan.entries.map((entry) => entry.number) }))
     return null
   } catch (error) {
@@ -112,11 +83,11 @@ function apply(p: Paths, run: GhRun, plan: LinkPlan, now: Date): SkipReason | nu
   }
 }
 
-function linkRepo(p: Paths, repo: string, run: GhRun, links: LinksConfig, now: Date, options: { readonly dryRun: boolean; readonly budget: number }): LinkResult {
-  const { plans, broken } = planLinks(repo, listOpenPrs(run, repo), listOpenIssues(run, repo), links)
+function linkRepo(p: Paths, repo: string, ports: LinkPorts, links: LinksConfig, now: Date, options: { readonly dryRun: boolean; readonly budget: number }): LinkResult {
+  const { plans, broken } = planLinks(repo, ports.code.openPullRequests(repo), ports.issues.openIssues(repo), links)
   broken.forEach((issue) => appendLine(p.events, JSON.stringify({ at: now.toISOString(), type: 'link-broken', repo, issue })))
   const targets = options.dryRun ? [] : plans.slice(0, options.budget)
-  const outcomes = targets.map((plan) => ({ plan, reason: apply(p, run, plan, now) }))
+  const outcomes = targets.map((plan) => ({ plan, reason: apply(p, ports.issues, plan, now) }))
   return {
     planned: plans,
     applied: outcomes.filter(({ reason }) => reason === null).map(({ plan }) => plan),
@@ -130,12 +101,12 @@ function linkRepo(p: Paths, repo: string, run: GhRun, links: LinksConfig, now: D
  * 1 回に書き換えるのは、リポジトリ全体で maxEditsPerRun 件まで (設定のリポジトリの順に、issue の番号の小さい順)。dryRun なら、何も書き換えず、予定だけを返す。
  * 読むのに失敗したリポジトリは、記録して飛ばす。
  */
-export function linkPullRequests(p: Paths, config: Config, now: Date, run: GhRun, options: { readonly dryRun: boolean }): LinkResult {
+export function linkPullRequests(p: Paths, config: Config, now: Date, ports: LinkPorts, options: { readonly dryRun: boolean }): LinkResult {
   const links = linksOf(config)
   const results = config.repos.reduce<readonly LinkResult[]>((done, repo) => {
     const budget = links.maxEditsPerRun - done.reduce((total, result) => total + result.applied.length + result.skipped.length, 0)
     try {
-      return [...done, linkRepo(p, repo, run, links, now, { ...options, budget })]
+      return [...done, linkRepo(p, repo, ports, links, now, { ...options, budget })]
     } catch (error) {
       logError(p, `link-prs ${repo}`, error)
       return [...done, EMPTY_RESULT]
@@ -158,11 +129,11 @@ export function isLinksDue(p: Paths, config: Config, now: Date): boolean {
 }
 
 /** TechLead の待機プロセスから呼ぶ。間隔が来ていれば、1 回流す。流すと決めた時点で時刻を書く (失敗しても、30 秒ごとには試さない)。 */
-export function runLinksIfDue(p: Paths, config: Config, now: Date, run: GhRun = gh): LinkResult | null {
+export function runLinksIfDue(p: Paths, config: Config, now: Date, ports: LinkPorts): LinkResult | null {
   if (!isLinksDue(p, config, now) || !tryLock(p.linksLock)) return null
   try {
     writeJson(p.linksState, now.toISOString())
-    return linkPullRequests(p, config, now, run, { dryRun: false })
+    return linkPullRequests(p, config, now, ports, { dryRun: false })
   } finally {
     releaseLock(p.linksLock)
   }

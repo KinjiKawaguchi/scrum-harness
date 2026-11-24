@@ -4,10 +4,11 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { alertsOf, DEFAULT_ALERTS, parseAlerts } from '../src/alerts/config.ts'
-import { osascriptArgs } from '../src/alerts/desktop.ts'
+import { bashActionReader } from '../src/adapters/github/action-reader.ts'
+import { osascriptArgs } from '../src/adapters/macos/notify.ts'
 import { liaisonMessage } from '../src/alerts/liaison.ts'
 import type { Notice } from '../src/alerts/types.ts'
-import { itemsQuery } from '../src/board/snapshot.ts'
+import { itemsQuery } from '../src/adapters/github/project-board.ts'
 import { writeShellPatterns } from '../src/cli-commands.ts'
 import { parseConfig } from '../src/config.ts'
 import { paths } from '../src/store.ts'
@@ -64,7 +65,7 @@ describe('roleOf', () => {
 describe('writeShellPatterns の 4 行目', () => {
   const line4 = (candidate: typeof config) => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
-    writeShellPatterns(p, candidate)
+    writeShellPatterns(p, candidate, bashActionReader(candidate))
     return readFileSync(p.shellPatterns, 'utf8').split('\n')[3]
   }
 

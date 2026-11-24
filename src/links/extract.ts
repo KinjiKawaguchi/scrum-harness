@@ -1,6 +1,6 @@
 import type { LinksConfig } from './config.ts'
 
-/** gh pr list の、数える項目。 */
+/** 開いている PR のうち、数える項目。 */
 export type OpenPr = {
   readonly number: number
   readonly title: string
