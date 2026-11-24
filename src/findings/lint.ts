@@ -18,6 +18,9 @@ import { readSeen, type SeenMap } from '../dispatch/progress.ts'
 import { lintDispatch } from '../dispatch/rules.ts'
 import type { DispatchRecord } from '../dispatch/types.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
+import { lintRequests } from '../requests/rules.ts'
+import { readRequests } from '../requests/store.ts'
+import type { OwnerRequest } from '../requests/types.ts'
 import { applyAcks, type Ack } from './acks.ts'
 import { bySeverity, makeFinding, type Finding } from './types.ts'
 
@@ -36,6 +39,8 @@ export type LintContext = {
   readonly alerts?: AlertState
   /** 待機プロセスが最後に見た、部下ごと、issue ごとの作業の印 (A-NUDGE-IGNORED が、促しの判断と同じ印で比べるため) */
   readonly seen?: SeenMap
+  /** Requests to the owner. One the owner answered and the team has not closed becomes R-ANSWERED. */
+  readonly requests?: readonly OwnerRequest[]
 }
 
 export type LintResult = { readonly active: readonly Finding[]; readonly acked: readonly Finding[] }
@@ -70,6 +75,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintSprint(snapshot, ctx.history ?? EMPTY_HISTORY, ctx.config, ctx.now),
     ...lintDispatch(ctx.dispatches ?? [], ctx.config, ctx.now, subordinates, ctx.snapshot, ctx.seen ?? {}),
     ...evaluateAlerts({ ...ctx, dispatches: ctx.dispatches ?? [], alerts: ctx.alerts ?? EMPTY_ALERT_STATE }).findings,
+    ...lintRequests(ctx.requests ?? [], ctx.config),
   ]
   // 作るときの検査 (最長 1 時間、決まった理由) を通らない T-IDLE の受け入れは、指摘を黙らせない
   const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
@@ -93,5 +99,6 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     dispatches: readDispatches(p),
     alerts: readAlertState(p),
     seen: readSeen(p),
+    requests: readRequests(p),
   }
 }

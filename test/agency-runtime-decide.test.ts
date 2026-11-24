@@ -4,6 +4,9 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { loadSnapshot, saveSnapshot } from '../src/board/snapshot.ts'
+import { close, parseNewRequest } from '../src/requests/model.ts'
+import { lintRequests } from '../src/requests/rules.ts'
+import { readRequest, readRequests, writeRequest } from '../src/requests/store.ts'
 import type { BoardItem } from '../src/board/types.ts'
 import { runRuntime, type RuntimeDeps } from '../src/agency-runtime/handle.ts'
 import { decisionComment } from '../src/agency-runtime/decide.ts'
@@ -105,10 +108,6 @@ describe('agency-runtime/1 decide', () => {
     assert.deepEqual(comments, [])
   })
 
-  it('refuses an answer to a request, since this harness raises none (404)', () => {
-    assert.equal(run(request(decision({ kind: 'answer', target: 'r-1' }))).response.error?.status, 404)
-  })
-
   it('does not let an answer clear a pending decision by naming its ref (404)', () => {
     assert.equal(run(request(decision({ kind: 'answer', target: 'app#14' }))).response.error?.status, 404)
     assert.deepEqual([comments, reasons], [[], []])
@@ -136,5 +135,71 @@ describe('agency-runtime/1 decide', () => {
   it('answers 503 while there is no board', () => {
     p = paths(mkdtempSync(join(tmpdir(), 'scrum-runtime-decide-empty-')))
     assert.equal(run(request()).response.error?.status, 503)
+  })
+})
+
+const REQUEST_ID = 'r-20261008-050000-q1q1'
+
+/** A question with two options, filed by the lead and waiting for the owner. */
+function fileQuestion(): void {
+  const result = parseNewRequest({ title: 'Which database?', options: [{ key: 'a', text: 'SQLite' }, { key: 'b', text: 'PostgreSQL' }], issue: 'app#12', blocks: ['SWE1'] }, 'TechLead', NOW, REQUEST_ID)
+  if (!result.ok) throw new Error(result.message)
+  writeRequest(p, result.value)
+}
+
+const answerWith = (overrides: object = {}) => request(decision({ kind: 'answer', target: REQUEST_ID, payload: { text: 'SQLite is enough.', choice: 'a' }, ...overrides }))
+
+describe('agency-runtime/1 decide: answering a request the team filed', () => {
+  beforeEach(fileQuestion)
+
+  it('records the answer, moves the turn to the team, and answers with an empty result', () => {
+    const { exitCode, response } = run(answerWith())
+    assert.deepEqual([exitCode, response], [0, { result: {} }])
+    const stored = readRequest(p, REQUEST_ID)
+    assert.equal(stored?.waiting, 'team')
+    assert.deepEqual(stored?.messages.map((one) => [one.from, one.text, one.choice, one.by]), [['owner', 'SQLite is enough.', 'a', 'alice']])
+  })
+
+  it('reaches the lead as R-ANSWERED', () => {
+    run(answerWith())
+    assert.deepEqual(lintRequests(readRequests(p), config).map((one) => [one.rule, one.subject]), [['R-ANSWERED', REQUEST_ID]])
+  })
+
+  it('applies the same answer once, so a retry after a lost reply changes nothing', () => {
+    run(answerWith())
+    assert.equal(run(answerWith()).exitCode, 0)
+    assert.equal(readRequest(p, REQUEST_ID)?.messages.length, 1)
+  })
+
+  it('takes a different answer as a new message', () => {
+    run(answerWith())
+    run(answerWith({ payload: { text: 'On second thought, PostgreSQL.', choice: 'b' } }))
+    assert.equal(readRequest(p, REQUEST_ID)?.messages.length, 2)
+  })
+
+  it('reopens a closed request, so a late answer still reaches the team', () => {
+    const stored = readRequest(p, REQUEST_ID)
+    if (stored === null) throw new Error('not stored')
+    writeRequest(p, close(stored, 'done', NOW))
+    assert.equal(run(answerWith()).exitCode, 0)
+    assert.deepEqual([readRequest(p, REQUEST_ID)?.closedAt, readRequest(p, REQUEST_ID)?.waiting], [undefined, 'team'])
+  })
+
+  it('accepts text without a choice, and a choice without text', () => {
+    assert.equal(run(answerWith({ payload: { text: 'Whatever is cheaper.' } })).exitCode, 0)
+    assert.equal(run(answerWith({ payload: { text: '', choice: 'b' } })).exitCode, 0)
+  })
+
+  it('refuses an unknown request (404), and a choice that is not an option, or nothing at all (400)', () => {
+    assert.equal(run(answerWith({ target: 'r-20261008-050000-zzzz' })).response.error?.status, 404)
+    assert.equal(run(answerWith({ payload: { text: 'x', choice: 'c' } })).response.error?.status, 400)
+    assert.equal(run(answerWith({ payload: { text: ' ' } })).response.error?.status, 400)
+    assert.equal(readRequest(p, REQUEST_ID)?.waiting, 'owner')
+  })
+
+  it('does not take a request id for a board item, or a board item for a request id', () => {
+    assert.equal(run(request(decision({ kind: 'judge', target: REQUEST_ID }))).response.error?.status, 404)
+    assert.equal(run(answerWith({ target: 'app#14' })).response.error?.status, 404)
+    assert.deepEqual(comments, [])
   })
 })

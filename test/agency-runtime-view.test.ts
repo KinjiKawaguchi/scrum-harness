@@ -4,6 +4,9 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { saveSnapshot } from '../src/board/snapshot.ts'
+import { answer, close, parseNewRequest, reply } from '../src/requests/model.ts'
+import { writeRequest } from '../src/requests/store.ts'
+import type { OwnerRequest } from '../src/requests/types.ts'
 import { runRuntime, type RuntimeDeps } from '../src/agency-runtime/handle.ts'
 import type { TeamView } from '../src/agency-runtime/types.ts'
 import { teamViewProblem } from '../src/agency-runtime/validate.ts'
@@ -185,5 +188,83 @@ describe('agency-runtime/1 view and the board', () => {
     const output = runRuntime(request('view'), deps())
     assert.equal(output.exitCode, 1)
     assert.equal((JSON.parse(output.stdout) as { error: { status: number } }).error.status, 503)
+  })
+})
+
+describe('agency-runtime/1 view: requests the team filed', () => {
+  const file = (id: string, raw: object, at: Date = new Date(NOW.getTime() - 3_600_000)): OwnerRequest => {
+    const result = parseNewRequest(raw, 'TechLead', at, id)
+    if (!result.ok) throw new Error(result.message)
+    writeRequest(p, result.value)
+    return result.value
+  }
+  const approve = [{ key: 'a', text: 'Approve', isRecommended: true, detail: 'Two weeks, then review' }, { key: 'b', text: 'Decline' }]
+
+  it('reports a question waiting for the owner, with options that always say whether they are recommended', () => {
+    file('r-20261008-050000-q1q1', { title: 'Which database?', context: 'Both pass the load test.', options: [{ key: 'a', text: 'SQLite', isRecommended: true }, { key: 'b', text: 'PostgreSQL' }], issue: 'app#12', blocks: ['SWE1', 'app#12'], to: 'TechLead' })
+    const request = view().requests.find((one) => one.id === 'r-20261008-050000-q1q1')
+    assert.deepEqual(request, {
+      id: 'r-20261008-050000-q1q1',
+      kind: 'question',
+      title: 'Which database?',
+      context: 'Both pass the load test.',
+      from: 'TechLead',
+      to: 'TechLead',
+      createdAt: '2026-10-08T05:00:00.000Z',
+      issue: 'app#12',
+      blocks: ['SWE1', 'app#12'],
+      options: [{ key: 'a', text: 'SQLite', isRecommended: true }, { key: 'b', text: 'PostgreSQL', isRecommended: false }],
+      answerWith: { kind: 'answer', target: 'r-20261008-050000-q1q1' },
+    })
+  })
+
+  it('reports a proposal with its document and the detail of each option', () => {
+    file('r-20261008-051000-p1p1', { title: 'Add a frontend agent', kind: 'proposal', document: '## Proposal\n\nAdd one agent.', options: approve })
+    const request = view().requests.find((one) => one.id === 'r-20261008-051000-p1p1')
+    assert.equal(request?.kind, 'proposal')
+    assert.equal(request?.document, '## Proposal\n\nAdd one agent.')
+    assert.equal(request?.options[0]?.detail, 'Two weeks, then review')
+    assert.equal(request?.options[1]?.detail, undefined)
+  })
+
+  it('shows the earlier messages as the thread, oldest first, once an answered request is reopened by a reply', () => {
+    const base = file('r-20261008-052000-t1t1', { title: 'Which database?', options: [{ key: 'a', text: 'SQLite' }, { key: 'b', text: 'PostgreSQL' }] })
+    const asked = answer(base, { text: 'What does the load test cover?' }, new Date('2026-10-08T05:10:00Z'))
+    writeRequest(p, reply(asked, 'TechLead', 'Ten times the traffic.', new Date('2026-10-08T05:20:00Z')))
+    const request = view().requests.find((one) => one.id === base.id)
+    assert.deepEqual(request?.thread, [
+      { from: 'owner', text: 'What does the load test cover?', at: '2026-10-08T05:10:00.000Z' },
+      { from: 'TechLead', text: 'Ten times the traffic.', at: '2026-10-08T05:20:00.000Z' },
+    ])
+  })
+
+  it('does not report a request that was answered, or closed', () => {
+    const answered = file('r-20261008-053000-a1a1', { title: 'Answered' })
+    writeRequest(p, answer(answered, { text: 'Yes' }, NOW))
+    const closed = file('r-20261008-054000-c1c1', { title: 'Closed' })
+    writeRequest(p, close(closed, '', NOW))
+    assert.deepEqual(view().requests.map((one) => one.id), ['app#14'])
+  })
+
+  it('lists the team requests before the board pending decisions, and counts both for the owner', () => {
+    file('r-20261008-050000-q1q1', { title: 'Which database?' })
+    const result = view()
+    assert.deepEqual(result.requests.map((one) => one.kind), ['question', 'pendingDecision'])
+    assert.equal(result.people.at(-1)?.status, '2 requests are waiting for an answer')
+  })
+
+  it('reports a member who blocks a request as waiting on the owner, with the question', () => {
+    file('r-20261008-050000-q1q1', { title: 'Which database?', blocks: ['SWE2'] })
+    const swe2 = view().people.find((one) => one.id === 'SWE2')
+    assert.deepEqual([swe2?.state, swe2?.waitingOn, swe2?.status], ['idle', { kind: 'person', person: 'owner' }, 'Waiting on the owner: Which database?'])
+  })
+
+  it('still passes the TeamView check and uses only keys of the shared sample', () => {
+    file('r-20261008-050000-q1q1', { title: 'Which database?', to: 'TechLead', issue: 'app#12', options: approve })
+    file('r-20261008-051000-p1p1', { title: 'Add a frontend agent', kind: 'proposal', document: '## Plan', options: approve })
+    const result = view()
+    assert.equal(teamViewProblem(result), null)
+    const known = keysOf(sample())
+    assert.deepEqual([...keysOf(result)].filter((key) => !known.has(key)), [])
   })
 })
