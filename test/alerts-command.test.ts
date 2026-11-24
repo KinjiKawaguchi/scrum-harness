@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,7 +104,16 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     writeFileSync(join(dir, name), '#!/bin/sh\nexit 0\n')
     chmodSync(join(dir, name), 0o755)
   }
-  const render = (pathValue: string) => spawnSync('bash', [script], { encoding: 'utf8', env: { PATH: pathValue, HOME: '/home/user' } })
+  const render = (pathValue: string) => spawnSync('/bin/bash', [script], { encoding: 'utf8', env: { PATH: pathValue, HOME: '/home/user' } })
+  /** A directory holding only the system tools render.sh needs, so "node or gh is missing" does not depend on what the host has in /usr/bin. */
+  const systemTools = () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scrum-render-tools-'))
+    for (const name of ['dirname', 'sed', 'env']) {
+      const found = spawnSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).stdout.trim()
+      symlinkSync(found, join(dir, name))
+    }
+    return dir
+  }
 
   it('{{ を残さず、PATH に node と gh のあるディレクトリを入れる (node と gh が別の場所でも)', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
@@ -129,12 +138,13 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
   it('node か gh が見つからなければ、何も出さず、理由を出して止まる', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
     fakeTool(join(root, 'bin'), 'node')
-    const noGh = render(`${join(root, 'bin')}:/usr/bin:/bin`)
+    const tools = systemTools()
+    const noGh = render(`${join(root, 'bin')}:${tools}`)
     assert.equal(noGh.status, 1)
     assert.equal(noGh.stdout, '')
     assert.match(noGh.stderr, /gh が見つからない/)
     const emptyDir = mkdtempSync(join(tmpdir(), 'scrum-render-empty-'))
-    const noNode = render(`${emptyDir}:/usr/bin:/bin`)
+    const noNode = render(`${emptyDir}:${tools}`)
     assert.equal(noNode.status, 1)
     assert.match(noNode.stderr, /node が見つからない/)
   })
