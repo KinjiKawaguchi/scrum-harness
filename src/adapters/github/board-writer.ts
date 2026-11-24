@@ -58,7 +58,7 @@ function numberOf(item: BoardItem): string {
  * 超過は、gh project item-edit で書く。
  */
 export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): BoardWriter {
-  const { setStatus, setTanto } = config.scripts
+  const { setStatus, setTanto, setReason } = config.scripts
   return {
     canAssign: setStatus !== undefined && setTanto !== undefined,
     assign: (item, member) => {
@@ -68,6 +68,11 @@ export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): Board
     setStatus: (item, status) => {
       if (setStatus === undefined) throw new Error('scripts.setStatus が無い')
       exec(setStatus, [numberOf(item), status])
+    },
+    canSetReason: setReason !== undefined,
+    setReason: (item, reason) => {
+      if (setReason === undefined) throw new Error('scripts.setReason is not configured')
+      exec(setReason, [numberOf(item), reason])
     },
     writeOverrun: (marks) => applyMarks(run, marks, config),
   }

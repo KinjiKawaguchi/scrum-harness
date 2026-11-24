@@ -28,6 +28,11 @@ function writeIssueBody(run: GhRun, repo: string, number: number, body: string):
   run(['api', '-X', 'PATCH', `repos/${repo}/issues/${number}`, '-f', `body=${body}`])
 }
 
+/** The body is passed with -f so that a body starting with @ is not read as a file. */
+function postComment(run: GhRun, repo: string, number: number, body: string): void {
+  run(['api', '-X', 'POST', `repos/${repo}/issues/${number}/comments`, '-f', `body=${body}`])
+}
+
 export function githubIssueThread(run: GhRun): IssueThread {
   return {
     comments: (item) => {
@@ -37,5 +42,6 @@ export function githubIssueThread(run: GhRun): IssueThread {
     openIssues: (repo) => listOpenIssues(run, repo),
     read: (repo, number) => readIssue(run, repo, number),
     writeBody: (repo, number, body) => writeIssueBody(run, repo, number, body),
+    addComment: (repo, number, body) => postComment(run, repo, number, body),
   }
 }

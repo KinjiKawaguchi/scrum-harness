@@ -13,4 +13,6 @@ export type IssueThread = {
   /** いま開いているかと本文。書く直前に読み直すのに使う */
   readonly read: (repo: string, number: number) => { readonly isOpen: boolean; readonly body: string }
   readonly writeBody: (repo: string, number: number, body: string) => void
+  /** Adds a comment. The body is sent as data, never read as a file or a command. */
+  readonly addComment: (repo: string, number: number, body: string) => void
 }

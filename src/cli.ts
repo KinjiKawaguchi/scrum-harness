@@ -17,12 +17,13 @@ import { configPath, dispatchOf, loadConfig, type Config } from './config.ts'
 import { dispatchOnce, formatOnce } from './dispatch/once.ts'
 import { handleHook } from './hooks/handlers.ts'
 import { linkPullRequests, type LinkPlan } from './links/run.ts'
-import { hookDeps, parseInput, readStdin } from './runtime.ts'
+import { hookDeps, parseInput, readStdin, spawnRefresh } from './runtime.ts'
 import { logError, paths, type Paths } from './store.ts'
 import { resolveIdentity } from './team/identity.ts'
 import type { Ports } from './ports/index.ts'
 import { watchFor } from './watch-role.ts'
 import { buildPorts } from './wiring.ts'
+import { runRuntime } from './agency-runtime/handle.ts'
 
 const USAGE = `scrum: GitHub Project のボードと部下の稼働を点検する
   scrum lint [--refresh] [--json]   指摘の全件
@@ -83,6 +84,14 @@ async function runWatchCommand(p: Paths): Promise<number> {
   return 2
 }
 
+/** agency-runtime/1: one JSON request on stdin, one JSON response on stdout, exit 0 for a result and 1 for an error. */
+async function runRuntimeCommand(p: Paths, config: Config | null, ports: Ports | null): Promise<number> {
+  const deps = config === null || ports === null ? null : { p, config, now: new Date(), ports, spawnRefresh }
+  const output = runRuntime(await readStdin(), deps)
+  process.stdout.write(output.stdout)
+  return output.exitCode
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const p = paths()
   const [command = 'help', ...rest] = argv
@@ -93,6 +102,7 @@ async function main(argv: readonly string[]): Promise<number> {
   }
   const config = loadConfig()
   const ports = config === null ? null : buildPorts(config)
+  if (command === 'runtime') return runRuntimeCommand(p, config, ports)
   if (config !== null && ports !== null) writeShellPatterns(p, config, ports.actions)
   const needConfig = (run: (config: Config, ports: Ports) => string) =>
     print(config === null || ports === null ? `設定が無いか、欠けた値がある: ${configPath()} (config.example.json を写して直す)` : run(config, ports))

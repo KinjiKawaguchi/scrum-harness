@@ -20,6 +20,9 @@ export type BoardWriter = {
   readonly canAssign: boolean
   readonly assign: (item: BoardItem, member: string) => void
   readonly setStatus: (item: BoardItem, status: string) => void
+  /** Whether a way to set the blocked reason exists. Without it, a decision cannot unblock an item. */
+  readonly canSetReason: boolean
+  readonly setReason: (item: BoardItem, reason: string) => void
   /** 超えた節目の数を書く。1 件の失敗で止めず、失敗したものの説明を返す */
   readonly writeOverrun: (marks: readonly Mark[]) => readonly string[]
 }
