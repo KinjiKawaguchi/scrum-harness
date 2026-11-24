@@ -13,7 +13,7 @@ function projectNode(number: number, overrides: Record<string, unknown> = {}) {
     project: { id: config.projectId },
     id: `PVTI_${number}`,
     type: 'ISSUE',
-    status: { name: '次にやる' },
+    status: { name: 'Next' },
     content: { number, title: `issue ${number}`, state: 'OPEN', author: { login: 'owner' }, repository: { nameWithOwner: REPO } },
     ...overrides,
   }
@@ -89,9 +89,9 @@ describe('readQuery', () => {
   })
 
   it('リポジトリの名前や番号が読めないものは、問い合わせに入れず投げる', () => {
-    assert.throws(() => readQuery([open(1, { repo: 'a b/c' })], config), /指し方が読めない/)
-    assert.throws(() => readQuery([open(1, { repo: 'no-slash' })], config), /指し方が読めない/)
-    assert.throws(() => readQuery([open(1.5)], config), /指し方が読めない/)
+    assert.throws(() => readQuery([open(1, { repo: 'a b/c' })], config), /cannot read how the open issue is referenced/)
+    assert.throws(() => readQuery([open(1, { repo: 'no-slash' })], config), /cannot read how the open issue is referenced/)
+    assert.throws(() => readQuery([open(1.5)], config), /cannot read how the open issue is referenced/)
   })
 })
 
@@ -103,12 +103,12 @@ describe('readMissingItems', () => {
   })
 
   it('ボードに入っていた issue を、項目として返す', () => {
-    const { run } = recorder(() => readResult([projectNode(8, { status: { name: '作業中' }, assignee: { name: 'SWE1' } })]))
+    const { run } = recorder(() => readResult([projectNode(8, { status: { name: 'In Progress' }, assignee: { name: 'SWE1' } })]))
     const [item, ...rest] = readMissingItems([issue(1)], [open(1), open(8)], config, run)
     assert.equal(rest.length, 0)
     assert.equal(item?.itemId, 'PVTI_8')
     assert.equal(item?.number, 8)
-    assert.equal(item?.status, '作業中')
+    assert.equal(item?.status, 'In Progress')
     assert.equal(item?.assignee, 'SWE1')
     assert.equal(item?.kind, 'issue')
   })
@@ -141,19 +141,19 @@ describe('readMissingItems', () => {
   })
 
   it('1 回にまとめる数は、1 回の問い合わせの費用を抑える上限に収まる (実測: 1 件で 1 点、25 件で 5 点)', () => {
-    assert.ok(READ_BATCH_SIZE >= 1 && READ_BATCH_SIZE <= 50, `READ_BATCH_SIZE が ${READ_BATCH_SIZE}`)
+    assert.ok(READ_BATCH_SIZE >= 1 && READ_BATCH_SIZE <= 50, `READ_BATCH_SIZE is ${READ_BATCH_SIZE}`)
   })
 
   it('読み取りが失敗したら、そのまま投げる (呼ぶ側が控えを書き換えない)', () => {
     const run = () => {
-      throw new Error('gh が落ちた')
+      throw new Error('gh crashed')
     }
-    assert.throws(() => readMissingItems([], [open(8)], config, run), /gh が落ちた/)
+    assert.throws(() => readMissingItems([], [open(8)], config, run), /gh crashed/)
   })
 
   /** gh が終了コード 1 で終わった形 (execFileSync の例外は、標準出力を stdout に持つ)。 */
   const ghFailed = (stdout: string) => () => {
-    throw Object.assign(new Error('gh が exit 1'), { stdout })
+    throw Object.assign(new Error('gh exited with 1'), { stdout })
   }
   const notFound = { type: 'NOT_FOUND', message: 'Could not resolve to an Issue' }
 
@@ -165,17 +165,17 @@ describe('readMissingItems', () => {
 
   it('NOT_FOUND 以外の失敗が 1 つでも混ざっていれば、そのまま投げる', () => {
     const output = JSON.stringify({ data: { c0: { issue: null } }, errors: [notFound, { type: 'FORBIDDEN', message: 'x' }] })
-    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(output)), /gh が exit 1/)
+    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(output)), /gh exited with 1/)
   })
 
   it('標準出力が JSON でない、または data が無い失敗は、そのまま投げる', () => {
-    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed('rate limit exceeded')), /gh が exit 1/)
-    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(JSON.stringify({ errors: [notFound] }))), /gh が exit 1/)
-    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(JSON.stringify({ data: { c0: null }, errors: [] }))), /gh が exit 1/)
+    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed('rate limit exceeded')), /gh exited with 1/)
+    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(JSON.stringify({ errors: [notFound] }))), /gh exited with 1/)
+    assert.throws(() => readMissingItems([], [open(8)], config, ghFailed(JSON.stringify({ data: { c0: null }, errors: [] }))), /gh exited with 1/)
   })
 
   it('結果に data が無ければ、投げる', () => {
-    assert.throws(() => readMissingItems([], [open(8)], config, () => '{"errors":[]}'), /data が無い/)
+    assert.throws(() => readMissingItems([], [open(8)], config, () => '{"errors":[]}'), /has no data/)
   })
 
   it('すでに読んだ項目と同じ itemId のものは、重ねて返さない', () => {
@@ -246,8 +246,8 @@ describe('readMissingItems の開いた PR', () => {
 
   it('PR の読み取りが失敗したら、そのまま投げる (呼ぶ側が控えを書き換えない)', () => {
     const run = () => {
-      throw new Error('gh が落ちた')
+      throw new Error('gh crashed')
     }
-    assert.throws(() => readMissingItems([], [], config, run, [open(9)]), /gh が落ちた/)
+    assert.throws(() => readMissingItems([], [], config, run, [open(9)]), /gh crashed/)
   })
 })

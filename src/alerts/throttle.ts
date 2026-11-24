@@ -19,7 +19,7 @@ function held(notice: Notice, lastAt: string, config: Config): Notice {
   return {
     key: `${notice.key}${HELD_SUFFIX}`,
     kind: 'info',
-    text: `- ${head}: ${config.ownerLabel}へは ${when} に通知済みで、同じ対象は ${span}に 1 回までなので、今回は送らない (${throttle?.detail ?? ''})`,
+    text: `- ${head}: ${config.ownerLabel} was already notified at ${when}, and the same subject is sent at most once per ${span}, so it is not sent this time (${throttle?.detail ?? ''})`,
   }
 }
 

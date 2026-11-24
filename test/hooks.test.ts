@@ -19,7 +19,7 @@ let checkpoints = 0
 type DepsOverrides = Partial<HookDeps> & { readonly prBody?: (prLabel: string, repo: string) => string | null }
 
 function deps(name: string | null, overrides: DepsOverrides = {}): HookDeps {
-  const { prBody = () => '#1 の続き', ...rest } = overrides
+  const { prBody = () => '#1 continues', ...rest } = overrides
   const used = rest.config ?? config
   const referencedIssues = (prLabel: string, repo: string) => {
     const body = prBody(prLabel, repo)
@@ -48,33 +48,33 @@ beforeEach(() => {
   p = paths(mkdtempSync(join(tmpdir(), 'scrum-hooks-')))
   refreshes = 0
   checkpoints = 0
-  saveSnapshot(p, snapshot([issue(1, { status: '作業中' }), issue(2), pr(102, { state: 'OPEN' })]))
+  saveSnapshot(p, snapshot([issue(1, { status: 'In Progress' }), issue(2), pr(102, { state: 'OPEN' })]))
 })
 
 describe('TechLead', () => {
   it('SessionStart で要約を入れ、知らせた指摘を覚える', () => {
     const result = handleHook('SessionStart', { session_id: 'sid', source: 'startup' }, deps('TechLead'))
-    assert.match(context(result), /B-DOING-NO-ASSIGNEE app#1 は作業中なのに担当が無い/)
+    assert.match(context(result), /B-DOING-NO-ASSIGNEE app#1 is In Progress but has no assignee/)
     assert.deepEqual(readJson(p.notified, []), ['B-DOING-NO-ASSIGNEE:app#1'])
   })
 
   it('UserPromptSubmit では知らせていない指摘だけを入れる', () => {
     handleHook('SessionStart', { source: 'startup' }, deps('TechLead'))
     assert.equal(context(handleHook('UserPromptSubmit', {}, deps('TechLead'))), '')
-    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), issue(3, { state: 'CLOSED', status: '作業中' })]))
+    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), issue(3, { state: 'CLOSED', status: 'In Progress' })]))
     assert.match(context(handleHook('UserPromptSubmit', {}, deps('TechLead'))), /B-CLOSED-NOT-DONE app#3/)
   })
 
   it('set-status の後に控えを直し、その issue の指摘を入れる', () => {
-    const input = { tool_name: 'Bash', tool_input: { command: 'set-status 2 作業中' } }
+    const input = { tool_name: 'Bash', tool_input: { command: 'set-status 2 "In Progress"' } }
     const text = context(handleHook('PostToolUse', input, deps('TechLead')))
-    assert.match(text, /app#2 は作業中なのに担当が無い/)
-    assert.equal(loadSnapshot(p)?.items.find((item) => item.number === 2)?.status, '作業中')
+    assert.match(text, /app#2 is In Progress but has no assignee/)
+    assert.equal(loadSnapshot(p)?.items.find((item) => item.number === 2)?.status, 'In Progress')
   })
 
   it('マージの後に、本文が触れる issue の状態を入れる', () => {
     const input = { tool_name: 'Bash', tool_input: { command: 'merge-pr example-org/app 102' } }
-    assert.match(context(handleHook('PostToolUse', input, deps('TechLead'))), /app#102 をマージした[\s\S]*app#1 Status=作業中/)
+    assert.match(context(handleHook('PostToolUse', input, deps('TechLead'))), /app#102 was merged[\s\S]*app#1 Status=In Progress/)
   })
 
   it('PR の本文は、コマンドが指したリポジトリで読む (設定に無いリポジトリを defaultRepo と取り違えない)', () => {
@@ -85,22 +85,22 @@ describe('TechLead', () => {
   })
 
   it('merge-pr のスクリプトの形のマージも、defaultRepo と違うリポジトリの PR は、そのリポジトリの本文を読み、案内を作る', () => {
-    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: '作業中' }), repo: 'other-owner/tool' }]))
+    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: 'In Progress' }), repo: 'other-owner/tool' }]))
     const asked: (readonly [string, string])[] = []
     const input = { tool_name: 'Bash', tool_input: { command: 'merge-pr other-owner/tool 3 abc123' } }
     const text = context(
-      handleHook('PostToolUse', input, deps('TechLead', { prBody: (prLabel, repo) => (asked.push([prLabel, repo]), '#1 の続き') })),
+      handleHook('PostToolUse', input, deps('TechLead', { prBody: (prLabel, repo) => (asked.push([prLabel, repo]), '#1 continues') })),
     )
     assert.deepEqual(asked, [['tool#3', 'other-owner/tool']])
-    assert.match(text, /tool#3 をマージした[\s\S]*tool#1 Status=作業中/)
+    assert.match(text, /tool#3 was merged[\s\S]*tool#1 Status=In Progress/)
   })
 
   it('別のリポジトリの PR のマージは、本文が触れる番号を、そのリポジトリの issue として読む', () => {
-    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: '作業中' }), repo: 'other-owner/tool' }]))
+    saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: 'In Progress' }), repo: 'other-owner/tool' }]))
     const input = { tool_name: 'Bash', tool_input: { command: 'gh pr merge 3 -R other-owner/tool --squash' } }
-    const text = context(handleHook('PostToolUse', input, deps('TechLead', { prBody: () => '#1 の続き' })))
-    assert.match(text, /tool#3 をマージした[\s\S]*tool#1 Status=作業中/)
-    assert.doesNotMatch(text, /tool#3 をマージした[\s\S]*app#1 Status/)
+    const text = context(handleHook('PostToolUse', input, deps('TechLead', { prBody: () => '#1 continues' })))
+    assert.match(text, /tool#3 was merged[\s\S]*tool#1 Status=In Progress/)
+    assert.doesNotMatch(text, /tool#3 was merged[\s\S]*app#1 Status/)
   })
 
   it('知らせたら、待機プロセスの印を消す', () => {
@@ -115,7 +115,7 @@ describe('TechLead', () => {
   })
 
   it('PreToolUse で PR への Status を拒否する', () => {
-    const result = handleHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'set-status 102 作業中' } }, deps('TechLead'))
+    const result = handleHook('PreToolUse', { tool_name: 'Bash', tool_input: { command: 'set-status 102 "In Progress"' } }, deps('TechLead'))
     assert.deepEqual((result.stdout as { hookSpecificOutput: { permissionDecision: string } }).hookSpecificOutput.permissionDecision, 'deny')
   })
 
@@ -162,7 +162,7 @@ describe('節目の記録の起動', () => {
   const sprint = {
     checkpoints: ['08:00', '13:00', '21:00'],
     utcOffset: '+09:00',
-    pointsField: 'ストーリーポイント',
+    pointsField: 'Story points',
     pointBudgets: { '3': 2 },
   }
   const withSprint = (name: string | null) => deps(name, { config: { ...config, sprint } })

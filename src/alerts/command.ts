@@ -12,9 +12,9 @@ import { readAlertState } from './state.ts'
  * 窓口に送る文は作らない (窓口の待機プロセスが作る)。
  */
 export function alertsCommand(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'notify' | 'sessions'>): string {
-  if (!alertsOf(config).enabled) return 'alerts が有効でない (設定の alerts.enabled が true のときだけ動く)'
+  if (!alertsOf(config).enabled) return 'alerts is not enabled (it runs only when alerts.enabled is true in the configuration)'
   if (isRefreshDue(p, config, now)) refreshSnapshot(p, config, now, ports.board)
   alertStep(p, config, now, { notify: ports.notify, sessions: ports.sessions, isLiaison: false })
   const state = readAlertState(p)
-  return `止まりの検知を進めた: 動く人のいない Epic ${Object.keys(state.epics).length} 件、渡せる issue が無い部下 ${Object.keys(state.empty).length} 人`
+  return `Advanced the stall detection. Epics with nobody moving: ${Object.keys(state.epics).length}; members with nothing to hand over: ${Object.keys(state.empty).length}`
 }

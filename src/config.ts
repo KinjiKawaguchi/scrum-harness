@@ -126,7 +126,7 @@ export function dispatchOf(config: Config): DispatchConfig {
   return config.dispatch ?? DEFAULT_DISPATCH
 }
 
-export const DEFAULT_ADAPTERS: Adapters = { ownerLabel: 'オーナー', scripts: {} }
+export const DEFAULT_ADAPTERS: Adapters = { ownerLabel: 'the owner', scripts: {} }
 
 export const DEFAULT_TUNING: Tuning = {
   wipLimit: 10,

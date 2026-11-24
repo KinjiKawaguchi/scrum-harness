@@ -20,17 +20,17 @@ export function checkOverrunAck(
   now: Date,
   issues: Pick<IssueThread, 'comments'> | null,
 ): OverrunBasis {
-  if (config === null || config.sprint === undefined) return refuse('sprint の設定が無いので、S-POINTS-OVER の受け入れは記録できない')
-  if (issues === null) return refuse('issue のコメントを読む手段が無いので、S-POINTS-OVER の受け入れは記録できない')
+  if (config === null || config.sprint === undefined) return refuse('There is no sprint configuration, so an S-POINTS-OVER acknowledgement cannot be recorded')
+  if (issues === null) return refuse('There is no way to read issue comments, so an S-POINTS-OVER acknowledgement cannot be recorded')
   const item = loadSnapshot(p)?.items.find((one) => one.kind === 'issue' && label(one) === subject)
-  if (item === undefined || item.number === null) return refuse(`${subject} が控えに無い (番号の書き方か、閉じたかを見る。S-POINTS-OVER は作業中の issue に出る)`)
+  if (item === undefined || item.number === null) return refuse(`${subject} is not in the board copy (check how the number is written, or whether it was closed. S-POINTS-OVER shows on In Progress issues)`)
   const assessment = assessItem(item, loadCountingHistory(p, now), config, now)
   if (assessment.over === null || assessment.over <= 0 || assessment.overSince === undefined || assessment.overSince === null) {
-    return refuse(`${subject} に、いま S-POINTS-OVER は出ていない (手間 ${assessment.effort ?? '不明'}、目安 ${assessment.budget ?? '不明'})。受け入れは要らない`)
+    return refuse(`${subject} has no S-POINTS-OVER now (effort ${assessment.effort ?? 'unknown'}, budget ${assessment.budget ?? 'unknown'}). No acknowledgement is needed`)
   }
   try {
     return overrunBasis(issues.comments(item), assessment.overSince, item.points ?? null)
   } catch (error) {
-    return refuse(`${subject} の issue のコメントを読めなかったので、受け入れを記録しない: ${error instanceof Error ? error.message : String(error)}`)
+    return refuse(`Could not read the comments of the issue ${subject}, so the acknowledgement is not recorded: ${error instanceof Error ? error.message : String(error)}`)
   }
 }

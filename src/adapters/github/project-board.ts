@@ -33,13 +33,13 @@ const UNREADABLE_MIN_ITEMS = 10
 function assertReadable(items: readonly BoardItem[], total: number): void {
   const allowedMissing = Math.max(MISSING_TOLERANCE_COUNT, Math.floor(total * MISSING_TOLERANCE_RATIO))
   if (items.length < total - allowedMissing) {
-    throw new Error(`ボードの項目 ${total} 件のうち ${items.length} 件しか取れていない。ページの取得が途中で切れた疑いがあるので、控えは書き換えない`)
+    throw new Error(`Only ${items.length} of ${total} board items were fetched. Paging may have been cut short, so the board copy is not rewritten`)
   }
-  if (items.length === 0) throw new Error('ボードの項目が 0 件。取得に失敗した疑いがあるので、控えは書き換えない')
+  if (items.length === 0) throw new Error('The board has 0 items. The fetch may have failed, so the board copy is not rewritten')
   const contentItems = items.filter((item) => item.kind !== 'draft')
   const unreadable = contentItems.filter((item) => item.number === null).length
   if (contentItems.length >= UNREADABLE_MIN_ITEMS && unreadable / contentItems.length > UNREADABLE_LIMIT) {
-    throw new Error(`issue と PR の項目 ${contentItems.length} 件のうち ${unreadable} 件の中身が読めない。トークンの権限を疑う。控えは書き換えない`)
+    throw new Error(`The content of ${unreadable} of ${contentItems.length} issue and PR items cannot be read. Suspect the token's permissions. The board copy is not rewritten`)
   }
 }
 
@@ -47,14 +47,14 @@ function assertReadable(items: readonly BoardItem[], total: number): void {
 export function parseItemPages(output: string): readonly BoardItem[] {
   const pages: unknown = JSON.parse(output)
   if (!Array.isArray(pages) || pages.length === 0) {
-    throw new Error(`ボードの取得結果がページの配列でない: ${output.slice(0, 200)}`)
+    throw new Error(`The board fetch result is not an array of pages: ${output.slice(0, 200)}`)
   }
   const total = (pages[0] as RawPage | undefined)?.data?.node?.items?.totalCount
-  if (typeof total !== 'number') throw new Error(`ボードの取得結果に項目の総数 (totalCount) が無い: ${JSON.stringify(pages[0]).slice(0, 200)}`)
+  if (typeof total !== 'number') throw new Error(`The board fetch result has no item total (totalCount): ${JSON.stringify(pages[0]).slice(0, 200)}`)
   const nodes = (pages as readonly RawPage[]).flatMap((page, index): readonly RawNode[] => {
     const found = page?.data?.node?.items?.nodes
     if (!Array.isArray(found)) {
-      throw new Error(`ボードの取得結果の ${index + 1} ページ目に項目の一覧が無い: ${JSON.stringify(page).slice(0, 200)}`)
+      throw new Error(`Page ${index + 1} of the board fetch result has no list of items: ${JSON.stringify(page).slice(0, 200)}`)
     }
     return found as readonly RawNode[]
   })

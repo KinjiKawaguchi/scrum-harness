@@ -58,7 +58,7 @@ function step(p: Paths, config: Config, ports: Ports): string | null {
   if (wake.length === 0) return null
   writeJson(p.notified, remember(notified, lintAll(ctx).active, wake))
   appendLine(p.events, JSON.stringify({ at: now.toISOString(), type: 'woke', keys: wake.map((f) => f.key) }))
-  return ['scrum-harness: 待機中に新しい指摘が出た', ...formatList(wake, 8)].join('\n')
+  return ['scrum-harness: a new finding appeared while waiting', ...formatList(wake, 8)].join('\n')
 }
 
 /**

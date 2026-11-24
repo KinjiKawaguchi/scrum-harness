@@ -17,8 +17,8 @@ import { config as base, issue, pr, snapshot } from './helpers.ts'
 const sprint = {
   checkpoints: ['08:00', '13:00', '21:00'],
   utcOffset: '+09:00',
-  pointsField: 'ストーリーポイント',
-  overrunField: '超過',
+  pointsField: 'Story points',
+  overrunField: 'Overrun',
   pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 },
 }
 const config: Config = { ...base, sprint }
@@ -33,7 +33,7 @@ describe('parseConfig の sprint', () => {
     const broken = parseConfig({ ...base, sprint: { ...sprint, utcOffset: 'JST' } })
     assert.equal(broken?.sprint, undefined)
     assert.equal(broken?.techlead, 'TechLead')
-    assert.equal(parseConfig({ ...base, sprint: { ...sprint, checkpoints: ['8時'] } })?.sprint, undefined)
+    assert.equal(parseConfig({ ...base, sprint: { ...sprint, checkpoints: ['8am'] } })?.sprint, undefined)
   })
 })
 
@@ -75,8 +75,8 @@ describe('Status の変化の記録', () => {
           i5: {
             timelineItems: {
               nodes: [
-                { createdAt: '2026-10-29T00:00:00Z', status: '作業中', project: { id: 'PVT_test' } },
-                { createdAt: '2026-10-29T01:00:00Z', status: 'バックログ', project: { id: 'PVT_other' } },
+                { createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } },
+                { createdAt: '2026-10-29T01:00:00Z', status: 'Backlog', project: { id: 'PVT_other' } },
               ],
             },
           },
@@ -84,24 +84,24 @@ describe('Status の変化の記録', () => {
       },
     }
     const history = parseStatusHistory(response, [{ repo: 'example-org/app', number: 5 }], config)
-    assert.deepEqual(history.get('app#5'), [{ at: '2026-10-29T00:00:00Z', status: '作業中' }])
+    assert.deepEqual(history.get('app#5'), [{ at: '2026-10-29T00:00:00Z', status: 'In Progress' }])
   })
 
   it('読めなかった issue (結果が null) は入れない。入れると、記録が無いのでなく、作業中の期間が 0 と読まれる', () => {
-    const response = { data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: '作業中', project: { id: 'PVT_test' } }] } }, i6: null } } }
+    const response = { data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } }, i6: null } } }
     const history = parseStatusHistory(response, [{ repo: 'example-org/app', number: 5 }, { repo: 'example-org/app', number: 6 }], config)
     assert.deepEqual([...history.keys()], ['app#5'])
   })
 
   it('別のリポジトリの issue のラベルは、短い名前で、そのリポジトリの番号として取り出す', () => {
-    const response = { data: { r0: { i2: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: '作業中', project: { id: 'PVT_test' } }] } } } } }
+    const response = { data: { r0: { i2: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } } } } }
     const history = parseStatusHistory(response, [{ repo: 'other-owner/tool', number: 2 }], config)
     assert.deepEqual([...history.keys()], ['tool#2'])
   })
 })
 
 describe('withStatusHistory の gh の失敗', () => {
-  const doing = (repo: string, number: number) => ({ ...issue(number, { status: '作業中' }), repo })
+  const doing = (repo: string, number: number) => ({ ...issue(number, { status: 'In Progress' }), repo })
   const withFakeGh = (script: string, run: () => void) => {
     const dir = mkdtempSync(join(tmpdir(), 'scrum-fake-gh-'))
     writeFileSync(join(dir, 'gh'), script)
@@ -114,7 +114,7 @@ describe('withStatusHistory の gh の失敗', () => {
       process.env.PATH = saved
     }
   }
-  const partial = JSON.stringify({ data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: '作業中', project: { id: 'PVT_test' } }] } }, i2: null } }, errors: [{ message: 'Could not resolve to an Issue with the number of 2.' }] })
+  const partial = JSON.stringify({ data: { r0: { i5: { timelineItems: { nodes: [{ createdAt: '2026-10-29T00:00:00Z', status: 'In Progress', project: { id: 'PVT_test' } }] } }, i2: null } }, errors: [{ message: 'Could not resolve to an Issue with the number of 2.' }] })
 
   it('一部の issue が読めなくても (終了コード 1)、読めた issue の記録は使い、読めなかった issue には足さない', () => {
     withFakeGh(`#!/bin/sh\ncat <<'EOF'\n${partial}\nEOF\necho 'gh: Could not resolve to an Issue with the number of 2.' >&2\nexit 1\n`, () => {
@@ -161,10 +161,10 @@ describe('planMarks', () => {
 
   it('超えた数がボードと違う issue だけ書き換える。超えていなければ空にする', () => {
     const board = snapshot([
-      issue(1, { status: '作業中', overrun: null }),
-      issue(2, { status: '作業中', overrun: 1 }),
-      issue(3, { status: 'バックログ', overrun: 3 }),
-      issue(4, { status: '作業中', overrun: null }),
+      issue(1, { status: 'In Progress', overrun: null }),
+      issue(2, { status: 'In Progress', overrun: 1 }),
+      issue(3, { status: 'Backlog', overrun: 3 }),
+      issue(4, { status: 'In Progress', overrun: null }),
       pr(5, { overrun: null }),
     ])
     assert.deepEqual(planMarks(board, assessed), [
@@ -176,8 +176,8 @@ describe('planMarks', () => {
 })
 
 describe('recordDueCheckpoint', () => {
-  const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: '作業中' }]
-  const board = snapshot([issue(1, { status: '作業中', points: 3, statusEvents: doingSince, overrun: null })])
+  const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: 'In Progress' }]
+  const board = snapshot([issue(1, { status: 'In Progress', points: 3, statusEvents: doingSince, overrun: null })])
 
   it('まだ記録していない節目を記録し、ボードの超過を書き換える', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-cp-')))

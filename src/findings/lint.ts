@@ -60,8 +60,8 @@ function lintFreshness(snapshot: Snapshot | null, config: Config, now: Date): re
       rule: 'B-SNAPSHOT-STALE',
       subject: 'board',
       severity: 'medium',
-      message: `ボードの控えが ${minutes} 分前のまま。取り直しに失敗している疑い。ボードの指摘はその時点のもの`,
-      fix: '~/.claude/scrum/log/errors.log と fetch-failed-* を見る',
+      message: `The board copy is still from ${minutes} minutes ago. A failing refresh is suspected. The board findings are as of then`,
+      fix: 'See errors.log and fetch-failed-* in ~/.claude/scrum/log/',
     }),
   ]
 }

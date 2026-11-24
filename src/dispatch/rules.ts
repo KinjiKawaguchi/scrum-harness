@@ -39,8 +39,8 @@ function lintIgnoredNudges(records: readonly DispatchRecord[], members: readonly
           subject: member.name,
           keySuffix: `${issue}:${first.at}`,
           severity: 'medium',
-          message: `${member.name} に、作業中の ${issue} を進めるよう ${streak} 回促したが、その間に作業 (ボードの変化、PR や紐づいたブランチの動き) が無いまま、空きに戻っている (いまの空きは ${minutes} 分)`,
-          fix: `作業中が本当に待ちなら、止まっている理由を付けさせる (付くと次の仕事が渡る)。そうでなければ、${member.name} に直接伝える`,
+          message: `${member.name} was nudged ${streak} times to continue ${issue}, which is In Progress, but went back to idle with no work in between (board change, PR or linked-branch activity). Idle now for ${minutes} minutes`,
+          fix: `If the In Progress work is really waiting, have them set the blocked reason (then the next work is handed over). Otherwise tell ${member.name} directly`,
         }),
       ]
     })
@@ -71,8 +71,8 @@ function lintDispatched(records: readonly DispatchRecord[], config: Config, now:
         subject: record.label,
         keySuffix: record.at,
         severity: 'medium',
-        message: `${record.member} が空いていたので、${record.label} ${record.title} を自動で渡した (Status は ${config.statuses.doing}、担当は ${record.member})`,
-        fix: `渡し方が合わないときは、担当と Status を直して ${record.member} に伝える。何もしなければ、そのまま進む`,
+        message: `${record.member} was idle, so ${record.label} ${record.title} was handed over automatically (Status ${config.statuses.doing}, assignee ${record.member})`,
+        fix: `If the hand-over is wrong, fix the assignee and Status and tell ${record.member}. If you do nothing, it proceeds as is`,
       }),
     )
 }

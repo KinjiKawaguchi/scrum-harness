@@ -7,8 +7,8 @@ import type { AlertEvaluation } from './types.ts'
 
 function reasonText(reason: EmptyReason, member: string, config: Config): string {
   return reason === 'wip-limit'
-    ? `作業中が上限 ${config.wipLimit} 件に達している`
-    : `次にやる (担当なし か ${member}) と、バックログ (担当 ${member}) に、渡せる issue が無い`
+    ? `In Progress is at the limit of ${config.wipLimit}`
+    : `no issue to hand over in Next (unassigned or ${member}) or in Backlog (assigned to ${member})`
 }
 
 /**
@@ -39,11 +39,11 @@ export function evaluateEmpty(
           keySuffix: first,
           severity: 'high',
           minutes,
-          message: `${name} が空いているのに、渡せる issue が無い (${why})。${minutes} 分続いている`,
+          message: `${name} is idle but there is no issue to hand over (${why}). It has lasted ${minutes} minutes`,
           fix:
             reason === 'wip-limit'
-              ? `作業中が上限で渡せない。止まっている作業中を見直す (理由を付ける、バックログに戻す)。TechLead だけに出る (${config.ownerLabel}には出ない)`
-              : `次にやる か、${name} 担当のバックログに issue を並べる (担当と順を付ける)。${limit} 分並ばなければ、${config.ownerLabel}にも伝わる`,
+              ? `Nothing can be handed over because In Progress is at the limit. Review the blocked In Progress items (set a reason, or move them back to Backlog). Shown to the TechLead only (not to ${config.ownerLabel})`
+              : `Line up issues in Next, or in the Backlog assigned to ${name} (set the assignee and the order). If none are lined up in ${limit} minutes, ${config.ownerLabel} is told too`,
         }),
       ),
       ...escalated.map(({ name, first, minutes, why }) =>
@@ -53,8 +53,8 @@ export function evaluateEmpty(
           keySuffix: first,
           severity: 'high',
           minutes,
-          message: `${name} に渡せる issue が無いまま ${minutes} 分たった (${why})。${config.ownerLabel}に伝える`,
-          fix: `${config.techlead} が issue を並べる。並べれば、この指摘は消える`,
+          message: `${minutes} minutes have passed with no issue to hand over to ${name} (${why}). Tell ${config.ownerLabel}`,
+          fix: `${config.techlead} lines up issues. Once they do, this finding goes away`,
         }),
       ),
     ],
@@ -62,9 +62,9 @@ export function evaluateEmpty(
       ownerNotice({
         key: `Q-EMPTY-OWNER:${name}:${first}`,
         head: `Q-EMPTY ${name}`,
-        push: `${name} に渡せる issue が無いまま ${minutes} 分たちました (${why})。${config.techlead} が並べるのを待っています。`,
+        push: `${minutes} minutes have passed with no issue to hand over to ${name} (${why}). Waiting for ${config.techlead} to line them up.`,
         waitingLabels: [],
-        line: `${name} に渡せる issue が無い ${minutes} 分 (${why})`,
+        line: `no issue to hand over to ${name} for ${minutes} minutes (${why})`,
         throttle: { key: `empty:${name}`, minutes: limits.emptyPushMinutes },
         config,
       }),

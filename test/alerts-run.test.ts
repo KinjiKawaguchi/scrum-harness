@@ -22,8 +22,8 @@ let sent: (readonly [string, string])[]
 const notify = (title: string, body: string): void => {
   sent.push([title, body])
 }
-const stalledBoard = () => snapshot([epic(), child(101, { status: '次にやる' })])
-const movingBoard = () => snapshot([epic(), child(101, { status: '作業中', assignee: 'SWE1' })])
+const stalledBoard = () => snapshot([epic(), child(101, { status: 'Next' })])
+const movingBoard = () => snapshot([epic(), child(101, { status: 'In Progress', assignee: 'SWE1' })])
 
 function heartbeat(name: string, state: ActivityState, at: Date): void {
   writeHeartbeat(p, { sessionId: `session-${name}`, name, pid: null }, state, at)
@@ -58,7 +58,7 @@ describe('alertStep', () => {
     step(minutesLater(60))
     assert.equal(sent.length, 1)
     assert.equal(sent[0]?.[0], 'scrum-harness')
-    assert.match(sent[0]?.[1] ?? '', /^Epic app#100「Epic 100」を動かしている人がいない状態が 60 分続いています。$/)
+    assert.match(sent[0]?.[1] ?? '', /^Nobody has been moving Epic app#100 "Epic 100" for 60 minutes\.$/)
     step(minutesLater(61))
     step(minutesLater(90))
     assert.equal(sent.length, 1)
@@ -75,13 +75,13 @@ describe('alertStep', () => {
     let attempts = 0
     const failing = () => {
       attempts += 1
-      throw new Error('osascript が失敗')
+      throw new Error('osascript failed')
     }
     alertStep(p, enabled, NOW, { notify: failing, sessions, isLiaison: false })
     alertStep(p, enabled, minutesLater(60), { notify: failing, sessions, isLiaison: false })
     alertStep(p, enabled, minutesLater(61), { notify: failing, sessions, isLiaison: false })
     assert.equal(attempts, 1)
-    assert.match(readFileSync(p.errors, 'utf8'), /alert-desktop: osascript が失敗/)
+    assert.match(readFileSync(p.errors, 'utf8'), /alert-desktop: osascript failed/)
   })
 
   it('窓口の待機のときだけ、窓口にまだ送っていない通知を返し、送った通知は重ねて返さない', () => {
@@ -89,13 +89,13 @@ describe('alertStep', () => {
     assert.deepEqual(step(minutesLater(60), false), [])
     const first = step(minutesLater(60), true)
     assert.deepEqual(kinds(first), ['owner', 'idle-line'])
-    assert.match(first[0]?.text ?? '', /E-STALL app#100: オーナーに PushNotification を 1 通送る/)
+    assert.match(first[0]?.text ?? '', /E-STALL app#100: send the owner one PushNotification/)
     assert.deepEqual(step(minutesLater(61), true), [])
     assert.match(readFileSync(p.events, 'utf8'), /"type":"alert-liaison","key":"E-STALL:app#100:/)
   })
 
   it('TechLead が E-STALL を受け入れたら、オーナーへの通知も macOS の通知も出さない (空きの 1 行は出る)', () => {
-    const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: '意図した待ち', at: NOW.toISOString() }
+    const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: 'Intended wait', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
     step(NOW)
     assert.deepEqual(kinds(step(minutesLater(60), true)), ['idle-line'])
@@ -118,7 +118,7 @@ describe('alertStep', () => {
     const held = step(minutesLater(160), true)
     assert.equal(sent.length, 1)
     assert.deepEqual(kinds(held).filter((kind) => kind !== 'idle-line'), ['info'])
-    assert.match(held.find((notice) => notice.kind === 'info')?.text ?? '', /オーナーへは 16:00 に通知済みで、同じ対象は 24 時間に 1 回までなので、今回は送らない/)
+    assert.match(held.find((notice) => notice.kind === 'info')?.text ?? '', /the owner was already notified at 16:00, and the same subject is sent at most once per 24 h, so it is not sent this time/)
     assert.equal(step(minutesLater(161), true).length, 0)
   })
 
@@ -141,12 +141,12 @@ describe('alertStep', () => {
   })
 
   it('間隔は Epic ごと。別の Epic の通知は止めず、同じ評価で出た 2 つの Epic は、macOS の通知 1 つにまとまる', () => {
-    const two = snapshot([epic(), child(101, { status: '次にやる' }), issue(200, { title: 'Epic 200' }), child(201, { status: '次にやる', epic: 'app#200' })])
+    const two = snapshot([epic(), child(101, { status: 'Next' }), issue(200, { title: 'Epic 200' }), child(201, { status: 'Next', epic: 'app#200' })])
     saveSnapshot(p, two)
     step(NOW)
     step(minutesLater(60))
     assert.equal(sent.length, 1)
-    assert.match(sent[0]?.[1] ?? '', /^止まりが 2 件あります。\n・app#100「Epic 100」を動かす人がいない 60 分 \(作業中の子なし \(次にやる 1 件、バックログ 0 件\)\)\n・app#200「Epic 200」/)
+    assert.match(sent[0]?.[1] ?? '', /^There are 2 stalls\.\n- nobody is moving app#100 "Epic 100" for 60 minutes \(no children In Progress \(Next 1, Backlog 0\)\)\n- nobody is moving app#200 "Epic 200"/)
     assert.deepEqual(Object.keys(readAlertState(p).ownerPushedAt).toSorted(), ['epic:app#100', 'epic:app#200'])
     assert.equal(readAlertState(p).desktopSent.filter((key) => key.startsWith('E-STALL')).length, 2)
     step(minutesLater(61))
@@ -156,15 +156,15 @@ describe('alertStep', () => {
   it('夜の間に止まった 4 つの Epic が、同じ評価で一度に E-STALL になっても、窓口への通知は 1 通で、1 行ずつ、止まっている理由が付く', () => {
     const epics = [100, 200, 300, 400].flatMap((number, index) => [
       issue(number, { title: `Epic ${number}`, labels: [] }),
-      child(number + 1, { status: index === 0 ? '作業中' : '次にやる', assignee: index === 0 ? 'SWE1' : null, reason: index === 0 ? '判断待ち' : 'なし', epic: `app#${number}` }),
+      child(number + 1, { status: index === 0 ? 'In Progress' : 'Next', assignee: index === 0 ? 'SWE1' : null, reason: index === 0 ? 'Needs decision' : 'None', epic: `app#${number}` }),
     ])
     saveSnapshot(p, snapshot(epics))
     step(NOW)
     const owner = step(minutesLater(60), true).filter((notice) => notice.kind === 'owner')
     assert.equal(owner.length, 1)
-    assert.match(owner[0]?.text ?? '', /止まり 4 件: オーナーに PushNotification を 1 通送る/)
-    assert.match(owner[0]?.text ?? '', /app#100「Epic 100」を動かす人がいない 60 分 \(オーナーの答え待ち \(app#101\)\)/)
-    assert.match(owner[0]?.text ?? '', /待っている問いの文を 1 行添える \(対象: app#101\)/)
+    assert.match(owner[0]?.text ?? '', /4 stalls: send the owner one PushNotification/)
+    assert.match(owner[0]?.text ?? '', /nobody is moving app#100 "Epic 100" for 60 minutes \(waiting for the owner's answer \(app#101\)\)/)
+    assert.match(owner[0]?.text ?? '', /add one line with the pending question \(subjects: app#101\)/)
     assert.equal(sent.length, 1)
     assert.equal(step(minutesLater(61), true).filter((notice) => notice.kind === 'owner').length, 0)
     assert.equal(sent.length, 1)
@@ -188,7 +188,7 @@ describe('alertStep', () => {
     assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(29), sessions)).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')), ['Q-EMPTY'])
     step(minutesLater(30))
     assert.equal(sent.length, 1)
-    assert.match(sent[0]?.[1] ?? '', /^SWE1 に渡せる issue が無いまま 30 分たちました/)
+    assert.match(sent[0]?.[1] ?? '', /^30 minutes have passed with no issue to hand over to SWE1/)
     assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(30), sessions)).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')).toSorted(), ['Q-EMPTY', 'Q-EMPTY-OWNER'])
   })
 
@@ -197,22 +197,22 @@ describe('alertStep', () => {
     step(NOW)
     step(minutesLater(30))
     assert.equal(sent.length, 1)
-    assert.match(sent[0]?.[1] ?? '', /^SWE1 に渡せる issue が無いまま 30 分たちました/)
-    saveSnapshot(p, snapshot([issue(1, { status: '次にやる' })]))
+    assert.match(sent[0]?.[1] ?? '', /^30 minutes have passed with no issue to hand over to SWE1/)
+    saveSnapshot(p, snapshot([issue(1, { status: 'Next' })]))
     step(minutesLater(31))
     saveSnapshot(p, snapshot([]))
     step(minutesLater(40))
     const held = step(minutesLater(70), true).filter((notice) => notice.kind === 'info')
     assert.equal(sent.length, 1)
     assert.equal(held.length, 1)
-    assert.match(held[0]?.text ?? '', /同じ対象は 1 時間に 1 回までなので、今回は送らない/)
+    assert.match(held[0]?.text ?? '', /the same subject is sent at most once per 1 h, so it is not sent this time/)
     step(minutesLater(90))
     assert.equal(sent.length, 2)
   })
 
   it('作業中が上限で渡せない部下は、30 分を過ぎても、オーナーへ通知しない (TechLead の Q-EMPTY だけ)', () => {
     const tight = { ...enabled, wipLimit: 1 }
-    saveSnapshot(p, snapshot([issue(1, { status: '作業中', assignee: 'SWE2' }), issue(2, { status: '次にやる' })]))
+    saveSnapshot(p, snapshot([issue(1, { status: 'In Progress', assignee: 'SWE2' }), issue(2, { status: 'Next' })]))
     step(NOW, false, tight)
     step(minutesLater(45), false, tight)
     assert.equal(sent.length, 0)
@@ -245,7 +245,7 @@ describe('lintAll への組み込み', () => {
 
   it('受け入れた E-STALL は active から外れ、acked に入る', () => {
     step(NOW)
-    const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: '意図した待ち', at: NOW.toISOString() }
+    const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: 'Intended wait', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
     const result = lintAll(loadContext(p, enabled, minutesLater(60), sessions))
     assert.equal(result.active.some((finding) => finding.rule === 'E-STALL'), false)
@@ -257,7 +257,7 @@ describe('readAlertState', () => {
   it('無いか壊れているか形が違えば、何も見ていない状態から始める', () => {
     assert.deepEqual(readAlertState(p), { epics: {}, empty: {}, desktopSent: [], liaisonSent: [], ownerPushedAt: {} })
     mkdirSync(dirname(p.alertsState), { recursive: true })
-    writeFileSync(p.alertsState, '{壊れた')
+    writeFileSync(p.alertsState, '{broken')
     assert.deepEqual(readAlertState(p).epics, {})
     writeJson(p.alertsState, { epics: { 'app#1': 5 }, empty: 'x', desktopSent: [1], liaisonSent: ['k'], ownerPushedAt: [] })
     assert.deepEqual(readAlertState(p), { epics: {}, empty: {}, desktopSent: [], liaisonSent: ['k'], ownerPushedAt: {} })
@@ -273,8 +273,8 @@ describe('runLiaisonWatch', async () => {
     saveSnapshot(p, freshBoard())
     heartbeat('SWE2', 'idle', new Date(Date.now() - 20 * 60_000))
     const message = await runLiaisonWatch(p, enabled, 'Liaison', options, fakePorts({ notify }))
-    assert.match(message ?? '', /^scrum-harness: 窓口への通知/)
-    assert.match(message ?? '', /- SWE2 が 20 分空いた。受け入れ: なし。ハーネスの動き: まだ送っていない/)
+    assert.match(message ?? '', /^scrum-harness: notice for the liaison/)
+    assert.match(message ?? '', /- SWE2 has been idle for 20 minutes\. Acknowledgement: none\. Harness action: nothing sent yet/)
     assert.equal(existsSync(p.memberWatchLock('Liaison')), false)
     assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', { maxMs: 60, intervalMs: 10 }, fakePorts({ notify })), null)
   })

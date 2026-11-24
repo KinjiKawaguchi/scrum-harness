@@ -30,8 +30,8 @@ function fakeGh(responses: readonly string[]): { readonly run: GhRun; readonly c
     run: (args) => {
       calls.push(args)
       const next = responses[calls.length - 1]
-      if (next === undefined) throw new Error('想定していない呼び出し')
-      if (next === 'FAIL') throw new Error('gh が失敗')
+      if (next === undefined) throw new Error('unexpected call')
+      if (next === 'FAIL') throw new Error('gh failed')
       return next
     },
   }
@@ -44,11 +44,11 @@ describe('parseLookup', () => {
   })
 
   it('読めない形は、理由を付けて投げる', () => {
-    assert.throws(() => parseLookup(JSON.stringify({ data: { repository: null } })), /リポジトリを読めない/)
-    assert.throws(() => parseLookup(lookup({ id: '' })), /リポジトリの ID/)
-    assert.throws(() => parseLookup(lookup({ issue: null })), /issue が無い/)
-    assert.throws(() => parseLookup(lookup({ ref: null })), /ベースのブランチが無い/)
-    assert.throws(() => parseLookup('壊れた'))
+    assert.throws(() => parseLookup(JSON.stringify({ data: { repository: null } })), /cannot read the repository/)
+    assert.throws(() => parseLookup(lookup({ id: '' })), /repository ID/)
+    assert.throws(() => parseLookup(lookup({ issue: null })), /the issue does not exist/)
+    assert.throws(() => parseLookup(lookup({ ref: null })), /the base branch does not exist/)
+    assert.throws(() => parseLookup('broken'))
   })
 })
 
@@ -85,7 +85,7 @@ describe('ensureLinkedBranch', () => {
 
   it('作るのに失敗したら、投げる (同じ名前のブランチがすでにあるときなど)', () => {
     const { run } = fakeGh([lookup(), 'FAIL'])
-    assert.throws(() => ensureLinkedBranch(run, input), /gh が失敗/)
+    assert.throws(() => ensureLinkedBranch(run, input), /gh failed/)
   })
 
   it('ブランチ名は <prefix>/<番号>', () => {
@@ -114,27 +114,27 @@ describe('linkBranchWith', () => {
 })
 
 describe('dispatchMessage のブランチの行', () => {
-  const item = issue(11, { title: '次の仕事', repo: 'example-org/app' })
+  const item = issue(11, { title: 'Next job', repo: 'example-org/app' })
 
   it('作ったブランチは、名前、ベース、PR の本文に番号を書くことを伝える', () => {
     const text = dispatchMessage(item, 'SWE1', withPrefix, { name: 'feat/11', isNew: true })
-    assert.match(text, /- issue に紐づいたブランチ feat\/11 を、origin\/develop の先頭から作ってある。git fetch origin してから/)
-    assert.match(text, /- PR の本文には #11 を書く \(PR から issue に飛べる\)/)
+    assert.match(text, /- A branch feat\/11 linked to the issue was created from the tip of origin\/develop\. Run git fetch origin, work on this branch/)
+    assert.match(text, /- Write #11 in the PR body \(so the PR links to the issue\)/)
   })
 
   it('すでにあったブランチは、そう書き、土台が古いことがあるので、origin/develop に遅れていないかを見てから作業させる', () => {
     const text = dispatchMessage(item, 'SWE1', withPrefix, { name: 'feat/old', isNew: false })
-    assert.match(text, /ブランチ feat\/old は、すでにあったもの。土台が古いことがあるので、git fetch origin のあと、git log feat\/old\.\.origin\/develop で origin\/develop に遅れていないかを見てから、このブランチで作業し/)
-    assert.doesNotMatch(dispatchMessage(item, 'SWE1', withPrefix, { name: 'feat/11', isNew: true }), /遅れていないか|すでにあった/)
+    assert.match(text, /The issue already had a linked branch, feat\/old\. Its base may be old, so after git fetch origin check with git log feat\/old\.\.origin\/develop that it is not behind origin\/develop, then work on this branch/)
+    assert.doesNotMatch(dispatchMessage(item, 'SWE1', withPrefix, { name: 'feat/11', isNew: true }), /not behind|already had a linked branch/)
   })
 
   it('用意できなかったときは、自分で切ることと、本文に番号を書くことを伝える', () => {
-    assert.match(dispatchMessage(item, 'SWE1', withPrefix, 'failed'), /紐づいたブランチは用意できなかった \(記録は errors.log\)。自分でブランチを切り、PR の本文に #11 を書く/)
+    assert.match(dispatchMessage(item, 'SWE1', withPrefix, 'failed'), /Could not prepare a branch linked to the issue \(see errors\.log\)\. Create a branch yourself, and write #11 in the PR body/)
   })
 
   it('ブランチを扱わない設定 (null) では、今までの文面のまま', () => {
     const text = dispatchMessage(item, 'SWE1', withPrefix, null)
-    assert.doesNotMatch(text, /ブランチ|本文には/)
+    assert.doesNotMatch(text, /linked branch|in the PR body/)
     assert.equal(text, dispatchMessage(item, 'SWE1', withPrefix))
   })
 })
@@ -148,7 +148,7 @@ describe('parseConfig の linkedBranchPrefix', () => {
   })
 
   it('空、空白、先頭や末尾の /、文字列でない値は、dispatch の設定ごと使わない', () => {
-    for (const bad of ['', 'a b', '/feat', 'feat/', 'feat//x', 3, '日本語']) assert.equal(parse(bad), undefined, String(bad))
+    for (const bad of ['', 'a b', '/feat', 'feat/', 'feat//x', 3, '\u65e5\u672c\u8a9e']) assert.equal(parse(bad), undefined, String(bad))
   })
 
   it('書かなければ、無いまま', () => {
@@ -160,7 +160,7 @@ describe('dispatchStep のブランチ', () => {
   let p: Paths
   /** ブランチの用意だけを差し替えた、外に出ないポート */
   const withLink = (prepareBranch: CodeHost['prepareBranch']) => fakePorts({ code: { ...fakePorts().code, prepareBranch } })
-  const board = () => saveSnapshot(p, snapshot([issue(11, { status: '次にやる', title: '次の仕事' })]))
+  const board = () => saveSnapshot(p, snapshot([issue(11, { status: 'Next', title: 'Next job' })]))
 
   beforeEach(() => {
     p = paths(mkdtempSync(join(tmpdir(), 'scrum-link-')))
@@ -170,7 +170,7 @@ describe('dispatchStep のブランチ', () => {
 
   it('紐づいたブランチを用意し、記録と文面に残す', () => {
     const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, withLink(() => ({ name: 'feat/11', isNew: true })))
-    assert.match(outcome?.message ?? '', /ブランチ feat\/11 を、origin\/develop の先頭から作ってある/)
+    assert.match(outcome?.message ?? '', /A branch feat\/11 linked to the issue was created from the tip of origin\/develop/)
     assert.equal(outcome?.record.branch, 'feat/11')
     assert.equal(readDispatches(p)[0]?.branch, 'feat/11')
     assert.match(readFileSync(p.events, 'utf8'), /"branch":"feat\/11"/)
@@ -183,18 +183,18 @@ describe('dispatchStep のブランチ', () => {
       'SWE1',
       NOW,
       withLink(() => {
-        throw new Error('ブランチを作れない')
+        throw new Error('cannot create the branch')
       }),
     )
-    assert.match(outcome?.message ?? '', /紐づいたブランチは用意できなかった/)
+    assert.match(outcome?.message ?? '', /Could not prepare a branch linked to the issue/)
     assert.equal(outcome?.record.branch, undefined)
-    assert.match(readFileSync(p.errors, 'utf8'), /dispatch-link: ブランチを作れない/)
+    assert.match(readFileSync(p.errors, 'utf8'), /dispatch-link: cannot create the branch/)
     assert.equal(readDispatches(p).length, 1)
   })
 
   it('ブランチを扱わない設定では、用意の呼び出しの結果 (null) を文面に出さない', () => {
     const outcome = dispatchStep(p, withPrefix, 'SWE1', NOW, withLink(() => null))
-    assert.doesNotMatch(outcome?.message ?? '', /ブランチ feat|用意できなかった/)
+    assert.doesNotMatch(outcome?.message ?? '', /A branch feat|Could not prepare/)
     assert.equal(outcome?.record.branch, undefined)
   })
 
@@ -203,12 +203,12 @@ describe('dispatchStep のブランチ', () => {
     const { run, calls } = fakeGh([])
     const outcome = dispatchStep(p, plain, 'SWE1', NOW, withLink(linkBranchWith(run, plain)))
     assert.equal(calls.length, 0)
-    assert.match(outcome?.message ?? '', /^scrum-harness: SWE1 に次の仕事を渡した/)
-    assert.doesNotMatch(outcome?.message ?? '', /ブランチ feat/)
+    assert.match(outcome?.message ?? '', /^scrum-harness: handed the next work to SWE1/)
+    assert.doesNotMatch(outcome?.message ?? '', /A branch feat/)
   })
 
   it('促しの文面は、ブランチを用意しない', () => {
-    saveSnapshot(p, snapshot([issue(12, { status: '作業中', assignee: 'SWE1', title: '進行中' })]))
+    saveSnapshot(p, snapshot([issue(12, { status: 'In Progress', assignee: 'SWE1', title: 'Ongoing' })]))
     let called = false
     const outcome = dispatchStep(
       p,
@@ -220,7 +220,7 @@ describe('dispatchStep のブランチ', () => {
         return null
       }),
     )
-    assert.match(outcome?.message ?? '', /進める/)
+    assert.match(outcome?.message ?? '', /Continue/)
     assert.equal(called, false)
   })
 })

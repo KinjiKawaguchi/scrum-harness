@@ -10,7 +10,7 @@ const cell = (value: number | null): string => (value === null ? '-' : String(va
 const overCell = (over: number | null): string => (over === null ? '-' : over > 0 ? `+${over}` : '0')
 /** 手間。全セッションが止まっていて除いた節目があれば、その数を添える。 */
 const effortCell = (assessment: Assessment): string =>
-  assessment.teamStopped === undefined ? cell(assessment.effort) : `${cell(assessment.effort)} (除いた節目 ${assessment.teamStopped})`
+  assessment.teamStopped === undefined ? cell(assessment.effort) : `${cell(assessment.effort)} (excluded checkpoints ${assessment.teamStopped})`
 
 /** 済んだ issue を、新しい順に並べて出す件数。 */
 const RECENT_COMPLETIONS = 20
@@ -36,7 +36,7 @@ export function formatCompletions(all: readonly Completion[]): readonly string[]
   const completions = latestPerIssue(all)
   if (completions.length === 0) return []
   const recent = completions.toSorted((a, b) => b.detectedAt.localeCompare(a.detectedAt)).slice(0, RECENT_COMPLETIONS)
-  const items = recent.map((one) => [one.label, cell(one.points), cell(one.budget), cell(one.effort), one.exact ? '' : '近似'].join('\t'))
+  const items = recent.map((one) => [one.label, cell(one.points), cell(one.budget), cell(one.effort), one.exact ? '' : 'approx.'].join('\t'))
   const measured = completions.filter((one) => one.points !== null && one.effort !== null)
   const tiers = [...new Set(measured.map((one) => one.points ?? 0))].toSorted((a, b) => a - b)
   const perTier = tiers.map((points) => {
@@ -44,16 +44,16 @@ export function formatCompletions(all: readonly Completion[]): readonly string[]
     const efforts = group.map((one) => one.effort ?? 0)
     const budget = group[0]?.budget ?? null
     const over = group.filter((one) => one.budget !== null && (one.effort ?? 0) > one.budget).length
-    return [points, cell(budget), group.length, medianOf(efforts), `${Math.min(...efforts)}〜${Math.max(...efforts)}`, over].join('\t')
+    return [points, cell(budget), group.length, medianOf(efforts), `${Math.min(...efforts)}-${Math.max(...efforts)}`, over].join('\t')
   })
   return [
     '',
-    `済んだ issue の予実 (新しい順に最大 ${RECENT_COMPLETIONS} 件。かかった節目は、止まっていた節目を除く。近似は、Status の変化を読めず、前の控えで数えたもの)`,
-    'issue\tポイント\t目安\tかかった節目\t備考',
+    `Estimate versus actual of finished issues (up to ${RECENT_COMPLETIONS}, newest first. Checkpoints taken exclude the stopped ones. "approx." means the Status changes could not be read and the previous board copy was used)`,
+    'issue\tpoints\tbudget\tcheckpoints taken\tnote',
     ...items,
     '',
-    'ポイントごとの予実 (かかった節目の中央値と幅)',
-    'ポイント\t目安\t件数\t中央値\t幅\t目安を超えた件数',
+    'Estimate versus actual by points (median and range of checkpoints taken)',
+    'points\tbudget\tcount\tmedian\trange\tover budget',
     ...perTier,
   ]
 }
@@ -67,7 +67,7 @@ export function formatPoints(
   completions: readonly Completion[] = [],
 ): string {
   const sprint = config.sprint
-  if (sprint === undefined) return 'sprint の設定が無い (config.json の sprint)'
+  if (sprint === undefined) return 'There is no sprint configuration (sprint in config.json)'
   const rows = doingIssues(snapshot, config)
     .map((item) => ({ item, assessment: assessItem(item, history, config, now) }))
     .toSorted((a, b) => (b.assessment.over ?? -1) - (a.assessment.over ?? -1) || a.assessment.label.localeCompare(b.assessment.label))
@@ -83,9 +83,9 @@ export function formatPoints(
       ].join('\t'),
     )
   return [
-    'issue\tポイント\t目安\t手間\t超過\t止まっている理由\t担当',
+    'issue\tpoints\tbudget\teffort\toverrun\tblocked reason\tassignee',
     ...rows,
-    `次の節目: ${localClock(nextCheckpoint(now, sprint).getTime(), sprint)} (手間は作業中にまたいだ節目の数。止まっていた節目と、全セッションが止まっていた節目は除く)`,
+    `Next checkpoint: ${localClock(nextCheckpoint(now, sprint).getTime(), sprint)} (effort is the number of checkpoints crossed while In Progress. Checkpoints with a block and checkpoints where all sessions were stopped are excluded)`,
     ...formatCompletions(completions),
   ].join('\n')
 }

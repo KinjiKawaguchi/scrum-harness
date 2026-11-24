@@ -14,13 +14,13 @@ export function mergeOwner(notices: readonly Notice[], config: Config): Notice |
   const members = notices.flatMap((notice) => notice.members ?? [notice.key])
   const lines = notices.map((notice) => notice.owner?.line ?? notice.key)
   const waiting = notices.flatMap((notice) => notice.owner?.waiting ?? [])
-  const body = [`止まりが ${notices.length} 件あります。`, ...lines.map((line) => `・${line}`)]
-  const addQuestion = waiting.length === 0 ? [] : [`  ${config.ownerLabel}の答え待ちの分は、待っている問いの文を 1 行添える (対象: ${waiting.join('、')})`]
+  const body = [`There are ${notices.length} stalls.`, ...lines.map((line) => `- ${line}`)]
+  const addQuestion = waiting.length === 0 ? [] : [`  For the ones waiting for ${config.ownerLabel}'s answer, add one line with the pending question (subjects: ${waiting.join(', ')})`]
   return {
     key: `batch:${members.toSorted().join('+')}`,
     kind: 'owner',
     members,
-    text: [`- 止まり ${notices.length} 件: ${config.ownerLabel}に PushNotification を 1 通送る (音は鳴らさない。本文は変えない)`, ...body.map((line) => `  ${line}`), ...addQuestion].join('\n'),
+    text: [`- ${notices.length} stalls: send ${config.ownerLabel} one PushNotification (no sound; do not change the text)`, ...body.map((line) => `  ${line}`), ...addQuestion].join('\n'),
     desktop: { title: NOTICE_TITLE, body: body.join('\n') },
     owner: { line: lines.join(' / '), waiting },
   }

@@ -8,46 +8,46 @@ const check = (reason: string, durationMs = 3_600_000, now = NOW) => checkIdleAc
 
 describe('checkIdleAck', () => {
   it('「<オーナー>の答え待ち」は 1 時間まで受け入れ、枠は付けない', () => {
-    assert.deepEqual(check('オーナーの答え待ち'), { ok: true, slotAt: null })
+    assert.deepEqual(check("Waiting for the owner's answer"), { ok: true, slotAt: null })
   })
 
   it('理由の後ろに文字を足した形は、受け入れない (部分一致にしない)', () => {
-    assert.equal(check('オーナーの答え待ち、余力が少ない').ok, false)
-    assert.equal(check('枠 15:30 まで').ok, false)
-    assert.equal(check('枠 15:30、余力').ok, false)
-    assert.equal(check('前置き 枠 15:30').ok, false)
+    assert.equal(check("Waiting for the owner's answer, low capacity").ok, false)
+    assert.equal(check('slot 15:30 until').ok, false)
+    assert.equal(check('slot 15:30, spare capacity').ok, false)
+    assert.equal(check('Prefix slot 15:30').ok, false)
   })
 
   it('1 時間より長い期限は、理由が正しくても受け入れない', () => {
-    const result = check('オーナーの答え待ち', 3_600_001)
+    const result = check("Waiting for the owner's answer", 3_600_001)
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /最長 1 時間/)
+    assert.match(result.ok ? '' : result.message, /at most 1 hour/)
   })
 
   it('「枠 HH:MM」は、枠の始まりを残して受け入れる', () => {
-    assert.deepEqual(check('枠 15:30'), { ok: true, slotAt: '2026-10-08T06:30:00.000Z' })
-    assert.deepEqual(check('枠 16:15'), { ok: true, slotAt: '2026-10-08T07:15:00.000Z' })
+    assert.deepEqual(check('slot 15:30'), { ok: true, slotAt: '2026-10-08T06:30:00.000Z' })
+    assert.deepEqual(check('slot 16:15'), { ok: true, slotAt: '2026-10-08T07:15:00.000Z' })
   })
 
   it('枠の始まりが 1 時間 15 分より先なら、受け入れない (枠の 15 分前までに期限が切れるため)', () => {
-    const result = check('枠 16:16')
+    const result = check('slot 16:16')
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /1 時間 15 分以内/)
+    assert.match(result.ok ? '' : result.message, /within 1 hour 15 minutes/)
   })
 
   it('枠の中 (始まりから 1 時間以内) なら、始まりの時刻のまま受け入れる', () => {
-    assert.deepEqual(check('枠 14:30'), { ok: true, slotAt: '2026-10-08T05:30:00.000Z' })
+    assert.deepEqual(check('slot 14:30'), { ok: true, slotAt: '2026-10-08T05:30:00.000Z' })
   })
 
   it('1 時間より前に終わった枠の時刻は、明日の枠とみなして、受け入れない', () => {
-    assert.equal(check('枠 08:00').ok, false)
+    assert.equal(check('slot 08:00').ok, false)
   })
 
   it('コンテキストの余力は理由にできない。決まった言葉以外も受け入れない', () => {
-    const context = check('コンテキストの余力がない')
+    const context = check('no spare context capacity')
     assert.equal(context.ok, false)
-    assert.match(context.ok ? '' : context.message, /コンテキストの余力は理由にできない/)
-    for (const reason of ['枠', '枠 25:00', '枠 9:30', '今夜の作業待ち', '']) assert.equal(check(reason).ok, false, reason)
+    assert.match(context.ok ? '' : context.message, /Spare context capacity cannot be a reason/)
+    for (const reason of ['slot', 'slot 25:00', 'slot 9:30', 'Waiting for the night run', '']) assert.equal(check(reason).ok, false, reason)
   })
 })
 

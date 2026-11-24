@@ -18,7 +18,7 @@ const refreshSnapshot = (p: Paths, c: Config, now: Date) => refreshWith(p, c, no
 
 const config: Config = {
   ...base,
-  sprint: { checkpoints: ['08:00', '13:00', '21:00'], utcOffset: '+09:00', pointsField: 'ストーリーポイント', overrunField: '超過', pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 } },
+  sprint: { checkpoints: ['08:00', '13:00', '21:00'], utcOffset: '+09:00', pointsField: 'Story points', overrunField: 'Overrun', pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 } },
 }
 const jst = (text: string) => new Date(`${text}+09:00`)
 /** 10/29 09:00 に作業中に入り、10/30 14:00 に済み。またいだ節目は 13:00、21:00、08:00、13:00 の 4 つ */
@@ -67,7 +67,7 @@ describe('recordCompletions', () => {
 
   it('止まっていた節目は、かかった節目に数えない (節目の記録の止まり)', () => {
     const p = setup()
-    const records = [{ scheduledFor: jst('2026-10-29T21:00:00').toISOString(), recordedAt: jst('2026-10-29T21:01:00').toISOString(), items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', assignee: null }] }]
+    const records = [{ scheduledFor: jst('2026-10-29T21:00:00').toISOString(), recordedAt: jst('2026-10-29T21:01:00').toISOString(), items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: 'Needs decision', assignee: null }] }]
     appendLine(p.checkpoints, JSON.stringify(records[0]))
     const [one] = recordCompletions(p, previous, fresh, config, NOW, () => new Map([['app#1', timeline(config.statuses.done)]]))
     assert.equal(one?.effort, 3)
@@ -104,7 +104,7 @@ describe('recordCompletions', () => {
 
   it('sprint の設定が無ければ何もしない。済んだものが無ければ、Status の変化も読まない', () => {
     const p = setup()
-    assert.deepEqual(recordCompletions(p, previous, fresh, base, NOW, () => assert.fail('読まない')), [])
+    assert.deepEqual(recordCompletions(p, previous, fresh, base, NOW, () => assert.fail('do not read')), [])
     let called = 0
     recordCompletions(p, snapshot([doingBefore(1)]), snapshot([doingBefore(1)]), config, NOW, () => {
       called += 1
@@ -117,7 +117,7 @@ describe('recordCompletions', () => {
   it('読めない行は飛ばして、読める行を返す', () => {
     const p = setup()
     appendLine(p.completions, 'not json')
-    appendLine(p.completions, JSON.stringify({ label: 'app#9', points: 1, budget: 1, effort: 0, detectedAt: NOW.toISOString(), status: '完了', exact: true }))
+    appendLine(p.completions, JSON.stringify({ label: 'app#9', points: 1, budget: 1, effort: 0, detectedAt: NOW.toISOString(), status: 'Done', exact: true }))
     assert.deepEqual(loadCompletions(p).map((one) => one.label), ['app#9'])
   })
 })
@@ -243,7 +243,7 @@ describe('済んだ issue の予実の表示', () => {
     budget,
     effort,
     detectedAt,
-    status: '完了',
+    status: 'Done',
     exact,
   })
   const data: readonly Completion[] = [
@@ -257,18 +257,18 @@ describe('済んだ issue の予実の表示', () => {
 
   it('済んだ issue を新しい順に並べ、近似には印を付ける。ポイントや節目が分からないものは - にする', () => {
     const lines = formatCompletions(data)
-    const rows = lines.slice(lines.indexOf('issue\tポイント\t目安\tかかった節目\t備考') + 1, lines.indexOf('ポイントごとの予実 (かかった節目の中央値と幅)') - 1)
-    assert.deepEqual(rows, ['app#6\t-\t-\t1\t', 'app#5\t2\t1\t-\t', 'app#4\t5\t3\t3\t', 'app#3\t3\t2\t0\t近似', 'app#2\t3\t2\t2\t', 'app#1\t3\t2\t4\t'])
+    const rows = lines.slice(lines.indexOf('issue\tpoints\tbudget\tcheckpoints taken\tnote') + 1, lines.indexOf('Estimate versus actual by points (median and range of checkpoints taken)') - 1)
+    assert.deepEqual(rows, ['app#6\t-\t-\t1\t', 'app#5\t2\t1\t-\t', 'app#4\t5\t3\t3\t', 'app#3\t3\t2\t0\tapprox.', 'app#2\t3\t2\t2\t', 'app#1\t3\t2\t4\t'])
   })
 
   it('ポイントごとに、件数、かかった節目の中央値と幅、目安を超えた件数を出す。ポイントか節目が分からないものは数えない', () => {
     const lines = formatCompletions(data)
-    assert.deepEqual(lines.slice(lines.indexOf('ポイント\t目安\t件数\t中央値\t幅\t目安を超えた件数') + 1), ['3\t2\t3\t2\t0〜4\t1', '5\t3\t1\t3\t3〜3\t0'])
+    assert.deepEqual(lines.slice(lines.indexOf('points\tbudget\tcount\tmedian\trange\tover budget') + 1), ['3\t2\t3\t2\t0-4\t1', '5\t3\t1\t3\t3-3\t0'])
   })
 
   it('件数が偶数なら、真ん中の 2 つの平均 (小数 1 桁) を出す', () => {
     const lines = formatCompletions([one('a#1', 3, 2, 1, '2026-10-30T01:00:00Z'), one('a#2', 3, 2, 2, '2026-10-30T02:00:00Z')])
-    assert.equal(lines.at(-1), '3\t2\t2\t1.5\t1〜2\t0')
+    assert.equal(lines.at(-1), '3\t2\t2\t1.5\t1-2\t0')
   })
 
   it('同じ issue の記録が複数あれば (行き来した)、新しいものだけを、一覧にもポイントごとにも使う', () => {
@@ -277,27 +277,27 @@ describe('済んだ issue の予実の表示', () => {
       one('app#7', 3, 2, 3, '2026-10-30T09:00:00Z'),
       one('app#8', 3, 2, 0, '2026-10-30T05:00:00Z'),
     ])
-    const rows = lines.slice(lines.indexOf('issue\tポイント\t目安\tかかった節目\t備考') + 1, lines.indexOf('ポイントごとの予実 (かかった節目の中央値と幅)') - 1)
+    const rows = lines.slice(lines.indexOf('issue\tpoints\tbudget\tcheckpoints taken\tnote') + 1, lines.indexOf('Estimate versus actual by points (median and range of checkpoints taken)') - 1)
     assert.deepEqual(rows, ['app#7\t3\t2\t3\t', 'app#8\t3\t2\t0\t'])
-    assert.equal(lines.at(-1), '3\t2\t2\t1.5\t0〜3\t1')
+    assert.equal(lines.at(-1), '3\t2\t2\t1.5\t0-3\t1')
   })
 
   it('記録が無ければ、何も出さない。新しい順の一覧は、最大 20 件にする', () => {
     assert.deepEqual(formatCompletions([]), [])
     const many = Array.from({ length: 25 }, (_, index) => one(`a#${index}`, 1, 1, 0, `2026-10-30T${String(index).padStart(2, '0')}:00:00Z`))
     const lines = formatCompletions(many)
-    const rows = lines.slice(lines.indexOf('issue\tポイント\t目安\tかかった節目\t備考') + 1, lines.indexOf('ポイントごとの予実 (かかった節目の中央値と幅)') - 1)
+    const rows = lines.slice(lines.indexOf('issue\tpoints\tbudget\tcheckpoints taken\tnote') + 1, lines.indexOf('Estimate versus actual by points (median and range of checkpoints taken)') - 1)
     assert.equal(rows.length, 20)
     assert.equal(rows[0]?.startsWith('a#24\t'), true)
-    assert.equal(lines.at(-1), '1\t1\t25\t0\t0〜0\t0')
+    assert.equal(lines.at(-1), '1\t1\t25\t0\t0-0\t0')
   })
 
   it('scrum points の表の下に出す。記録が無いときは、今までの表のまま', () => {
     const snap = snapshot([])
     const without = formatPoints(snap, historyOf(), config, NOW)
-    assert.equal(without.includes('済んだ issue の予実'), false)
+    assert.equal(without.includes('Estimate versus actual of finished issues'), false)
     const withData = formatPoints(snap, historyOf(), config, NOW, data)
     assert.equal(withData.startsWith(without), true)
-    assert.equal(withData.includes('済んだ issue の予実'), true)
+    assert.equal(withData.includes('Estimate versus actual of finished issues'), true)
   })
 })

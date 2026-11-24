@@ -9,7 +9,7 @@ import type { Notice } from './types.ts'
 
 function ackText(acks: readonly Ack[], name: string, now: Date, offset: string): string {
   const ack = acks.find((one) => one.rule === 'T-IDLE' && one.subject === name && Date.parse(one.until) > now.getTime())
-  return ack === undefined ? 'なし' : `${ack.reason} (${clock(ack.until, offset)} まで)`
+  return ack === undefined ? 'none' : `${ack.reason} (until ${clock(ack.until, offset)})`
 }
 
 /** 今の空きの間に、ハーネスがその人に送った最後の仕事 (渡した、促した)。 */
@@ -20,8 +20,8 @@ function lastSend(records: readonly DispatchRecord[], member: MemberState): Disp
 
 function actionText(input: AlertInput, member: MemberState, offset: string): string {
   const sent = lastSend(input.dispatches, member)
-  if (sent !== undefined) return `${sent.kind === 'nudge' ? '促した' : '渡した'} ${sent.label} (${clock(sent.at, offset)})`
-  return isRecordedEmpty(input.alerts.empty, member.name) ? '渡せる issue が無い' : 'まだ送っていない'
+  if (sent !== undefined) return `${sent.kind === 'nudge' ? 'nudged' : 'handed over'} ${sent.label} (${clock(sent.at, offset)})`
+  return isRecordedEmpty(input.alerts.empty, member.name) ? 'no issue to hand over' : 'nothing sent yet'
 }
 
 /**
@@ -36,7 +36,7 @@ export function idleLines(input: AlertInput): readonly Notice[] {
     .flatMap((member) => {
       const minutes = minutesSince(member.since ?? '', now)
       if (minutes < config.idleMinutes) return []
-      const text = `${member.name} が ${minutes} 分空いた。受け入れ: ${ackText(acks, member.name, now, offset)}。ハーネスの動き: ${actionText(input, member, offset)}`
+      const text = `${member.name} has been idle for ${minutes} minutes. Acknowledgement: ${ackText(acks, member.name, now, offset)}. Harness action: ${actionText(input, member, offset)}`
       return [{ key: `idle-line:${member.name}:${member.since}`, kind: 'idle-line' as const, text: `- ${text}` }]
     })
 }

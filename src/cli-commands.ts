@@ -52,9 +52,9 @@ export function lintCommand(p: Paths, config: Config, flags: Flags, ports: Pick<
   const snapshot = flags.refresh === true ? refreshSnapshot(p, config, now, ports.board) : undefined
   const { active, acked } = lintAll(loadContext(p, config, now, ports.sessions, snapshot ?? undefined))
   if (flags.json === true) return JSON.stringify({ active, acked }, null, 2)
-  const fetchedAt = readJson<{ fetchedAt?: string }>(p.snapshot, {}).fetchedAt ?? '未取得'
-  const lines = active.length === 0 ? ['指摘なし'] : active.map(formatFinding)
-  return [`ボードの控え: ${fetchedAt}`, ...lines, `受け入れ済み ${acked.length} 件 (scrum acks)`].join('\n')
+  const fetchedAt = readJson<{ fetchedAt?: string }>(p.snapshot, {}).fetchedAt ?? 'not fetched'
+  const lines = active.length === 0 ? ['No findings'] : active.map(formatFinding)
+  return [`Board copy: ${fetchedAt}`, ...lines, `${acked.length} acknowledged (scrum acks)`].join('\n')
 }
 
 export function teamCommand(p: Paths, config: Config, sessions: SessionDirectory): string {
@@ -62,7 +62,7 @@ export function teamCommand(p: Paths, config: Config, sessions: SessionDirectory
   const { members } = loadContext(p, config, now, sessions)
   return members
     .map((member) => {
-      const minutes = member.since === null ? '' : ` ${Math.floor((now.getTime() - Date.parse(member.since)) / 60_000)} 分`
+      const minutes = member.since === null ? '' : ` ${Math.floor((now.getTime() - Date.parse(member.since)) / 60_000)} min`
       return `${member.name}\t${member.state}${minutes}`
     })
     .join('\n')
@@ -70,7 +70,7 @@ export function teamCommand(p: Paths, config: Config, sessions: SessionDirectory
 
 /** T-IDLE の受け入れの検査。設定が無ければ、理由を検査できないので記録しない。 */
 function checkIdle(config: Config | null, reason: string, durationMs: number, now: Date): IdleAckCheck {
-  if (config === null) return { ok: false, message: '設定が無いので、T-IDLE の受け入れは記録できない' }
+  if (config === null) return { ok: false, message: 'There is no configuration, so a T-IDLE acknowledgement cannot be recorded' }
   return checkIdleAck({ reason, durationMs, now, config })
 }
 
@@ -87,7 +87,7 @@ export function ackCommand(
   const duration = typeof flags.for === 'string' ? parseDuration(flags.for) : null
   const until = typeof flags.until === 'string' ? new Date(flags.until) : duration === null ? null : new Date(now.getTime() + duration)
   if (!rule || !subject || reason === null || until === null || Number.isNaN(until.getTime())) {
-    return '使い方: scrum ack <規則> <対象> (--for 2h | --until 2026-10-09T22:00+09:00) --reason "<理由>"'
+    return 'Usage: scrum ack <rule> <subject> (--for 2h | --until 2026-10-09T22:00+09:00) --reason "<reason>"'
   }
   const idle = rule === 'T-IDLE' ? checkIdle(config, reason, until.getTime() - now.getTime(), now) : null
   if (idle !== null && !idle.ok) return idle.message
@@ -106,14 +106,14 @@ export function ackCommand(
   }
   writeJson(p.acks, addAck(readJson<readonly Ack[]>(p.acks, []), ack, now))
   appendLine(p.events, JSON.stringify({ at: ack.at, type: 'acked', rule, subject, until: ack.until, reason }))
-  return `受け入れた: ${rule} ${subject} (${ack.until} まで) ${reason}`
+  return `Acknowledged: ${rule} ${subject} (until ${ack.until}) ${reason}`
 }
 
 export function acksCommand(p: Paths): string {
   const now = Date.now()
   const live = readJson<readonly Ack[]>(p.acks, []).filter((ack) => Date.parse(ack.until) > now)
-  const basisText = (a: Ack): string => (a.basis !== undefined ? ` (根拠: ${a.basis})` : a.rule === OVERRUN_RULE ? ' (超過の扱いを決めた記録が無いので、指摘は消えない)' : '')
-  return live.length === 0 ? '受け入れ済みの例外なし' : live.map((a) => `${a.rule} ${a.subject} ${a.until} まで: ${a.reason}${basisText(a)}`).join('\n')
+  const basisText = (a: Ack): string => (a.basis !== undefined ? ` (basis: ${a.basis})` : a.rule === OVERRUN_RULE ? ' (no record of how the overrun was handled, so the finding stays)' : '')
+  return live.length === 0 ? 'No acknowledged exceptions' : live.map((a) => `${a.rule} ${a.subject} until ${a.until}: ${a.reason}${basisText(a)}`).join('\n')
 }
 
 export function reportCommand(p: Paths, flags: Flags): string {
@@ -149,8 +149,8 @@ export function installCommand(p: Paths, isInstall: boolean): string {
   const backup = updateSettings(settingsPath(), (settings) => (isInstall ? withHooks(settings, bin) : withoutHooks(settings)))
   const created = isInstall && ensureConfig(p)
   return [
-    `${isInstall ? '足した' : '外した'}: ${settingsPath()} のフック (控え: ${backup})`,
-    created ? `設定を作った: ${p.dir}/config.json` : '',
+    `${isInstall ? 'Added' : 'Removed'}: the hooks in ${settingsPath()} (backup: ${backup})`,
+    created ? `Created the configuration: ${p.dir}/config.json` : '',
   ].filter((line) => line !== '').join('\n')
 }
 
@@ -170,10 +170,10 @@ export function writeShellPatterns(p: Paths, config: Config, actions: ActionRead
 export function checkpointCommand(p: Paths, config: Config, ports: Pick<Ports, 'board' | 'writer'>): string {
   const now = new Date()
   const record = runCheckpoint(p, config, now, ports)
-  if (record === null) return '記録する節目は無い (最後の節目は記録済みか、sprint の設定が無い)'
+  if (record === null) return 'No checkpoint to record (the last one is already recorded, or there is no sprint configuration)'
   const over = record.items.filter((item) => item.over !== null && item.over > 0).length
   const clock = config.sprint === undefined ? record.scheduledFor : localClock(Date.parse(record.scheduledFor), config.sprint)
-  return [`節目 ${clock} を記録した。作業中 ${record.items.length} 件、超過 ${over} 件`, pointsCommand(p, config)].join('\n')
+  return [`Recorded checkpoint ${clock}. ${record.items.length} In Progress, ${over} overrun`, pointsCommand(p, config)].join('\n')
 }
 
 export function pointsCommand(p: Paths, config: Config): string {

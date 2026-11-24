@@ -26,23 +26,23 @@ import { requestCommand } from './requests/command.ts'
 import { buildPorts } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
-const USAGE = `scrum: GitHub Project のボードと部下の稼働を点検する
-  scrum lint [--refresh] [--json]   指摘の全件
-  scrum team                        TechLead と部下の稼働
-  scrum refresh                     ボードを取り直す
-  scrum ack <規則> <対象> (--for 2h | --until <時刻>) --reason "<理由>"
-                                    T-IDLE は最長 1 時間で、理由は「<オーナー>の答え待ち」か「枠 HH:MM」
-  scrum acks                        受け入れ済みの例外
-  scrum report [--since YYYY-MM-DD] スプリントレビュー用のまとめ
-  scrum points                      作業中の issue のポイント・目安・手間・超過
-  scrum link-prs [--dry-run]        開いている PR を、指す issue の本文の、印の間に並べる (links.enabled のときの待機も流す。--dry-run は予定だけ)
-  scrum alerts                      止まりの検知 (E-STALL、Q-EMPTY) を 1 回進める。launchd が 5 分ごとに流す (launchd/)
-  scrum dispatch --once [<名前>...] 空いている部下に、1 回だけ、次の仕事を選んでボードに書き、送る文を出す (dispatch を有効にした直後の、すでに空いている部下のため)
-  scrum checkpoint                  まだ記録していない節目を、今記録する (待機プロセスも自動で記録する)
+const USAGE = `scrum: check the GitHub Project board and member activity
+  scrum lint [--refresh] [--json]   all findings
+  scrum team                        TechLead and member activity
+  scrum refresh                     refresh the board copy
+  scrum ack <rule> <subject> (--for 2h | --until <time>) --reason "<reason>"
+                                    A T-IDLE acknowledgement lasts at most 1 hour; the reason is "Waiting for <owner>'s answer" or "slot HH:MM"
+  scrum acks                        acknowledged exceptions
+  scrum report [--since YYYY-MM-DD] summary for the sprint review
+  scrum points                      points, budget, effort, and overrun of In Progress issues
+  scrum link-prs [--dry-run]        list open PRs between the markers in the body of the issue each one points to (the watch runs it too when links.enabled; --dry-run only shows the plan)
+  scrum alerts                      advance the stall detection (E-STALL, Q-EMPTY) once; launchd runs it every 5 minutes (launchd/)
+  scrum dispatch --once [<name>...] for idle members, pick the next work once, write it to the board, and print the text to send (for members already idle right after enabling dispatch)
+  scrum checkpoint                  record the last checkpoint not yet recorded (the watch also records it)
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
-  scrum statusline                  statusline 用の短い表示 (stdin に statusline の JSON)
-  scrum install | uninstall         ~/.claude/settings.json にフックを足す・外す
-  scrum hook <Event> | watch        Claude Code のフックから呼ぶ`
+  scrum statusline                  short display for the statusline (the statusline JSON on stdin)
+  scrum install | uninstall         add or remove the hooks in ~/.claude/settings.json
+  scrum hook <Event> | watch        called from Claude Code hooks`
 
 function identityOf(p: Paths, input: Record<string, unknown>, now: Date, config: Config, ports: Ports) {
   const sessionId = typeof input.session_id === 'string' ? input.session_id : ''
@@ -107,7 +107,7 @@ async function main(argv: readonly string[]): Promise<number> {
   if (command === 'runtime') return runRuntimeCommand(p, config, ports)
   if (config !== null && ports !== null) writeShellPatterns(p, config, ports.actions)
   const needConfig = (run: (config: Config, ports: Ports) => string) =>
-    print(config === null || ports === null ? `設定が無いか、欠けた値がある: ${configPath()} (config.example.json を写して直す)` : run(config, ports))
+    print(config === null || ports === null ? `There is no configuration, or a value is missing: ${configPath()} (copy config.example.json and edit it)` : run(config, ports))
   switch (command) {
     case 'hook':
       return runHook(p, positional[0] ?? '')
@@ -118,7 +118,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'refresh': {
       return needConfig((c, ports) => {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)
-        return snapshot === null ? `取り直せなかった (ほかで取り直し中か、エラー。${p.errors})` : `${snapshot.items.length} 項目を取り直した`
+        return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})` : `Refreshed ${snapshot.items.length} items`
       })
     }
     case 'lint':
@@ -135,16 +135,16 @@ async function main(argv: readonly string[]): Promise<number> {
       return needConfig((c, ports) => {
         const result = linkPullRequests(p, c, new Date(), ports, { dryRun: flags['dry-run'] === true })
         const reasonOf = (plan: LinkPlan) => result.skipped.find((one) => one.plan === plan)?.reason
-        const mark = (plan: LinkPlan) => (result.applied.includes(plan) ? ' (書き換えた)' : reasonOf(plan) === undefined ? '' : ` (飛ばした: ${reasonOf(plan)})`)
-        const lines = result.planned.map((plan) => `${plan.repo}#${plan.issue}: ${plan.entries.map((entry) => `#${entry.number}`).join(' ') || '(印の組を消す)'}${mark(plan)}`)
-        const broken = result.broken.map((one) => `${one.repo}#${one.issue}: 印が壊れている (片方だけ、2 組以上、順が逆)。書き換えない`)
-        return [...lines, ...broken, `書き換える予定 ${result.planned.length} 件、書き換えた ${result.applied.length} 件、飛ばした ${result.skipped.length} 件、印が壊れている ${result.broken.length} 件`].join('\n')
+        const mark = (plan: LinkPlan) => (result.applied.includes(plan) ? ' (rewritten)' : reasonOf(plan) === undefined ? '' : ` (skipped: ${reasonOf(plan)})`)
+        const lines = result.planned.map((plan) => `${plan.repo}#${plan.issue}: ${plan.entries.map((entry) => `#${entry.number}`).join(' ') || '(remove the pair of markers)'}${mark(plan)}`)
+        const broken = result.broken.map((one) => `${one.repo}#${one.issue}: the markers are broken (only one of them, two or more pairs, or in reverse order). Not rewritten`)
+        return [...lines, ...broken, `${result.planned.length} planned, ${result.applied.length} rewritten, ${result.skipped.length} skipped, ${result.broken.length} with broken markers`].join('\n')
       })
     case 'alerts':
       return needConfig((c, ports) => alertsCommand(p, c, new Date(), ports))
     case 'dispatch':
       return needConfig((c, ports) => {
-        if (flags.once !== true) return '使い方: scrum dispatch --once [<名前>...]'
+        if (flags.once !== true) return 'Usage: scrum dispatch --once [<name>...]'
         const now = new Date()
         if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now, ports.board)
         return formatOnce(dispatchOnce(p, c, now, ports, positional))

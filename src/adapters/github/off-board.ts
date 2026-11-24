@@ -34,7 +34,7 @@ export type ReadCandidate = OpenIssue & { readonly isPullRequest?: boolean }
 function aliasQuery(candidate: ReadCandidate, index: number, selection: string): string {
   const parts = REPO_NAME.exec(candidate.repo)
   if (parts === null || !Number.isInteger(candidate.number)) {
-    throw new Error(`開いた issue の指し方が読めない: ${candidate.repo}#${candidate.number}`)
+    throw new Error(`cannot read how the open issue is referenced: ${candidate.repo}#${candidate.number}`)
   }
   const kind = candidate.isPullRequest === true ? 'pullRequest' : 'issue'
   return `c${index}: repository(owner:"${parts[1]}", name:"${parts[2]}"){ ${kind}(number:${candidate.number}){ projectItems(first:${PROJECT_ITEMS_LIMIT}){ nodes{ project{ id } ${selection} } } } }`
@@ -56,7 +56,7 @@ type ReadResult = {
 function parseRead(output: string, count: number, config: Config): readonly RawNode[] {
   const result: ReadResult = JSON.parse(output)
   const data = result.data
-  if (data === undefined || data === null) throw new Error(`issue の項目の読み取り結果に data が無い: ${output.slice(0, 200)}`)
+  if (data === undefined || data === null) throw new Error(`the result of reading the issue items has no data: ${output.slice(0, 200)}`)
   return Array.from({ length: count }, (_, index) => data[`c${index}`]?.issue?.projectItems?.nodes ?? data[`c${index}`]?.pullRequest?.projectItems?.nodes ?? [])
     .flatMap((nodes) => nodes.filter((node) => node.project?.id === config.projectId).slice(0, 1))
 }

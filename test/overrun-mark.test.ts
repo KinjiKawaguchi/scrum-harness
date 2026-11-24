@@ -18,20 +18,20 @@ describe('parseOverrunMark', () => {
   })
 
   it('印の後ろに、人が読む文が続いてもよい (CRLF でも)', () => {
-    assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\nTechLead: 超えた分は待ち`), { decision: 'keep', from: 2, to: 2 })
-    assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\r\n文`), { decision: 'keep', from: 2, to: 2 })
+    assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\nTechLead: waiting out the overrun`), { decision: 'keep', from: 2, to: 2 })
+    assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\r\nText`), { decision: 'keep', from: 2, to: 2 })
   })
 
   it('1 行目でなければ、印として読まない (文の途中や、2 行目の印)', () => {
-    assert.equal(parseOverrunMark(`文\n${mark('keep', 2, 2)}`), null)
-    assert.equal(parseOverrunMark(`文 ${mark('keep', 2, 2)}`), null)
+    assert.equal(parseOverrunMark(`Text\n${mark('keep', 2, 2)}`), null)
+    assert.equal(parseOverrunMark(`Text ${mark('keep', 2, 2)}`), null)
   })
 
   it('印の行の末尾に文字があるものと、先頭に空行があるものは、印として読まない', () => {
-    assert.equal(parseOverrunMark(`${mark('keep', 2, 2)} 追記`), null)
+    assert.equal(parseOverrunMark(`${mark('keep', 2, 2)} appended`), null)
     assert.equal(parseOverrunMark(`${mark('keep', 2, 2)}-->`), null)
     assert.equal(parseOverrunMark(`\n${mark('keep', 2, 2)}`), null)
-    assert.equal(parseOverrunMark(`\n\n${mark('keep', 2, 2)}\n文`), null)
+    assert.equal(parseOverrunMark(`\n\n${mark('keep', 2, 2)}\nText`), null)
   })
 
   it('決めが 4 つのどれでもない、欄が欠けた、数が整数でない印は、null', () => {
@@ -52,7 +52,7 @@ describe('overrunBasis', () => {
   it('超過を出した節目より前の印は、使わない (前の見直しで、いまの超過を消さない)', () => {
     const result = overrunBasis([comment(mark('keep', 2, 2), BEFORE)], OVER_SINCE, 2)
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /超過の扱いの印が、その issue のコメントに無い/)
+    assert.match(result.ok ? '' : result.message, /the issue has no mark for handling the overrun/)
   })
 
   it('節目とちょうど同じ時刻の印も、使わない (「より後」)', () => {
@@ -60,7 +60,7 @@ describe('overrunBasis', () => {
   })
 
   it('印の無いコメントだけなら、受け入れない。メッセージに、印の書き方を出す', () => {
-    const result = overrunBasis([comment('見積もりを直した', AFTER)], OVER_SINCE, 5)
+    const result = overrunBasis([comment('Revised the estimate', AFTER)], OVER_SINCE, 5)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /<!-- scrum:points-overrun decision=<reestimate\|split\|add-hands\|keep>/)
   })
@@ -68,22 +68,22 @@ describe('overrunBasis', () => {
   it('keep は、from と to が同じでなければ、受け入れない', () => {
     const result = overrunBasis([comment(mark('keep', 2, 3), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /keep は見積もりのまま/)
+    assert.match(result.ok ? '' : result.message, /keep leaves the estimate as it is/)
   })
 
   it('reestimate は、from と to が違わなければ、受け入れない', () => {
     const result = overrunBasis([comment(mark('reestimate', 3, 3), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /reestimate は見積もりを変える/)
+    assert.match(result.ok ? '' : result.message, /reestimate changes the estimate/)
   })
 
   it('reestimate は、to がボードのポイントと同じでなければ、受け入れない (印だけで、ボードを直していない)', () => {
     const result = overrunBasis([comment(mark('reestimate', 3, 5), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
-    assert.match(result.ok ? '' : result.message, /to=5 と、ボードのポイント \(3\) が違う/)
+    assert.match(result.ok ? '' : result.message, /to=5 differs from the points on the board \(3\)/)
     const noPoints = overrunBasis([comment(mark('reestimate', 3, 5), AFTER)], OVER_SINCE, null)
     assert.equal(noPoints.ok, false)
-    assert.match(noPoints.ok ? '' : noPoints.message, /ボードのポイント \(なし\) が違う/)
+    assert.match(noPoints.ok ? '' : noPoints.message, /differs from the points on the board \(none\)/)
     assert.equal(overrunBasis([comment(mark('reestimate', 3, 5), AFTER)], OVER_SINCE, 5).ok, true)
   })
 

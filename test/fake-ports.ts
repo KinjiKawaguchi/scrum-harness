@@ -6,7 +6,7 @@ import type { Ports } from '../src/ports/index.ts'
 import type { SessionSignal } from '../src/team/types.ts'
 
 const unused = (name: string) => () => {
-  throw new Error(`偽のポートの ${name} は、この試験では使わない`)
+  throw new Error(`the fake port's ${name} is not used in this test`)
 }
 
 /**

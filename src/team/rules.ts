@@ -22,16 +22,16 @@ function openIssues(snapshot: Snapshot, config: Config, status: string) {
 function idleFinding(member: MemberState, minutes: number, snapshot: Snapshot, config: Config): Finding {
   const doing = openIssues(snapshot, config, config.statuses.doing).filter((item) => item.assignee === member.name)
   const next = openIssues(snapshot, config, config.statuses.next)
-  const doingText = doing.length > 0 ? doing.map((item) => `${label(item)} (${item.reason ?? '理由なし'})`).join(' ') : 'なし'
-  const nextText = next.length > 0 ? next.map(label).join(' ') : 'なし'
+  const doingText = doing.length > 0 ? doing.map((item) => `${label(item)} (${item.reason ?? 'no reason'})`).join(' ') : 'none'
+  const nextText = next.length > 0 ? next.map(label).join(' ') : 'none'
   return makeFinding({
     rule: 'T-IDLE',
     subject: member.name,
     keySuffix: member.since ?? '',
     severity: 'high',
     minutes,
-    message: `${member.name} が ${minutes} 分空いている。担当の作業中: ${doingText}。次にやる: ${nextText}`,
-    fix: `仕事を振る (SendMessage) か、意図した待ちなら ${SCRUM_CLI} ack T-IDLE ${member.name} --for 1h --reason "${config.ownerLabel}の答え待ち" (理由は「${config.ownerLabel}の答え待ち」か「枠 HH:MM」、最長 1 時間。dispatch が有効なら、受け入れが無い空きにはハーネスが次の仕事を渡す)`,
+    message: `${member.name} has been idle for ${minutes} minutes. Their In Progress: ${doingText}. Next: ${nextText}`,
+    fix: `Assign work (SendMessage), or for an intended wait run ${SCRUM_CLI} ack T-IDLE ${member.name} --for 1h --reason "Waiting for ${config.ownerLabel}'s answer" (the reason is "Waiting for ${config.ownerLabel}'s answer" or "slot HH:MM", for at most 1 hour. With dispatch enabled, the harness hands the next work to an idle member who has no acknowledgement)`,
   })
 }
 
@@ -42,8 +42,8 @@ function waitingFinding(member: MemberState, minutes: number, config: Config): F
     keySuffix: member.since ?? '',
     severity: 'high',
     minutes,
-    message: `${member.name} が ${minutes} 分、許可の確認で止まっている`,
-    fix: `${config.ownerLabel} に知らせる (PushNotification)。TechLead から許可を代わりに出させない`,
+    message: `${member.name} has been stopped at a permission prompt for ${minutes} minutes`,
+    fix: `Tell ${config.ownerLabel} (PushNotification). Do not approve on their behalf from the TechLead`,
   })
 }
 
@@ -52,11 +52,11 @@ function untrackedFinding(member: MemberState, minutes: number, config: Config):
     rule: 'T-BUSY-UNTRACKED',
     subject: member.name,
     severity: 'low',
-    message: `${member.name} は ${minutes} 分動いているが、担当の作業中の issue がボードに無い`,
+    message: `${member.name} has been active for ${minutes} minutes, but no In Progress issue on the board is assigned to them`,
     fix:
       config.scripts.setAssignee === undefined
-        ? `今の作業の issue の担当を ${member.name} にする`
-        : `今の作業の issue に ${config.scripts.setAssignee} <番号> ${member.name}`,
+        ? `Assign the issue they are working on to ${member.name}`
+        : `Run ${config.scripts.setAssignee} <number> ${member.name} on the issue they are working on`,
   })
 }
 
