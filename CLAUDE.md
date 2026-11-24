@@ -12,6 +12,16 @@ This repository is public. Never write names or details that point at a specific
 
 The source holds no values of a specific board or team. Such values live only in the configuration file (`config.example.json` shows the shape with fictional values).
 
+## Architecture
+
+External systems are reached through ports and adapters. Dependencies point from adapters to the core, never the other way.
+
+- `src/ports/` holds the types the core needs from the outside: reading and writing the board, reading agent actions, issue threads, pull requests and branches, sessions, and notifications. Ports are types only; they hold no runtime code.
+- `src/adapters/<system>/` implements the ports: `github/` (the `gh` CLI and the configured scripts), `claude-code/` (the session records), `macos/` (notifications).
+- `src/wiring.ts` builds the adapters from the configuration and hands them to the core as `Ports`. It is the only file outside `src/adapters/` that imports an adapter.
+- Core code (`board/`, `team/`, `sprint/`, `dispatch/`, `alerts/`, `links/`, `findings/`, `hooks/`) imports ports, never adapters. Do not call `gh`, read Claude Code's files, or run `osascript` from core code; add or extend a port instead.
+- Tests pass fake ports (`test/fake-ports.ts`) so they never reach an external system. An adapter has its own tests against a fake `gh` or fixture files.
+
 ## Workflow
 
 - Branch from `origin/main` (`feat/...`, `fix/...`, `refactor/...`, `docs/...`, `chore/...`) and open a pull request to `main`.
