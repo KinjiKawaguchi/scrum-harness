@@ -22,6 +22,7 @@ import { logError, paths, type Paths } from './store.ts'
 import { resolveIdentity } from './team/identity.ts'
 import type { Ports } from './ports/index.ts'
 import { watchFor } from './watch-role.ts'
+import { requestCommand } from './requests/command.ts'
 import { buildPorts } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
@@ -38,6 +39,7 @@ const USAGE = `scrum: GitHub Project のボードと部下の稼働を点検す�
   scrum alerts                      止まりの検知 (E-STALL、Q-EMPTY) を 1 回進める。launchd が 5 分ごとに流す (launchd/)
   scrum dispatch --once [<名前>...] 空いている部下に、1 回だけ、次の仕事を選んでボードに書き、送る文を出す (dispatch を有効にした直後の、すでに空いている部下のため)
   scrum checkpoint                  まだ記録していない節目を、今記録する (待機プロセスも自動で記録する)
+  scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
   scrum statusline                  statusline 用の短い表示 (stdin に statusline の JSON)
   scrum install | uninstall         ~/.claude/settings.json にフックを足す・外す
   scrum hook <Event> | watch        Claude Code のフックから呼ぶ`
@@ -111,6 +113,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return runHook(p, positional[0] ?? '')
     case 'watch':
       return runWatchCommand(p)
+    case 'request':
+      return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'refresh': {
       return needConfig((c, ports) => {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)

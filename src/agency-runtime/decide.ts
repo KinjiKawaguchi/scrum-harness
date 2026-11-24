@@ -4,6 +4,8 @@ import { isStale, loadSnapshot, refreshSnapshot, saveSnapshot } from '../board/s
 import type { BoardItem, Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
 import type { Ports } from '../ports/index.ts'
+import { answer, isSameAnswer, parseAnswer } from '../requests/model.ts'
+import { readRequest, writeRequest } from '../requests/store.ts'
 import type { Paths } from '../store.ts'
 import { pendingDecisionItems } from './requests.ts'
 import type { RuntimeDecision, RuntimeError } from './types.ts'
@@ -44,11 +46,25 @@ function postOnce(deps: DecideDeps, item: BoardItem, decision: RuntimeDecision):
 }
 
 /**
- * Applies a verified decision. Only `judge` exists here: an item blocked on a decision of the owner.
- * The decision is recorded as a comment first and the block is cleared second, so a failure in between is retried without losing the answer.
+ * Applies the owner's answer to a question or a proposal the team filed. The turn moves to the team, and a closed request reopens,
+ * so a late answer still reaches the team. Applying the same answer again changes nothing.
+ */
+function answerRequest(deps: DecideDeps, decision: RuntimeDecision): RuntimeError | null {
+  const request = readRequest(deps.p, decision.target)
+  if (request === null) return refusal(404, `no such request: ${decision.target}`)
+  const parsed = parseAnswer(decision.payload, request)
+  if (!parsed.ok) return refusal(400, parsed.message)
+  if (isSameAnswer(request, parsed.value, decision.by)) return null
+  writeRequest(deps.p, answer(request, parsed.value, deps.now, decision.by))
+  return null
+}
+
+/**
+ * Applies a verified decision. `answer` answers a request the team filed; `judge` answers an item blocked on a decision of the owner.
+ * A judgment is recorded as a comment first and the block is cleared second, so a failure in between is retried without losing the answer.
  */
 export function decide(deps: DecideDeps, decision: RuntimeDecision): RuntimeError | null {
-  if (decision.kind === 'answer') return refusal(404, `no such request: ${decision.target}`)
+  if (decision.kind === 'answer') return answerRequest(deps, decision)
   if (decision.payload.text.trim() === '' && decision.payload.choice === undefined) return refusal(400, 'a decision needs text or a choice')
   const snapshot = currentSnapshot(deps)
   if (snapshot === null) return refusal(503, 'the board has not been read yet')

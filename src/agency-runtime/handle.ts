@@ -2,6 +2,7 @@ import { isRefreshDue, loadSnapshot } from '../board/snapshot.ts'
 import type { Config } from '../config.ts'
 import { collectSignals } from '../findings/lint.ts'
 import type { Ports } from '../ports/index.ts'
+import { readRequests } from '../requests/store.ts'
 import type { Paths } from '../store.ts'
 import { aggregateMembers } from '../team/state.ts'
 import { runtimeOf } from './config.ts'
@@ -34,7 +35,7 @@ function view(request: RuntimeRequest, deps: RuntimeDeps): RuntimeResponse<unkno
   if (snapshot === null) return fail(503, 'the board has not been read yet; a refresh was started')
   const names = [config.techlead, ...config.members]
   const members = aggregateMembers(collectSignals(p, now, ports.sessions), names)
-  const teamView = buildTeamView({ org: request.org, team: request.team, label: labelOf(request, config), config, snapshot, members, now })
+  const teamView = buildTeamView({ org: request.org, team: request.team, label: labelOf(request, config), config, snapshot, members, stored: readRequests(p), now })
   const problem = teamViewProblem(teamView)
   return problem === null ? { result: teamView } : fail(503, `the team view is not valid: ${problem}`)
 }

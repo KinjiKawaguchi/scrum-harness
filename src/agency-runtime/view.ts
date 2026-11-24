@@ -1,5 +1,6 @@
 import type { BoardItem, Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
+import type { OwnerRequest } from '../requests/types.ts'
 import type { MemberState } from '../team/types.ts'
 import { epicForecasts, epicRefsOf } from './epics.ts'
 import { peopleOf } from './people.ts'
@@ -14,6 +15,8 @@ export type ViewInput = {
   readonly config: Config
   readonly snapshot: Snapshot
   readonly members: readonly MemberState[]
+  /** The requests the team filed (see src/requests) */
+  readonly stored: readonly OwnerRequest[]
   readonly now: Date
 }
 
@@ -22,9 +25,9 @@ export type ViewInput = {
  * People and requests are from the same board; the work list leaves out finished items that are closed.
  */
 export function buildTeamView(input: ViewInput): TeamView {
-  const { config, snapshot, members, now } = input
+  const { config, snapshot, members, stored, now } = input
   const items: readonly BoardItem[] = snapshot.items
-  const requests = requestsOf(items, config, snapshot.fetchedAt)
+  const requests = requestsOf(items, config, snapshot.fetchedAt, stored)
   return {
     org: input.org,
     team: input.team,

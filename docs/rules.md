@@ -133,6 +133,17 @@ launchctl print gui/$(id -u)/local.scrum-harness.alerts | grep -E 'state|last ex
 
 記録は `events.jsonl` の `alert-desktop` と `alert-liaison`。止めるときは `alerts.enabled` を false にする。
 
+## Requests to the owner (R-ANSWERED)
+
+The team asks the owner for answers and decisions with requests, not with chat messages, so that the open questions stay visible. A request is a question (with options if useful) or a proposal (options and a Markdown document). It is stored in `<state dir>/requests/<id>.json`, one file each, and `scrum request` adds, lists, shows, replies to, and closes them. The owner answers through an Agency node (`scrum runtime`, see [agency-runtime.md](agency-runtime.md)).
+
+- `scrum request add --from <name>` takes JSON on stdin: `title`, `context`, `kind` (`question` or `proposal`), `issue`, `to`, `options` (`key`, `text`, `isRecommended`, `detail`), and `blocks`. Put the people and issues that stop until the answer in `blocks`; a blocked idle member is then reported as waiting on the owner, with the question.
+- `waiting` says whose turn it is: `owner` when the request is filed, `team` once the owner has answered, and `owner` again when the team replies with `scrum request reply`. When the team has acted on the answer it runs `scrum request close <id> --note "<what was done>"`. A closed request that the owner answers again reopens.
+
+| Rule | Severity | Condition | Fix |
+|---|---|---|---|
+| R-ANSWERED | medium | The owner answered a request and it is not closed (one finding per request), with the chosen option and the text | Act on the answer, then `scrum request close <id>`. To ask a follow-up, `scrum request reply <id> --from <name> --text "<question>"` |
+
 ## スプリントの節目とストーリーポイント
 
 設定の `sprint` があるときだけ動く。節目は1日に何回か置く区切り (例: 8:00、13:00、21:00)。

@@ -87,6 +87,7 @@ SCRUM_LINE=$(echo "$input" | <clone 先>/bin/scrum statusline 2>/dev/null)
 | `scrum alerts` | 止まりの検知 (E-STALL、Q-EMPTY) を 1 回進める。launchd (`launchd/scrum-alerts.plist`) が 5 分ごとに流す。置き方は docs/rules.md の「止まりの検知とオーナーへの通知」 |
 | `scrum link-prs [--dry-run]` | 開いている PR を、指す issue の本文の、印 (`<!-- scrum-harness:prs -->` と `<!-- /scrum-harness:prs -->`) の間に並べる (links.enabled のときの待機も流す)。`--dry-run` は、書き換えず、予定と、飛ばす理由と、壊れた印だけを出す。docs/rules.md の「PR と issue の紐づけ」 |
 | `scrum checkpoint` | まだ記録していない最後の節目を、今記録する |
+| `scrum request <add\|list\|show\|reply\|close>` | オーナーへの要求 (質問と提案)。答えが来ると R-ANSWERED で TechLead に届く (docs/rules.md の「Requests to the owner」) |
 | `scrum runtime` | Agency の台から呼ばれる (agency-runtime/1)。標準入力の JSON 1 件を読み、チームの状態 (TeamView) を返すか、判断待ちへの答えを当てる。[docs/agency-runtime.md](docs/agency-runtime.md) |
 
 状態は `~/.claude/scrum/` に置く (`SCRUM_STATE_DIR` で変えられる)。エラーは `~/.claude/scrum/log/errors.log`。

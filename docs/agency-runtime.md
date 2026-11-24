@@ -29,7 +29,7 @@ Errors use the specification's statuses: 400 for malformed input (not JSON, wron
 | TeamView | From |
 |---|---|
 | `people` | The lead (`techlead`), the `members`, and the owner. |
-| `requests` | One `pendingDecision` for each open issue whose blocked reason is `reasonJudge`. |
+| `requests` | The questions and proposals the team filed that wait for the owner (`scrum request`, below), then one `pendingDecision` for each open issue whose blocked reason is `reasonJudge`. |
 | `work` | Open issues whose status is one of the configured `statuses`, without parents of other items, issues by `excludeAuthors`, and closed items. |
 | `epics` | Items that other items name as their parent, while a child is unfinished (finished means `release` or `done`). Parents are read only when `dispatch` or `alerts` is enabled. |
 
@@ -42,22 +42,30 @@ People:
 | idle | `idle` | the lead, once idle for `idleMinutes` (members only) | `Idle for 30 minutes; nothing in Next` |
 | no live session | `away` | none | `No live session` |
 
-The owner is `owner`, a human, with state `unknown` and a one-line count of waiting requests. A person is named by the harness's own name (the session name), and `holding` lists the unfinished open items assigned to them. A request has no `to`, so it goes to the owner.
+The owner is `owner`, a human, with state `unknown` and a one-line count of waiting requests. A person is named by the harness's own name (the session name), and `holding` lists the unfinished open items assigned to them. An idle member named in a request's `blocks` is reported as waiting on the owner, with the question in `status`. A request without `to` goes to the owner.
+
+A question or a proposal keeps its id (`r-<date>-<time>-<4 characters>`), its options (`isRecommended` is always present; `detail` only when given), its `document` (a proposal's Markdown), and `answerWith` of `{"kind":"answer","target":"<id>"}`. Once the owner has answered, it is no longer reported until the team replies and the turn returns to the owner; then `thread` carries the earlier messages, oldest first. A request that is closed is not reported.
 
 A pending decision uses the issue's ref (`app#14`) as its id, `from` is `board`, `createdAt` is the day the block began, and `answerWith` is `{"kind":"judge","target":"app#14"}`.
 
 Work items: `blocked.reason` is `needsDecision` for `reasonJudge`. Other reasons map through `runtime.blockedReasons` (below); a reason that is not listed is `external`. A block without a start date counts from the day the board was read. `points` appears only for whole numbers.
 
-What the harness does not report yet: questions and proposals (the harness has none), `eta` on work items, and `forecast` on epics (an epic says so in its `basis`).
+What the harness does not report yet: `eta` on work items, and `forecast` on epics (an epic says so in its `basis`).
+
+## `scrum request`: questions and proposals
+
+Agents file requests to the owner with `scrum request add --from <name>` (JSON on stdin: `title`, `context`, `kind` of `question` or `proposal`, `issue`, `to`, `options`, `blocks`; a proposal takes its Markdown body from `--document <file>` and needs two or more options). Requests are stored one file each under `<state dir>/requests/`. `scrum request list|show|reply|close` work on them. The rule R-ANSWERED, in [rules.md](rules.md), wakes the lead when the owner has answered and the team has not closed the request.
 
 ## `decide`
 
-The node calls `decide` only after it has verified the decision. The harness first reads the board again if its copy is older than `refreshSeconds` (this can take several seconds on a large board; the node stops a call after 20 seconds). It accepts `kind: "judge"` for an item that is blocked on a decision:
+The node calls `decide` only after it has verified the decision.
 
-1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then `Decision by <person>.`, the choice if there is one, and the text. If the same comment is already there (a retry), it does not post it again.
-2. It clears the blocked reason with the configured `scripts.setReason` script (`<number> <reasonNone>`), and updates its board copy.
+- `kind: "answer"` answers a request in the store, by its id. The answer is a message from `owner` (with `choice` when one of the options was chosen, and the decider's id as `by`), the turn moves to the team, and R-ANSWERED reaches the lead. A closed request reopens, so a late answer still reaches the team. An unknown id is 404; a `choice` that is not an option key, or an answer with neither text nor a choice, is 400. Applying the same answer again (a retry after a lost reply) changes nothing.
+- `kind: "judge"` answers an item blocked on a decision. The harness first reads the board again if its copy is older than `refreshSeconds` (this can take several seconds on a large board; the node stops a call after 20 seconds). Then:
+  1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then `Decision by <person>.`, the choice if there is one, and the text. If the same comment is already there (a retry), it does not post it again.
+  2. It clears the blocked reason with the configured `scripts.setReason` script (`<number> <reasonNone>`), and updates its board copy.
 
-The comment comes first, so a failure in between is retried without losing the answer. `decide` needs `scripts.setReason`; without it the answer is 503. `kind: "answer"` is refused with 404, because this harness raises no questions or proposals.
+  The comment comes first, so a failure in between is retried without losing the answer. `judge` needs `scripts.setReason`; without it the answer is 503. An id that is not a pending decision is 404.
 
 ## Configuration
 
