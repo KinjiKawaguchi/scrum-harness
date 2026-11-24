@@ -8,12 +8,12 @@ export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { SessionDirectory, SessionEntry } from './sessions.ts'
 
-/** オーナーに知らせる。失敗したら投げる。 */
+/** Notifies the owner. Throws on failure. */
 export type Notifier = (title: string, body: string) => void
 
 /**
- * 中心が外のシステムに求めるもの。中心はこの型だけを知り、どのシステムで実装したかを知らない。
- * 組み立ては wiring.ts が、設定から行う。
+ * What the core asks of external systems. The core knows only this type and does not know which system implements it.
+ * wiring.ts does the assembly, from the config.
  */
 export type Ports = {
   readonly board: BoardSource

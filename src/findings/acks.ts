@@ -1,19 +1,19 @@
 import type { Finding } from './types.ts'
 
-/** 意図した例外として、期限まで指摘を黙らせる記録。一覧はスプリントレビューに出す。 */
+/** A record that silences a finding until its deadline as an intentional exception. The list is shown in the sprint review. */
 export type Ack = {
   readonly rule: string
   readonly subject: string
   readonly until: string
   readonly reason: string
   readonly at: string
-  /** 「枠 HH:MM」の受け入れの、枠の始まり (ISO 8601)。自動で渡すのは、この 15 分前から止める */
+  /** The slot start (ISO 8601) of a "slot HH:MM" acknowledgement. Automatic hand-over stops from 15 minutes before this */
   readonly slotAt?: string
-  /** S-POINTS-OVER の受け入れの根拠 (超過の扱いを決めた印の中身と、そのコメントの URL)。無ければ、その受け入れは指摘を消さない */
+  /** The basis of an S-POINTS-OVER acknowledgement (the content of the marker that decided how to handle the overrun, and the URL of its comment). If absent, that acknowledgement does not clear the finding */
   readonly basis?: string
 }
 
-/** S-POINTS-OVER は、超過の扱いを決めた記録 (basis) が付いた受け入れだけが、指摘を消す。記録の無い古い受け入れは、期限内でも指摘を消さない。 */
+/** For S-POINTS-OVER, only an acknowledgement carrying a record that decided how to handle the overrun (basis) clears the finding. An acknowledgement without a record does not clear the finding even within its deadline. */
 export const OVERRUN_RULE = 'S-POINTS-OVER'
 
 const isLive = (ack: Ack, now: Date): boolean => Date.parse(ack.until) > now.getTime() && (ack.rule !== OVERRUN_RULE || ack.basis !== undefined)

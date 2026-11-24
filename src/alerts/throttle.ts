@@ -4,7 +4,7 @@ import { alertsOf } from './config.ts'
 import { clock, spanText } from './text.ts'
 import type { AlertState, Notice } from './types.ts'
 
-/** 窓口に読ませるだけの 1 行にした通知の指紋の添え字。元の通知の指紋とは別に覚える。 */
+/** The suffix of the fingerprint of a notification reduced to one line that is only for the liaison to read. It is remembered separately from the original notification's fingerprint. */
 const HELD_SUFFIX = ':held'
 
 function isSent(state: AlertState, key: string): boolean {
@@ -24,9 +24,9 @@ function held(notice: Notice, lastAt: string, config: Config): Notice {
 }
 
 /**
- * 同じ対象 (Epic) のオーナーへの通知を、epicPushMinutes に 1 回までにする。直前に通知した後の、新しい指紋の通知は、
- * 窓口に読ませるだけの 1 行に替える (macOS の通知も出さない)。すでに出した指紋の通知は、そのまま。
- * 間隔が過ぎても同じ状態が続いていれば、そのときの新しい通知が、オーナーに出る。
+ * Limits notifications to the owner about the same target (Epic) to once per epicPushMinutes. A notification with a new fingerprint after the last notification
+ * is replaced by one line only for the liaison to read (no macOS notification is shown either). A notification with an already shown fingerprint is left as is.
+ * If the same state continues after the interval has passed, the new notification at that time goes out to the owner.
  */
 export function applyThrottle(notices: readonly Notice[], state: AlertState, config: Config, now: Date): readonly Notice[] {
   return notices.map((notice) => {
@@ -37,12 +37,12 @@ export function applyThrottle(notices: readonly Notice[], state: AlertState, con
   })
 }
 
-/** いま初めて出す、間隔を空ける対象のオーナーへの通知。出した時刻を覚えるのに使う。 */
+/** A notification to the owner, for a target with an interval, that is being shown for the first time now. Used to remember the time it was shown. */
 export function newlyPushed(notices: readonly Notice[], state: AlertState): readonly Notice[] {
   return notices.filter((notice) => notice.kind === 'owner' && notice.throttle !== undefined && !isSent(state, notice.key))
 }
 
-/** 通知した時刻を覚える。間隔より前のものは捨てる。 */
+/** Remembers the time of notification. Those older than the interval are dropped. */
 export function recordPushed(
   state: AlertState,
   pushed: readonly Notice[],

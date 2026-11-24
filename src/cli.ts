@@ -49,7 +49,7 @@ function identityOf(p: Paths, input: Record<string, unknown>, now: Date, config:
   return sessionId === '' ? null : resolveIdentity(p, sessionId, now, config, ports.sessions)
 }
 
-/** フックは失敗してもセッションを止めない。エラーは記録だけして exit 0。 */
+/** A hook does not stop the session even on failure. The error is only recorded, and it exits with 0. */
 async function runHook(p: Paths, event: string): Promise<number> {
   const config = loadConfig()
   if (config === null) return 0
@@ -69,9 +69,9 @@ const WATCH_MAX_MS = 50 * 60_000
 const WATCH_INTERVAL_MS = 30_000
 
 /**
- * TechLead は指摘を待ち、部下は dispatch が有効なときだけ、次の仕事を渡される時を待つ。
- * 窓口は alerts が有効なときだけ、止まりの検知が決めた通知の文を待つ。
- * 起こすときは stderr に文を書いて exit 2 (asyncRewake)。
+ * The TechLead waits for findings, and a member waits for the moment the next work is handed over only when dispatch is enabled.
+ * The liaison waits for the notification text that stall detection decided, only when alerts is enabled.
+ * To wake, it writes the text to stderr and exits with 2 (asyncRewake).
  */
 async function runWatchCommand(p: Paths): Promise<number> {
   const config = loadConfig()

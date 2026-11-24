@@ -8,12 +8,12 @@ export type MetricsEvent =
   | { readonly at: string; readonly type: 'stop-blocked'; readonly keys: readonly string[] }
   | { readonly at: string; readonly type: 'woke'; readonly keys: readonly string[] }
   | { readonly at: string; readonly type: 'acked'; readonly rule: string; readonly subject: string; readonly until: string; readonly reason: string }
-  /** チームのセッションのフックが、10 分に 1 回書く、動いている印 (bin/scrum) */
+  /** A mark that a team session's hook writes once every 10 minutes to show it is working (bin/scrum) */
   | { readonly at: string; readonly type: 'activity'; readonly role: string }
 
 type OpenFinding = { readonly rule: string; readonly subject: string; readonly at: string }
 
-/** 前回の観測。指摘の始まりと部下の状態を覚え、変わり目だけを記録する。 */
+/** The previous observation. It remembers when findings started and the members' states, and records only the changes. */
 export type MetricsState = {
   readonly open: Readonly<Record<string, OpenFinding>>
   readonly members: Readonly<Record<string, { readonly state: string; readonly at: string }>>
@@ -92,7 +92,7 @@ function memberLines(events: readonly MetricsEvent[]): readonly string[] {
   })
 }
 
-/** スプリントレビュー用のまとめ。since 以降の記録だけを数える。 */
+/** A summary for the sprint review. Counts only records since since. */
 export function formatReport(events: readonly MetricsEvent[], since: Date): string {
   const inRange = events.filter((e) => Date.parse(e.at) >= since.getTime())
   const count = (type: MetricsEvent['type']) => inRange.filter((e) => e.type === type).length

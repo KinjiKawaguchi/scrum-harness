@@ -7,24 +7,24 @@ import type { StatusEvent } from './effort.ts'
 import type { BoardSource } from '../ports/index.ts'
 import { loadCountingHistory, type CountingHistory } from './counting-history.ts'
 
-/** 済んだ issue の、ポイントと実際にかかった節目 (止まっていた節目は除く)。1 件 1 行で p.completions に残す。 */
+/** For a finished issue, the points and the checkpoints it actually took (excluding stalled checkpoints). Kept one per line in p.completions. */
 export type Completion = {
   readonly label: string
   readonly points: number | null
   readonly budget: number | null
   readonly effort: number | null
-  /** 済んだのを見つけた時刻 (ISO 8601) */
+  /** The time the finish was found (ISO 8601) */
   readonly detectedAt: string
-  /** 済んだ Status (完了か、リリース待ち) */
+  /** The Status it finished in (Done, or Release) */
   readonly status: string
-  /** Status の変化の記録 (issue の timeline) から数えたか。読めずに、前の控えの記録で近似したときは false */
+  /** Whether it was counted from the Status change record (the issue's timeline). false when it could not be read and was approximated from the record of the previous board copy */
   readonly exact: boolean
 }
 
 const isFinished = (item: BoardItem, config: Config): boolean =>
   item.kind === 'issue' && item.number !== null && (item.status === config.statuses.done || item.status === config.statuses.release)
 
-/** 前の控えで作業中だった issue が、今の控えで完了かリリース待ちになったもの (除く作者の issue は入れない)。 */
+/** Issues that were In Progress in the previous board copy and are Done or Release in the current board copy (issues by excluded authors are not included). */
 export function newlyFinished(previous: Snapshot | null, fresh: Snapshot, config: Config): readonly { readonly item: BoardItem; readonly before: BoardItem }[] {
   if (previous === null) return []
   const wasDoing = new Map(previous.items.filter((item) => item.kind === 'issue' && item.status === config.statuses.doing).map((item) => [label(item), item]))
@@ -34,7 +34,7 @@ export function newlyFinished(previous: Snapshot | null, fresh: Snapshot, config
   })
 }
 
-/** timeline が読めなかったとき、前の控えの記録に、済んだ時刻の変化を足して近似する。 */
+/** When the timeline could not be read, approximates by adding the change at the finish time to the record of the previous board copy. */
 function approximateEvents(before: BoardItem, item: BoardItem, now: Date): readonly StatusEvent[] | undefined {
   return before.statusEvents === undefined ? undefined : [...before.statusEvents, { at: now.toISOString(), status: item.status }]
 }
@@ -62,8 +62,8 @@ function toCompletion(
 }
 
 /**
- * 比べの元の控えを取ったより後に、すでに記録した issue。記録の途中で失敗して、比べの元を進めずにやり直すとき、
- * 記録できた分を重ねて残さない。
+ * Issues already recorded after the comparison baseline's board copy was taken. When recording fails midway and is redone without advancing the baseline,
+ * the ones that were already recorded are not recorded a second time.
  */
 function alreadyLogged(previous: Snapshot | null, completions: readonly Completion[]): ReadonlySet<string> {
   if (previous === null) return new Set()
@@ -71,8 +71,8 @@ function alreadyLogged(previous: Snapshot | null, completions: readonly Completi
 }
 
 /**
- * 控えを取り直したとき、作業中から済み (完了かリリース待ち) になった issue を、ポイントと実際にかかった節目と一緒に記録する。
- * sprint の設定が無ければ何もしない。Status の変化は、済んだ issue だけを 1 回で問い合わせる。
+ * When the board copy is re-fetched, records the issues that went from In Progress to finished (Done or Release), together with the points and the checkpoints they actually took.
+ * If there is no sprint config, does nothing. The Status changes are asked for in a single query for only the finished issues.
  */
 export function recordCompletions(
   p: Paths,

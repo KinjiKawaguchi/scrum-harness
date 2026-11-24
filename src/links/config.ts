@@ -1,18 +1,18 @@
 import type { Config } from '../config.ts'
 
 /**
- * PR を、その PR が指す issue の本文の、印で囲んだ範囲に並べる (紐づいたブランチから作られなかった PR の補い)。
- * 無いか enabled が true でなければ、動かない。
+ * Lines up PRs in the range, enclosed by markers, of the body of the issue each PR points at (supplements PRs that were not made from a linked branch).
+ * If absent or enabled is not true, it does not run.
  */
 export type LinksConfig = {
   readonly enabled: boolean
-  /** 動かす間隔 (分)。TechLead の待機プロセスが、この間隔で 1 回流す */
+  /** The interval (minutes) at which to run. The TechLead's watch process runs it once per this interval */
   readonly intervalMinutes: number
-  /** 1 回に書き換える issue の数の上限。初めて流したときに、たくさんの issue を一度に書き換えないため */
+  /** The upper limit on the number of issues rewritten in one run. So that many issues are not rewritten at once on the first run */
   readonly maxEditsPerRun: number
-  /** この作者の PR は数えない (Dependabot など) */
+  /** PRs by this author are not counted (Dependabot and the like) */
   readonly skipAuthors: readonly string[]
-  /** この文字で始まるブランチの PR は数えない (release/、sync/ など) */
+  /** PRs on branches starting with these characters are not counted (release/, sync/, and the like) */
   readonly skipBranchPrefixes: readonly string[]
 }
 
@@ -31,7 +31,7 @@ export function linksOf(config: Config): LinksConfig {
 const isStringList = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((one) => typeof one === 'string')
 const isPositiveInteger = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0
 
-/** links の設定を読む。形が違えば、この機能だけを止める (undefined)。足りない項目は既定で埋める。 */
+/** Reads the links config. If the shape differs, only this feature is stopped (undefined). Missing items are filled with defaults. */
 export function parseLinks(raw: unknown): LinksConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const { enabled, intervalMinutes, maxEditsPerRun, skipAuthors, skipBranchPrefixes } = raw as Record<string, unknown>

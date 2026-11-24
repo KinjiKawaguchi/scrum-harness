@@ -10,9 +10,9 @@ import { runWatch } from './watch.ts'
 export type RoleWatchOptions = { readonly maxMs: number; readonly intervalMs: number }
 
 /**
- * 待機プロセスの入口。セッションの役に応じて待つものが違う。起こすときは、その文を返す。
- * TechLead は指摘を待つ。部下は dispatch が有効なときだけ、次の仕事を渡される時を待つ。
- * 窓口は alerts が有効なときだけ、止まりの検知が決めた通知の文を待つ。チームの外は何も待たない。
+ * The watch process's entry point. What it waits for differs by the session's role. When it wakes, it returns that text.
+ * The TechLead waits for findings. A member waits for the moment the next work is handed over, only when dispatch is enabled.
+ * The liaison waits for the notification text that stall detection decided, only when alerts is enabled. Someone outside the team waits for nothing.
  */
 export async function watchFor(p: Paths, config: Config, name: string, options: RoleWatchOptions, ports: Ports): Promise<string | null> {
   const role = roleOf(name, config)

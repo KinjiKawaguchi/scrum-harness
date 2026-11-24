@@ -12,7 +12,7 @@ import type { AlertEvaluation, AlertState } from './types.ts'
 
 export type AlertInput = {
   readonly snapshot: Snapshot | null
-  /** TechLead と部下の稼働 */
+  /** Activity of the TechLead and the members */
   readonly members: readonly MemberState[]
   readonly acks: readonly Ack[]
   readonly dispatches: readonly DispatchRecord[]
@@ -24,8 +24,8 @@ export type AlertInput = {
 const NOTHING: AlertEvaluation = { findings: [], owner: [] }
 
 /**
- * 止まりの検知 (E-STALL: 動く人のいない Epic、Q-EMPTY: 渡せる issue が無い部下)。TechLead への指摘と、
- * オーナーへの通知を、同じ材料から作る。最初に見た時刻は alerts (待機プロセスが書く状態) から読む。
+ * Stall detection (E-STALL: an Epic with nobody working on it, Q-EMPTY: a member with no issue to hand over). Builds the findings for the TechLead and
+ * the notifications to the owner from the same material. The time first seen is read from alerts (state written by the watch process).
  */
 export function evaluateAlerts(input: AlertInput): AlertEvaluation {
   const { snapshot, members, acks, dispatches, alerts, config, now } = input

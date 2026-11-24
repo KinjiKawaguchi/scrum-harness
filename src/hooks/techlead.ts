@@ -27,7 +27,7 @@ export function recordEvent(deps: HookDeps, type: string, detail: Record<string,
   appendLine(deps.p.events, JSON.stringify({ at: deps.now.toISOString(), type, ...detail }))
 }
 
-/** セッションの始まり・再開・圧縮の後に、全体の要約を入れる。 */
+/** After a session starts, resumes, or is compacted, injects the overall summary. */
 export function techleadSessionStart(deps: HookDeps): string {
   refreshIfStale(deps)
   const { active, acked } = lintNow(deps)
@@ -37,7 +37,7 @@ export function techleadSessionStart(deps: HookDeps): string {
   return formatSummary(active, acked.length) + missing
 }
 
-/** 前に知らせてから新しく出た中以上の指摘だけを入れる。 */
+/** Injects only medium-or-higher findings that appeared after the last notification. */
 export function techleadDiff(deps: HookDeps): string {
   rmSync(deps.p.pending, { force: true })
   const { active } = lintNow(deps)
@@ -68,7 +68,7 @@ function mergeNotes(deps: HookDeps, commands: readonly BoardCommand[]): readonly
   })
 }
 
-/** ボードを触るコマンドの後: 控えを直し、触った issue の指摘とマージの案内を入れる。 */
+/** After a command that touches the board: corrects the board copy and injects the findings for the touched issue and the merge guidance. */
 export function techleadAfterBash(deps: HookDeps, command: string): string {
   const commands = deps.ports.actions.commandsOf(command)
   if (commands.length === 0) return techleadDiff(deps)
@@ -85,7 +85,7 @@ export function techleadAfterBash(deps: HookDeps, command: string): string {
   return [...relatedText, ...notes, ...(rest === '' ? [] : [rest])].join('\n')
 }
 
-/** 止めたことのない高い指摘が残っていれば、ターンの終わりを一度だけ止める。 */
+/** If a high finding that has never been stopped on remains, stops the end of the turn exactly once. */
 export function techleadStop(deps: HookDeps, isStopHookActive: boolean): string | null {
   if (!deps.config.isStopBlockEnabled) return null
   const { active } = lintNow(deps)

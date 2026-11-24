@@ -9,8 +9,8 @@ import { alertStep } from './run.ts'
 import type { Notice } from './types.ts'
 
 /**
- * 窓口に送る文。何を誰に伝えるかはハーネスが決めてあり、窓口はこの文のとおりに送る手になる。
- * オーナーへの通知を先に、空きの 1 行と、オーナーへは送らないと決めた通知の 1 行を後に並べる。
+ * The text sent to the liaison. The harness has decided what to tell to whom, and the liaison acts as the hand that sends exactly this text.
+ * Notifications to the owner are lined up first, followed by the one-line free-member entries and the one line for a notification decided not to be sent to the owner.
  */
 export function liaisonMessage(notices: readonly Notice[], config: Config): string {
   const owner = notices.filter((notice) => notice.kind === 'owner')
@@ -27,8 +27,8 @@ export function liaisonMessage(notices: readonly Notice[], config: Config): stri
 export type LiaisonWatchOptions = { readonly maxMs: number; readonly intervalMs: number }
 
 /**
- * 窓口の Stop と SessionStart から asyncRewake で起動する。ボードを定期的に取り直し、止まりの検知を進め、
- * 窓口に送る通知が出たら、その文を返す (exit 2 で窓口を起こす)。窓口ごとに 1 つだけ動く。
+ * Started with asyncRewake from the liaison's Stop and SessionStart. Re-fetches the board periodically, advances stall detection, and
+ * when a notification to send to the liaison appears, returns its text (exit 2 wakes the liaison). Only one runs per liaison.
  */
 export async function runLiaisonWatch(
   p: Paths,

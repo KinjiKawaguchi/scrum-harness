@@ -7,10 +7,10 @@ import { ignoredNudges, NUDGE_LIMIT, NUDGE_WINDOW_MS } from './decide.ts'
 import { boardToken, seenKey, type SeenMap } from './progress.ts'
 import type { DispatchRecord } from './types.ts'
 
-/** 渡したことを TechLead に伝える間 (分)。この間は、まだ伝えていなければ中の指摘として出る。 */
+/** The span (minutes) during which the TechLead is told about a handover. During it, if not yet told, it appears as a medium finding. */
 const REPORT_MINUTES = 120
 
-/** 促しを、その人とその issue ごとに、直近 NUDGE_WINDOW_MS の中で集める (古い順)。 */
+/** Collects nudges per person and per issue, within the most recent NUDGE_WINDOW_MS (oldest first). */
 function nudgesByIssue(records: readonly DispatchRecord[], member: string, now: Date): ReadonlyMap<string, readonly DispatchRecord[]> {
   const nudges = records
     .filter((record) => record.kind === 'nudge' && record.member === member && now.getTime() - Date.parse(record.at) <= NUDGE_WINDOW_MS)
@@ -19,10 +19,10 @@ function nudgesByIssue(records: readonly DispatchRecord[], member: string, now: 
 }
 
 /**
- * 作業が進まないまま促しを NUDGE_LIMIT 回続けて送り、いまも空きの部下。TechLead に出す (A-NUDGE-IGNORED、重さ中)。
- * 短い 1 つのターンで空きに戻っても、空きの区間が変わっても、続けて数える。作業が進んだかは、促した時点の印と、いまの印で比べる。
- * いまの印は、ボードの印を今のボードから、コードの置き場の印を、待機プロセスが最後に見た分 (seen) から取り、促しの判断と同じ印で比べる。
- * 指紋は、続いた促しの最初の時刻ごと (続く間は 1 回だけ出る)。
+ * A member who was nudged NUDGE_LIMIT times in a row while the work did not progress and is still free. Raised to the TechLead (A-NUDGE-IGNORED, medium severity).
+ * Counted continuously even if the member returns to free after one short turn, or the free span changes. Whether the work progressed is compared by the marker at the time of the nudge and the current marker.
+ * For the current marker, the board's marker is taken from the current board and the code host's marker from what the watch process saw last (seen), and compared with the same marker as the nudge decision.
+ * The fingerprint is per the first time of the run of nudges (it is raised only once while the run continues).
  */
 function lintIgnoredNudges(records: readonly DispatchRecord[], members: readonly MemberState[], now: Date, snapshot: Snapshot | null, seen: SeenMap): readonly Finding[] {
   return members.flatMap((member) => {
@@ -48,8 +48,8 @@ function lintIgnoredNudges(records: readonly DispatchRecord[], members: readonly
 }
 
 /**
- * 渡した仕事の記録から、「誰に何を渡したか」の指摘 (A-DISPATCHED、重さ中) と、促しが進まない部下の指摘を作る。
- * 渡したのは機械で、直す必要は無い。
+ * From the record of work handed over, builds the "who was handed what" finding (A-DISPATCHED, medium severity) and the findings for members whose nudges do not lead to progress.
+ * The hand-over was done by a machine, and nothing needs to be fixed.
  */
 export function lintDispatch(
   records: readonly DispatchRecord[],

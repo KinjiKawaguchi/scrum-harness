@@ -4,17 +4,17 @@ import { shortRepo, type Config } from '../../config.ts'
 import type { GhRun } from './gh.ts'
 import type { StatusEvent } from '../../sprint/effort.ts'
 
-/** 1つの issue で読む Status の変化の数。作業中を何度も出入りしても、これだけあれば足りる。 */
+/** The number of Status changes read for one issue. Even if an issue goes in and out of In Progress many times, this many are enough. */
 const EVENTS_PER_ISSUE = 50
 
-/** Status の変化を読む issue。repo はリポジトリの full の名前 (owner/name) で、ボードの項目が持っているものをそのまま使う。 */
+/** The issues whose Status changes are read. repo is the repository's full name (owner/name), taken as is from the board item. */
 export type HistoryTarget = { readonly repo: string; readonly number: number }
 
 type Group = { readonly alias: string; readonly repo: string; readonly numbers: readonly number[] }
 
 /**
- * リポジトリごとに、issue の番号をまとめる。リポジトリは項目の repo をそのまま使う。ラベル (`app#5`) の短い名前から引き直すと、
- * 設定の repos に無いリポジトリ (別のリポジトリの issue をボードに足したとき) を、defaultRepo の同じ番号 (別の issue や PR) と取り違える。
+ * Groups issue numbers by repository. The repository is the item's repo, used as is. If it were looked up again from the short name in the label (`app#5`),
+ * a repository that is not in the config's repos (when an issue of another repository was added to the board) would be mistaken for the same number in defaultRepo (a different issue or PR).
  */
 function groupByRepo(targets: readonly HistoryTarget[]): readonly Group[] {
   const byRepo = targets.reduce<ReadonlyMap<string, readonly number[]>>(
@@ -24,7 +24,7 @@ function groupByRepo(targets: readonly HistoryTarget[]): readonly Group[] {
   return [...byRepo].map(([repo, numbers], index) => ({ alias: `r${index}`, repo, numbers }))
 }
 
-/** 作業中の issue の Status の変化を、リポジトリごとにまとめて1回で問い合わせる。 */
+/** Asks for the Status changes of the In Progress issues in a single query, grouped by repository. */
 export function statusHistoryQuery(targets: readonly HistoryTarget[]): string {
   const parts = groupByRepo(targets).map((group) => {
     const [owner, name] = group.repo.split('/')
@@ -41,8 +41,8 @@ type RawEvent = { readonly createdAt?: string; readonly status?: string | null; 
 type RawResponse = { readonly data?: Record<string, Record<string, { readonly timelineItems?: { readonly nodes?: readonly RawEvent[] } } | null> | null> }
 
 /**
- * 問い合わせの結果から、このボードの Status の変化だけをラベルごとに取り出す。
- * 読めなかった issue (結果が null) は入れない。入れると、記録が無いのではなく「作業中の期間が 0」と読まれ、手間が 0 になる。
+ * From the query's result, extracts only this board's Status changes, per label.
+ * An issue that could not be read (result null) is left out. If it were included, it would be read as "In Progress period is 0" rather than "no record", and the effort would become 0.
  */
 export function parseStatusHistory(response: RawResponse, targets: readonly HistoryTarget[], config: Config): ReadonlyMap<string, readonly StatusEvent[]> {
   const entries = groupByRepo(targets).flatMap((group) =>
@@ -59,8 +59,8 @@ export function parseStatusHistory(response: RawResponse, targets: readonly Hist
 }
 
 /**
- * gh の問い合わせの答え。GraphQL は、一部の issue が読めない (番号が PR、消えた issue) と、ほかの結果を持ったまま
- * 終了コードが 1 になり、gh が例外を投げる。例外の標準出力に、読めた分が残るので、それを使う (1 つの issue の失敗で、全員の手間を捨てない)。
+ * The answer of gh's query. When some issues cannot be read (the number is a PR, or the issue vanished), GraphQL keeps the other results but
+ * the exit code becomes 1 and gh throws an exception. The part that was read remains in the exception's standard output, so it is used (one issue's failure does not discard everyone's effort).
  */
 function readHistory(run: GhRun, query: string): RawResponse | null {
   try {
@@ -77,7 +77,7 @@ function readHistory(run: GhRun, query: string): RawResponse | null {
   }
 }
 
-/** 指定した issue の Status の変化を、ラベルごとに読む。読めなければ null (記録が無いのと「期間が 0」を取り違えない)。 */
+/** Reads the Status changes of the specified issues, per label. null if it cannot be read (so "no record" and "period is 0" are not confused). */
 export function statusEventsFor(items: readonly BoardItem[], config: Config, run: GhRun): ReadonlyMap<string, readonly StatusEvent[]> | null {
   const targets = items.flatMap((item): HistoryTarget[] => (item.kind === 'issue' && item.number !== null ? [{ repo: item.repo, number: item.number }] : []))
   if (targets.length === 0) return new Map()
@@ -89,8 +89,8 @@ const isDoing = (item: BoardItem, config: Config): boolean =>
   item.kind === 'issue' && item.state === 'OPEN' && item.status === config.statuses.doing && item.number !== null
 
 /**
- * sprint の設定があれば、作業中の issue に Status の変化の記録を足す。取れなければ足さない
- * (手間が分からないだけで、ほかの指摘は出せるので、取得全体は失敗にしない)。
+ * If there is a sprint config, adds the Status change record to In Progress issues. If it cannot be fetched, it is not added
+ * (only the effort becomes unknown, and the other findings can still be raised, so the whole fetch is not treated as a failure).
  */
 export function withStatusHistory(items: readonly BoardItem[], config: Config, run: GhRun): readonly BoardItem[] {
   if (config.sprint === undefined) return items

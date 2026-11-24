@@ -5,14 +5,14 @@ import { alertsOf } from './config.ts'
 import { isOpenIssue } from '../dispatch/choose.ts'
 import type { MemberState } from '../team/types.ts'
 
-/** 動く人が要る Epic (バックログ、次にやる、作業中の開いた子を持つ) 1 つの、いまの様子。 */
+/** The current state of one Epic that needs someone working on it (it has open children in Backlog, Next, or In Progress). */
 export type EpicView = {
-  /** "<リポジトリ名>#番号" */
+  /** "<repository name>#number" */
   readonly epic: string
   readonly title: string | null
   readonly openChildren: readonly BoardItem[]
   readonly doing: readonly BoardItem[]
-  /** 作業中の子を持ち、いま動いている人 */
+  /** People who have In Progress children and are working now */
   readonly movers: readonly string[]
 }
 
@@ -21,10 +21,10 @@ function groupByEpic(children: readonly BoardItem[]): ReadonlyMap<string, readon
 }
 
 /**
- * 開いた子を持つ Epic のうち、動く人が要るもの。子がすべてバックログの Epic も入れる (動く人が 0 の形)。
- * 子がリリース待ちか完了だけなら、作業は済んでいるので数えない。
- * Epic 自身がボードにあって、閉じているか、作者が excludeAuthors (別の開発主体) か、積んである印のラベル (alerts.parkedLabels) が付いていれば数えない
- * (ラベルを付けるのは TechLead で、ハーネスは Epic の本文を読まない)。子の親は、dispatch か alerts が有効なときに取る。
+ * Among Epics with open children, those that need someone working on them. An Epic whose children are all in Backlog is also included (the shape with 0 people working).
+ * If the children are only in Release or Done, the work is finished, so it is not counted.
+ * If the Epic itself is on the board and is closed, or its author is in excludeAuthors (a different development party), or it has a label marking it as parked (alerts.parkedLabels), it is not counted
+ * (the TechLead attaches the label, and the harness does not read the Epic's body). A child's parent is fetched when dispatch or alerts is enabled.
  */
 export function epicViews(snapshot: Snapshot, members: readonly MemberState[], config: Config): readonly EpicView[] {
   const children = snapshot.items.filter((item) => isOpenIssue(item, config) && item.epic !== undefined && item.epic !== null && item.epic !== '')
@@ -43,12 +43,12 @@ export function epicViews(snapshot: Snapshot, members: readonly MemberState[], c
   })
 }
 
-/** 動いている人がいない Epic。 */
+/** An Epic with nobody working on it. */
 export function stalledViews(views: readonly EpicView[]): readonly EpicView[] {
   return views.filter((view) => view.movers.length === 0)
 }
 
-/** いま動いている人がいない Epic だけを残し、最初に見た時刻は前のものを引き継ぐ。動き出した Epic は消える。 */
+/** Keeps only Epics with nobody working on them right now, and carries over the time first seen from the earlier one. An Epic where work has started is dropped. */
 export function advanceEpics(prev: Readonly<Record<string, string>>, views: readonly EpicView[], now: Date): Readonly<Record<string, string>> {
   return Object.fromEntries(stalledViews(views).map((view) => [view.epic, prev[view.epic] ?? now.toISOString()]))
 }

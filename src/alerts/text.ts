@@ -8,34 +8,34 @@ export function minutesSince(iso: string, now: Date): number {
   return Math.floor((now.getTime() - Date.parse(iso)) / 60_000)
 }
 
-/** 時差 (offset) の側の時刻 (HH:MM)。 */
+/** The time (HH:MM) on the offset's side. */
 export function clock(iso: string, offset: string): string {
   const local = new Date(Date.parse(iso) + offsetMinutes(offset) * 60_000)
   return `${String(local.getUTCHours()).padStart(2, '0')}:${String(local.getUTCMinutes()).padStart(2, '0')}`
 }
 
-/** 分を、60 で割り切れれば時間、そうでなければ分で書く。 */
+/** Writes minutes as hours if divisible by 60, otherwise as minutes. */
 export function spanText(minutes: number): string {
   return minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`
 }
 
-/** 長い題は通知に収まらないので切る。 */
+/** A long title does not fit in a notification, so it is cut. */
 export function shortTitle(title: string): string {
   return title.length > 40 ? `${title.slice(0, 40)}…` : title
 }
 
 /**
- * オーナーへの通知。窓口には、そのまま PushNotification で送る本文を渡し、問いを添える対象があれば、
- * 待っている問いの文を 1 行足させる。ハーネスは同じ内容を macOS の通知 (音なし) でも直接出す。
+ * The notification to the owner. The liaison is given the body to send as is via PushNotification, and when there is a target to attach a question to,
+ * it has one line added for the pending question's text. The harness also shows the same content directly as a macOS notification (silent).
  */
 export function ownerNotice(input: {
   readonly key: string
   readonly head: string
   readonly push: string
   readonly waitingLabels: readonly string[]
-  /** まとめるときに並べる、1 行の説明 */
+  /** One-line description lined up when combining */
   readonly line: string
-  /** 同じ対象のオーナーへの通知を、minutes 分に 1 回までにするときの、対象の名前と間隔 (分) */
+  /** The target's name and the interval (minutes) for limiting notifications to the owner about the same target to once per minutes */
   readonly throttle?: { readonly key: string; readonly minutes: number }
   readonly config: Config
 }): Notice {

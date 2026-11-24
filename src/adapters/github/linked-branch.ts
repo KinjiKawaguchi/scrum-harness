@@ -18,7 +18,7 @@ function isText(value: unknown): value is string {
   return typeof value === 'string' && value !== ''
 }
 
-/** 問い合わせの答えから、リポジトリと issue の ID、紐づいたブランチ、ベースの先頭を取り出す。読めなければ投げる。 */
+/** From the query's answer, extracts the repository and issue IDs, the linked branch, and the base head. Throws if it cannot be read. */
 export function parseLookup(output: string): Lookup {
   const repository = (JSON.parse(output) as { data?: { repository?: Record<string, any> | null } }).data?.repository
   if (!repository) throw new Error('cannot read the repository')
@@ -31,9 +31,9 @@ export function parseLookup(output: string): Lookup {
 }
 
 /**
- * issue に紐づいたブランチを用意する。すでに紐づいたブランチがあれば、それを返す (作らない)。
- * 無ければ、ベースのブランチの先頭から createLinkedBranch で作る。紐づいたブランチから出した PR は、
- * ベースが既定のブランチでなくても、issue の Development の欄に出る。
+ * Prepares the branch linked to an issue. If a linked branch already exists, returns it (does not create one).
+ * If not, creates one from the head of the base branch with createLinkedBranch. A PR made from a linked branch
+ * appears in the issue's Development field even when the base is not the default branch.
  */
 export function ensureLinkedBranch(
   run: GhRun,
@@ -50,7 +50,7 @@ export function ensureLinkedBranch(
   return { name: branch, isNew: true }
 }
 
-/** 設定の linkedBranchPrefix があるときだけ、渡す issue に紐づいたブランチを用意する。 */
+/** Only when linkedBranchPrefix is in the config, prepares a branch linked to the issue being handed over. */
 export function linkBranchWith(run: GhRun, config: Config): (item: BoardItem) => LinkedBranch | null {
   return (item) => {
     const { linkedBranchPrefix, baseBranch } = dispatchOf(config)
@@ -59,5 +59,5 @@ export function linkBranchWith(run: GhRun, config: Config): (item: BoardItem) =>
   }
 }
 
-/** 渡す錠の中で呼ぶので、1 回の gh を 15 秒で打ち切る (最大 2 回で 30 秒。ネットワークが詰まっても、ほかの部下への渡しを長く待たせない)。 */
+/** Called inside the handover lock, so each gh call is cut off at 15 seconds (at most 2 calls, 30 seconds; even if the network clogs, handovers to other members are not made to wait long). */
 export const LINK_GH_TIMEOUT_MS = 15_000

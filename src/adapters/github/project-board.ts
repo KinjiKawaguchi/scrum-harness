@@ -17,18 +17,18 @@ type RawPage = {
   readonly data?: { readonly node?: { readonly items?: { readonly totalCount?: unknown; readonly nodes?: unknown } | null } | null } | null
 }
 
-/** 取れた件数が総数より少ないとき、取得中にボードから消えた項目の分として許す件数と割合。 */
+/** When fewer items are fetched than the total, the count and the ratio allowed for items that vanished from the board during fetching. */
 const MISSING_TOLERANCE_COUNT = 3
 const MISSING_TOLERANCE_RATIO = 0.01
 
-/** issue と PR の項目のうち、中身 (番号) が読めないものがこの割合を超えたら、取得に失敗したとみなす。 */
+/** If the share of issue and PR items whose content (number) cannot be read exceeds this ratio, the fetch is considered failed. */
 const UNREADABLE_LIMIT = 0.5
-/** 割合で判じるのに足りる件数。これより少ないボードでは割合を見ない。 */
+/** The count sufficient for judging by ratio. On a board smaller than this, the ratio is not checked. */
 const UNREADABLE_MIN_ITEMS = 10
 
 /**
- * 取得に失敗した結果は、例外を出さずに空や中身の無い項目として返ることがある。そのまま控えに書くと、
- * 開いている issue がすべて「ボードに無い」(B-OFF-BOARD) と出るので、書く前に落とす。
+ * A failed fetch can come back as empty items or items with no content, without raising an exception. If written to the board copy as is,
+ * every open issue would show up as "not on the board" (B-OFF-BOARD), so it is rejected before writing.
  */
 function assertReadable(items: readonly BoardItem[], total: number): void {
   const allowedMissing = Math.max(MISSING_TOLERANCE_COUNT, Math.floor(total * MISSING_TOLERANCE_RATIO))
@@ -43,7 +43,7 @@ function assertReadable(items: readonly BoardItem[], total: number): void {
   }
 }
 
-/** `gh api graphql --paginate --slurp` の出力から、ボードの項目を取り出す。形が違うか、項目が読めなければ投げる。 */
+/** From the output of `gh api graphql --paginate --slurp`, extracts the board's items. Throws if the shape differs or the items cannot be read. */
 export function parseItemPages(output: string): readonly BoardItem[] {
   const pages: unknown = JSON.parse(output)
   if (!Array.isArray(pages) || pages.length === 0) {
@@ -63,7 +63,7 @@ export function parseItemPages(output: string): readonly BoardItem[] {
   return items
 }
 
-/** 1ページ100件で2ポイント程度。1000件のボードなら全件で20ポイント、十数秒かかる。 */
+/** About 2 points per page of 100. A board of 1000 items costs 20 points for all of them and takes ten-odd seconds. */
 function parseOrCarry(raw: string): readonly BoardItem[] {
   try {
     return parseItemPages(raw)
@@ -72,7 +72,7 @@ function parseOrCarry(raw: string): readonly BoardItem[] {
   }
 }
 
-/** 設定のリポジトリごとに、開いている issue か PR の番号と作者を読む。 */
+/** For each configured repository, reads the numbers and authors of open issues or PRs. */
 function listOpen(run: GhRun, kind: 'issue' | 'pr', config: Config): readonly OpenIssue[] {
   return config.repos.flatMap((repo): readonly OpenIssue[] => {
     const raw = JSON.parse(run([kind, 'list', '-R', repo, '--state', 'open', '--limit', '1000', '--json', 'number,author']))
@@ -89,14 +89,14 @@ export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
     run(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${itemsQuery(config)}`, '-F', `projectId=${config.projectId}`]),
   )
   const openIssues = listOpen(run, 'issue', config)
-  // PR は、B-OFF-BOARD の対象ではないので、控えの openIssues には入れず、読んで足す候補にだけ使う。
+  // A PR is not a target of B-OFF-BOARD, so it is not put into the board copy's openIssues and is used only as a candidate to read and add.
   const openPullRequests = listOpen(run, 'pr', config)
-  // ボードに入っている項目が、一覧にも総数にも出ないことがある (足されてから何時間も続く)。ボードに無いと指摘する前に、1 件ずつ読んで足す。
+  // An item on the board may appear neither in the list nor in the total (it can last for hours after it is added). Before flagging it as not on the board, read it one by one and add it.
   const items = [...pagedItems, ...readMissingItems(pagedItems, openIssues, config, run, openPullRequests)]
   return { fetchedAt: now.toISOString(), items: withStatusHistory(items, config, run), openIssues }
 }
 
-/** GitHub Project のボードを、gh で読む。 */
+/** Reads the GitHub Project board with gh. */
 export function projectBoardSource(run: GhRun, config: Config): BoardSource {
   return { fetchSnapshot: (now) => fetchSnapshot(run, config, now), statusEvents: (items) => statusEventsFor(items, config, run) }
 }

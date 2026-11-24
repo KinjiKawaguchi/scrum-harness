@@ -3,20 +3,20 @@ import { loadRecords, type CheckpointRecord } from './record.ts'
 import { loadTeamStop, NEVER_STOPPED, type TeamStop } from './team-stop.ts'
 
 /**
- * 手間 (作業中にまたいだ節目の数) を数えるときの、過去の記録。`assessItem` の入力は、これだけ。
- * 数えるときに見るものを足すときは、ここに項目を足し、`loadCountingHistory` で読み、`assessItem` で使う。
+ * The past records used when counting effort (the number of checkpoints crossed while In Progress). `assessItem`'s only input is this.
+ * To add something to look at when counting, add an item here, read it in `loadCountingHistory`, and use it in `assessItem`.
  */
 export type CountingHistory = {
-  /** 節目の記録。issue ごとの、止まっていた節目を残している */
+  /** The checkpoint records. They keep, per issue, the checkpoints that were stalled */
   readonly records: readonly CheckpointRecord[]
-  /** 全セッションが止まっていた時間 */
+  /** The times when all sessions were stalled */
   readonly teamStop: TeamStop
 }
 
-/** 何も記録が無いときの入力。どの節目も除かない。 */
+/** The input when there is no record at all. No checkpoint is excluded. */
 export const EMPTY_HISTORY: CountingHistory = { records: [], teamStop: NEVER_STOPPED }
 
-/** 節目の記録と、全セッションが止まっていた時間を、1 回で読む。 */
+/** Reads the checkpoint records and the times when all sessions were stalled in one go. */
 export function loadCountingHistory(p: Paths, now: Date): CountingHistory {
   return { records: loadRecords(p), teamStop: loadTeamStop(p, now) }
 }

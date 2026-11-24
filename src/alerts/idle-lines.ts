@@ -12,7 +12,7 @@ function ackText(acks: readonly Ack[], name: string, now: Date, offset: string):
   return ack === undefined ? 'none' : `${ack.reason} (until ${clock(ack.until, offset)})`
 }
 
-/** 今の空きの間に、ハーネスがその人に送った最後の仕事 (渡した、促した)。 */
+/** The last work the harness sent to that person during the current free span (a handover, a nudge). */
 function lastSend(records: readonly DispatchRecord[], member: MemberState): DispatchRecord | undefined {
   const since = Date.parse(member.since ?? '')
   return records.filter((record) => record.member === member.name && Date.parse(record.at) >= since).at(-1)
@@ -25,8 +25,8 @@ function actionText(input: AlertInput, member: MemberState, offset: string): str
 }
 
 /**
- * 部下が idleMinutes 空いたとき (T-IDLE と同じ時点) の、窓口への 1 行。受け入れがあっても出す。
- * オーナーへの通知ではなく、窓口が空きを知っておくための行。
+ * One line to the liaison for when a member has been free for idleMinutes (the same point as T-IDLE). It is raised even when there is an acknowledgement.
+ * It is not a notification to the owner but a line for the liaison to know about the free member.
  */
 export function idleLines(input: AlertInput): readonly Notice[] {
   const { members, acks, config, now } = input

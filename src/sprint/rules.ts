@@ -7,12 +7,12 @@ import { localClock, nextCheckpoint } from './checkpoints.ts'
 import type { CountingHistory } from './counting-history.ts'
 import { doingIssues, type CheckpointRecord } from './record.ts'
 
-/** 節目の知らせを、記録してから出し続ける時間。 */
+/** The time during which a checkpoint notice keeps being shown after it is recorded. */
 const CHECKPOINT_NOTICE_MS = 60 * 60 * 1000
 
 const tiers = (sprint: SprintConfig): string => Object.keys(sprint.pointBudgets).join(', ')
 
-/** 全セッションが止まっていて手間から除いた節目があれば、その数を書く。 */
+/** If there are checkpoints excluded from effort because all sessions were stalled, writes that number. */
 const teamStoppedText = (assessment: Assessment): string =>
   assessment.teamStopped === undefined ? '' : `. Checkpoints excluded because all sessions were stopped: ${assessment.teamStopped}`
 
@@ -53,7 +53,7 @@ function pointsFindings(assessment: Assessment, sprint: SprintConfig): readonly 
   return assessment.over !== null && assessment.over > 0 ? [overFinding(assessment)] : []
 }
 
-/** 節目の時刻からこれより遅れて記録したら、記録した時刻も知らせに書く。 */
+/** If recorded later than this after the checkpoint's time, the time of recording is also written in the notice. */
 const LATE_MS = 5 * 60 * 1000
 
 function checkpointFinding(record: CheckpointRecord, sprint: SprintConfig): Finding {
@@ -79,7 +79,7 @@ function lintCheckpoint(records: readonly CheckpointRecord[], sprint: SprintConf
   return age >= 0 && age < CHECKPOINT_NOTICE_MS ? [checkpointFinding(latest, sprint)] : []
 }
 
-/** ストーリーポイントと節目の指摘。sprint の設定が無ければ何も出さない。 */
+/** Findings for story points and checkpoints. If there is no sprint config, nothing is output. */
 export function lintSprint(snapshot: Snapshot, history: CountingHistory, config: Config, now: Date): readonly Finding[] {
   const sprint = config.sprint
   if (sprint === undefined) return []

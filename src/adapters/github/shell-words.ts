@@ -1,6 +1,6 @@
 /**
- * Bash のコマンド文字列を、区切り (&&・||・;・|・改行) ごとの語の列に分ける。
- * 引用符を外す程度の簡単な解析で、ボードを触るコマンドを見つけるためだけに使う。
+ * Splits a Bash command string into word lists, one per separator (&&, ||, ;, |, newline).
+ * It is a simple parse that merely strips quotes, used only to find commands that touch the board.
  */
 export function splitCommands(command: string): readonly (readonly string[])[] {
   const segments: string[][] = [[]]
@@ -35,7 +35,7 @@ export function splitCommands(command: string): readonly (readonly string[])[] {
 
 const SHELLS = new Set(['bash', 'sh', 'zsh'])
 
-/** 先頭の環境変数の代入と、bash などの起動を外して、実行するプログラムとその引数にする。 */
+/** Strips leading environment-variable assignments and a bash-style launcher, leaving the program to run and its arguments. */
 export function programAndArgs(words: readonly string[]): { readonly program: string; readonly args: readonly string[] } {
   const start = words.findIndex((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word))
   const rest = start === -1 ? [] : words.slice(start)

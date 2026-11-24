@@ -3,9 +3,9 @@ import { NOTICE_TITLE } from './text.ts'
 import type { Notice } from './types.ts'
 
 /**
- * 1 回の評価で出たオーナーへの通知を、1 通にまとめる。macOS の通知も 1 つ、窓口への PushNotification も 1 通になる。
- * 1 件ならそのまま。2 件以上なら、1 件ごとに 1 行 (止まっている理由つき) に並べる。まとめた通知は、まとめた分の指紋をすべて持つ
- * (出した印は、まとめた分の全部に付ける)。
+ * Combines the notifications to the owner produced in one evaluation into a single one. The macOS notification becomes one, and the PushNotification to the liaison becomes one.
+ * With one item it is left as is. With two or more, they are lined up as one line per item (with the reason it is stalled). The combined notification holds all the fingerprints of the combined items
+ * (the marker for what was sent is attached to all of the combined items).
  */
 export function mergeOwner(notices: readonly Notice[], config: Config): Notice | null {
   const [only, ...rest] = notices

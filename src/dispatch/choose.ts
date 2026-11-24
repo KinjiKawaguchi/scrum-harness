@@ -2,19 +2,19 @@ import { countDoing } from '../board/commands.ts'
 import type { BoardItem, Snapshot } from '../board/types.ts'
 import { dispatchOf, type Config } from '../config.ts'
 
-/** 1: 次にやるで担当がその人。2: バックログで担当がその人。3: 担当なしの次にやる。 */
+/** 1: In Next and assigned to that person. 2: In Backlog and assigned to that person. 3: In Next and unassigned. */
 export type Tier = 1 | 2 | 3
 
 export type ChooseResult =
   | { readonly kind: 'chosen'; readonly item: BoardItem; readonly tier: Tier }
   | { readonly kind: 'none'; readonly reason: 'wip-limit' | 'no-candidate' }
 
-/** 開いている issue (除く作者のものを除く)。渡す候補と、Epic の子の数え方で共通 */
+/** Open issues (excluding those by excluded authors). Shared by the hand-over candidates and the way Epic children are counted */
 export function isOpenIssue(item: BoardItem, config: Config): boolean {
   return item.kind === 'issue' && item.state === 'OPEN' && item.number !== null && !config.excludeAuthors.includes(item.author ?? '')
 }
 
-/** 渡せる issue の区分。止まっている (理由がなし以外) もの、担当が他の人のものは渡さない。 */
+/** The tier of an issue that can be handed over. One that is blocked (has a blocked reason other than none) or is assigned to someone else is not handed over. */
 function tierOf(item: BoardItem, member: string, config: Config): Tier | null {
   if (item.reason !== config.reasonNone) return null
   const isUnassigned = item.assignee === null || item.assignee === ''
@@ -24,7 +24,7 @@ function tierOf(item: BoardItem, member: string, config: Config): Tier | null {
   return null
 }
 
-/** 題が release/<番号> で始まる issue。リリースの issue は人が手で切り出すので、渡す文の土台と合わず、渡す対象から外す。 */
+/** An issue whose title starts with release/<number>. Release issues are cut out by hand, so they do not fit the base of the handover text and are excluded from hand-over. */
 const RELEASE_TITLE = /^release\/\d+/
 
 export function isReleaseIssue(item: BoardItem): boolean {
@@ -36,7 +36,7 @@ function hasSkipLabel(item: BoardItem, config: Config): boolean {
   return (item.labels ?? []).some((name) => skip.includes(name))
 }
 
-/** Epic ごとに、作業中の issue を持つ人の数。親の無い issue は 0 人として並べる。 */
+/** Per Epic, the number of people who have In Progress issues. An issue with no parent is lined up as 0 people. */
 function peoplePerEpic(snapshot: Snapshot, config: Config): ReadonlyMap<string, number> {
   const doing = snapshot.items.filter((item) => isOpenIssue(item, config) && item.status === config.statuses.doing && item.epic)
   const people = new Map<string, Set<string>>()
@@ -49,8 +49,8 @@ function peoplePerEpic(snapshot: Snapshot, config: Config): ReadonlyMap<string, 
 }
 
 /**
- * その人の作業中で、止まっていない (理由がなし) issue。あれば、新しい issue は渡さず、これを進めるよう促す。
- * 複数あれば番号の小さいもの。
+ * That person's In Progress issue that is not blocked (blocked reason is none). If there is one, no new issue is handed over, and the member is nudged to advance it.
+ * If there are several, the one with the smallest number.
  */
 export function ownDoingIssue(snapshot: Snapshot, member: string, config: Config): BoardItem | null {
   const own = snapshot.items.filter(
@@ -59,7 +59,7 @@ export function ownDoingIssue(snapshot: Snapshot, member: string, config: Config
   return own.toSorted((a, b) => (a.number ?? 0) - (b.number ?? 0))[0] ?? null
 }
 
-/** 「順」の比べ方。小さいほど先で、欄が空のものは最後。 */
+/** How to compare the "order" field. Smaller comes first, and those with an empty field go last. */
 function compare(a: number | null | undefined, b: number | null | undefined): number {
   if (a == null && b == null) return 0
   if (a == null) return 1
@@ -67,9 +67,9 @@ function compare(a: number | null | undefined, b: number | null | undefined): nu
   return a - b
 }
 
-/** 渡す issue の並び。区分、ボードの「順」(小さいほど先、無ければ最後)、動いている人の少ない Epic、番号の順。 */
+/** The order of issues to hand over: tier, the board's "order" (smaller first, none last), Epics with fewer people working, then number. */
 export function chooseNext(snapshot: Snapshot, member: string, config: Config): ChooseResult {
-  // 作業中の数え方は、書き込みの前の守り (checkGuard) と同じ。除く作者 (別の開発主体) の作業中も数える
+  // In Progress is counted the same way as the guard before a write (checkGuard). In Progress by excluded authors (a different development party) is also counted
   if (countDoing(snapshot, config) >= config.wipLimit) return { kind: 'none', reason: 'wip-limit' }
   const load = peoplePerEpic(snapshot, config)
   const candidates = snapshot.items

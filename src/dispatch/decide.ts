@@ -6,20 +6,20 @@ import { chooseNext, ownDoingIssue, type Tier } from './choose.ts'
 import { boardOnly, hasProgress, seenKey, type ProgressToken, type SeenMap, type TokenOf } from './progress.ts'
 import type { DispatchRecord } from './types.ts'
 
-/** 作業が進まないまま促しを送った回数の上限。これだけ続けて進まなければ、TechLead に出す (A-NUDGE-IGNORED)。 */
+/** The upper limit on the number of nudges sent while the work does not progress. If it does not progress that many times in a row, the TechLead is told (A-NUDGE-IGNORED). */
 export const NUDGE_LIMIT = 2
 
-/** 促しを数える、直近の長さ。これより前の促しは数えない (長く経った後は、数え直す)。 */
+/** The recent span over which nudges are counted. Nudges older than this are not counted (after a long time has passed, counting restarts). */
 export const NUDGE_WINDOW_MS = 3 * 60 * 60_000
 
 export type Action =
   | { readonly kind: 'nudge'; readonly item: BoardItem; readonly count: number; readonly token: ProgressToken }
   | { readonly kind: 'dispatch'; readonly item: BoardItem; readonly tier: Tier }
   | { readonly kind: 'none'; readonly reason: 'nudge-wait' | 'nudge-limit' | 'wip-limit' | 'no-candidate' | 'already-dispatched' }
-  /** 作業が進んでいる (最後に印が変わってから idleMinutes たっていない) ので、促さない。item と token は、見た印を覚えるため */
+  /** The work is progressing (idleMinutes have not passed since the marker last changed), so no nudge. item and token are for remembering the marker seen */
   | { readonly kind: 'none'; readonly reason: 'progressing'; readonly item: BoardItem; readonly token: ProgressToken }
 
-/** その人のその issue への促しで、直近 NUDGE_WINDOW_MS の中のもの。古い順。 */
+/** The nudges to that person for that issue that are within the most recent NUDGE_WINDOW_MS. Oldest first. */
 export function nudgesFor(records: readonly DispatchRecord[], member: string, issue: string, now: Date): readonly DispatchRecord[] {
   return records
     .filter((record) => record.kind === 'nudge' && record.member === member && record.label === issue && now.getTime() - Date.parse(record.at) <= NUDGE_WINDOW_MS)
@@ -27,8 +27,8 @@ export function nudgesFor(records: readonly DispatchRecord[], member: string, is
 }
 
 /**
- * 促しのうち、後ろから続けて、作業が進まなかったものの数。促しごとに、その促しの印と、次の促しの印 (最後の促しは、いまの印) を比べる。
- * 空きの区間が変わっても (短い 1 ターンで空きに戻っても) 数え直さない。作業が進んだ促しで、そこまでの数は止まる。
+ * The number of nudges, counting back from the latest in a row, after which the work did not progress. For each nudge, that nudge's marker is compared with the next nudge's marker (for the last nudge, the current marker).
+ * Counting does not restart even if the free span changes (even if the member returns to free after one short turn). On a nudge after which the work progressed, the count up to that point stops.
  */
 export function ignoredNudges(nudges: readonly DispatchRecord[], current: ProgressToken | undefined): number {
   const count = nudges.reduceRight((state, nudge, index) => {
@@ -48,11 +48,11 @@ function lastSendAt(records: readonly DispatchRecord[], name: string): number {
 }
 
 /**
- * 空いて、受け入れも無い部下 (idleGate を通った人) に、何を送るかを決める。
- * 止まっていない自分の作業中の issue があれば、新しい issue は渡さず、それを進めるよう促す。最後に送ってから idleMinutes ごとに、
- * 作業が進まないまま NUDGE_LIMIT 回まで (進めば数え直す。進んだかは、促した時点と今の issue の印で比べる)。渡した直後の重ねての促しは待つ。
- * 作業が進んでいる間は促さない: 前に見た印から変わった (進んだ) か、最後に印が変わってから idleMinutes たっていなければ、促しの上限より先に、待つ (progressing)。
- * 作業中が止まっているか、無ければ、次の issue を渡す。
+ * Decides what to send to a member who is free and has no acknowledgement (one who passed idleGate).
+ * If they have their own In Progress issue that is not blocked, no new issue is handed over, and they are nudged to advance it. Every idleMinutes since the last send,
+ * up to NUDGE_LIMIT times while the work does not progress (counting restarts if it progresses; whether it progressed is compared by the marker at the time of the nudge and the issue's current marker). A repeat nudge right after a handover waits.
+ * No nudge while the work is progressing: if the marker changed from the one seen before (it progressed), or idleMinutes have not passed since the marker last changed, it waits (progressing) ahead of the nudge limit.
+ * If the In Progress issue is blocked, or there is none, the next issue is handed over.
  */
 export function decideAction(
   snapshot: Snapshot,

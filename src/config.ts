@@ -14,11 +14,11 @@ export type StatusNames = {
   readonly done: string
 }
 
-/** ボードとチームに固有の値。設定ファイル (~/.claude/scrum/config.json) にだけ書き、ソースには持たない。 */
+/** Values specific to the board and the team. Written only in the config file (~/.claude/scrum/config.json) and not held in the source. */
 export type ProjectConfig = {
   readonly projectId: string
   readonly repos: readonly string[]
-  /** ボードを書き換えるスクリプト (scripts) が番号だけで指すリポジトリ */
+  /** The repository that the board-rewriting scripts (scripts) point at with only a number */
   readonly defaultRepo: string
   readonly fields: {
     readonly status: string
@@ -37,7 +37,7 @@ export type ProjectConfig = {
   readonly members: readonly string[]
 }
 
-/** 検査の強さ。設定ファイルで上書きできる。 */
+/** The strength of the checks. It can be overridden in the config file. */
 export type Tuning = {
   readonly wipLimit: number
   readonly staleBlockDays: number
@@ -49,70 +49,70 @@ export type Tuning = {
 }
 
 /**
- * ボードを書き換えるスクリプトの名前。設定すると、指摘の直し方にそのコマンドを出し、フックがその実行を読んで
- * 控えを直す。引数の形は決まっている (下の各項目)。無ければ直し方は文で出し、gh のコマンドだけを読む。
+ * Names of the scripts that rewrite the board. When set, the command is shown as how to fix a finding, and the hook reads their execution and
+ * corrects the board copy. The shape of the arguments is fixed (see each item below). If absent, how to fix is given as text, and only gh commands are read.
  */
 export type BoardScripts = {
-  /** <番号> <Status> */
+  /** <number> <Status> */
   readonly setStatus?: string
-  /** <番号> <止まっている理由> [YYYY-MM-DD] */
+  /** <number> <blocked reason> [YYYY-MM-DD] */
   readonly setReason?: string
-  /** <番号> <担当> */
+  /** <number> <assignee> */
   readonly setAssignee?: string
-  /** <Status> <リポジトリ名#番号>... */
+  /** <Status> <repository name#number>... */
   readonly bulkStatus?: string
-  /** <owner/repo> <PR の番号> */
+  /** <owner/repo> <PR number> */
   readonly mergePr?: string
-  /** 担当を外すときに渡す語 */
+  /** The word passed when unassigning */
   readonly clearValue?: string
 }
 
-/** 指摘の文と直し方に使う、チームごとの呼び方と道具。 */
+/** Team-specific names and tools used in the text of findings and in how to fix them. */
 export type Adapters = {
-  /** 判断を下す人 (ownerUser) を文で呼ぶときの名前 */
+  /** The name used in text to refer to the person who makes decisions (ownerUser) */
   readonly ownerLabel: string
   readonly scripts: BoardScripts
 }
 
 /**
- * スプリントの節目とストーリーポイント。無ければ、この機能は動かない。
- * 手間は、作業中にいた間にまたいだ節目の数 (止まっていた節目と、全セッションが止まっていた節目は除く) で数え、
- * ポイントから決めた目安と比べる。
+ * Sprint checkpoints and story points. If absent, this feature does not run.
+ * Effort is counted as the number of checkpoints crossed while in In Progress (excluding checkpoints during a stall and checkpoints when all sessions were stalled),
+ * and compared with the budget decided from the points.
  */
 export type SprintConfig = {
-  /** 1日の節目の時刻 ("HH:MM") */
+  /** The times of day of the daily checkpoints ("HH:MM") */
   readonly checkpoints: readonly string[]
-  /** 節目の時刻の時差 ("+09:00") */
+  /** The time zone offset of the checkpoint times ("+09:00") */
   readonly utcOffset: string
-  /** ストーリーポイントを入れる Number の欄の名前 */
+  /** The name of the Number field into which story points are put */
   readonly pointsField: string
-  /** 超えた節目の数をハーネスが書く Number の欄の名前。無ければボードには書かない */
+  /** The name of the Number field into which the harness writes the number of exceeded checkpoints. If absent, it is not written to the board */
   readonly overrunField?: string
-  /** ポイントごとの目安の節目の数。キーにないポイントは段に無いとみなす */
+  /** The budget number of checkpoints per point. A point not among the keys is regarded as not being in the tiers */
   readonly pointBudgets: Readonly<Record<string, number>>
 }
 
 /**
- * 空いた部下に、LLM を通さず次の仕事を渡す (規則 A-DISPATCH)。無いか enabled が true でなければ、動かない。
- * 渡す文面と選ぶ条件に使う、チームごとの値だけを持つ。
+ * Hands the next work to a free member without going through the LLM (rule A-DISPATCH). If absent or enabled is not true, it does not run.
+ * It holds only the team-specific values used for the handover text and the selection conditions.
  */
 export type DispatchConfig = {
   readonly enabled: boolean
-  /** 渡す文面の「origin/<これ> から切る」「PR は <これ> 宛て」 */
+  /** The handover text's "branch off origin/<this>" and "the PR targets <this>" */
   readonly baseBranch: string
-  /** この名前のラベルが付いた issue は渡さない (渡さない印) */
+  /** An issue with a label of this name is not handed over (the not-to-hand-over mark) */
   readonly skipLabels: readonly string[]
-  /** 渡す順を決める Number の欄の名前 (小さいほど先)。無ければ、欄の順では並べない */
+  /** The name of the Number field that decides the hand-over order (smaller comes first). If absent, items are not ordered by the field */
   readonly orderField?: string
-  /** 受け入れの理由「枠 HH:MM」の時刻の時差 */
+  /** The time zone offset of the time in the acknowledgement reason "slot HH:MM" */
   readonly utcOffset: string
-  /** 渡す文面の最後に足す、その日の決まり (1 行ずつ) */
+  /** The day's rules (one line each) added at the end of the handover text */
   readonly notes: readonly string[]
-  /** 自動で渡す相手の名前。無ければ、設定の members の全員 */
+  /** The names of the members to hand over to automatically. If absent, everyone in the config's members */
   readonly members?: readonly string[]
-  /** scripts のスクリプトがあるディレクトリ。無ければ、名前のまま PATH から探す */
+  /** The directory where the scripts of scripts are. If absent, they are looked up from PATH by name as is */
   readonly scriptDir?: string
-  /** 渡すときに、issue に紐づいたブランチを `<これ>/<番号>` で、baseBranch の先頭から作る。無ければ作らない */
+  /** On handover, creates a branch linked to the issue as `<this>/<number>` from the head of baseBranch. If absent, none is created */
   readonly linkedBranchPrefix?: string
 }
 
@@ -149,7 +149,7 @@ const REQUIRED_OBJECTS = ['fields', 'statuses'] as const
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
 const OFFSET = /^[+-]\d{2}:\d{2}$/
 
-/** sprint の設定を確かめる。形が違えば、この機能だけを止める (undefined)。 */
+/** Validates the sprint config. If the shape differs, only this feature is stopped (undefined). */
 function parseSprint(raw: unknown): SprintConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const record = raw as Record<string, unknown>
@@ -170,7 +170,7 @@ function parseSprint(raw: unknown): SprintConfig | undefined {
 
 const isStringList = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((one) => typeof one === 'string')
 
-/** dispatch の設定を読む。形が違えば、この機能だけを止める (undefined)。足りない項目は既定で埋める。 */
+/** Reads the dispatch config. If the shape differs, only this feature is stopped (undefined). Missing items are filled with defaults. */
 function parseDispatch(raw: unknown): DispatchConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const { enabled, baseBranch, skipLabels, orderField, utcOffset, notes, members, scriptDir, linkedBranchPrefix } = raw as Record<string, unknown>
@@ -198,7 +198,7 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
   }
 }
 
-/** 設定ファイルはシステムの境界なので、欠けた値があれば使わない。 */
+/** The config file is a system boundary, so a missing value is not used. */
 export function parseConfig(raw: unknown): Config | null {
   if (typeof raw !== 'object' || raw === null) return null
   const record = withConfigAliases(raw as Record<string, unknown>)
@@ -229,7 +229,7 @@ export function configPath(dir: string = stateDir()): string {
   return join(dir, 'config.json')
 }
 
-/** 設定が無いか壊れていれば null。フックは何もせずに終える。 */
+/** null if the config is absent or broken. The hook finishes without doing anything. */
 export function loadConfig(dir: string = stateDir()): Config | null {
   try {
     return parseConfig(JSON.parse(readFileSync(configPath(dir), 'utf8')))

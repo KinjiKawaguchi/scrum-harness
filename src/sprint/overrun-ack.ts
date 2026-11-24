@@ -10,8 +10,8 @@ import { loadCountingHistory } from './counting-history.ts'
 const refuse = (message: string): OverrunBasis => ({ ok: false, message })
 
 /**
- * `scrum ack S-POINTS-OVER <issue>` を受け入れてよいか。超過が出ている issue に、超過を出した節目より後の、正しい印のコメントがあるときだけ、
- * その印を根拠にして受け入れる。見積もりを直した記録が無いまま、振り返りに回すと言って消すことを止める。
+ * Whether `scrum ack S-POINTS-OVER <issue>` may be accepted. Only when an issue with an overrun has a valid marker comment posted after the checkpoint at which the overrun was raised,
+ * it is accepted on the basis of that marker. This stops the finding from being cleared by saying it will go to the retrospective without any record that the estimate was fixed.
  */
 export function checkOverrunAck(
   p: Paths,

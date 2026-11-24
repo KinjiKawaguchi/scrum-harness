@@ -20,7 +20,7 @@ export function saveSnapshot(p: Paths, snapshot: Snapshot): void {
   writeJson(p.snapshot, snapshot)
 }
 
-/** 最後に取り直して取れた控え。済んだ issue を見つける比べの元で、フックが Status を直して書く控え (loadSnapshot) とは別にする。 */
+/** The board copy from the last successful re-fetch. It is the baseline for the comparison that finds Done issues, and is kept separate from the board copy (loadSnapshot) that the hook writes after correcting Status. */
 export function loadFetchedSnapshot(p: Paths): Snapshot | null {
   return readSnapshot(p.fetchedSnapshot)
 }
@@ -29,7 +29,7 @@ export function isStale(snapshot: Snapshot | null, config: Config, now: Date): b
   return snapshot === null || now.getTime() - Date.parse(snapshot.fetchedAt) > config.refreshSeconds * 1000
 }
 
-/** 控えが古く、かつ前に試してから refreshSeconds 経っているか。失敗が続いても、ボードの置き場の呼び出しの上限を使い切らないため。 */
+/** Whether the board copy is stale and refreshSeconds have passed since the last attempt. So that repeated failures do not use up the limit on calls to the board's host. */
 export function isRefreshDue(p: Paths, config: Config, now: Date): boolean {
   if (!isStale(loadSnapshot(p), config, now)) return false
   const attemptedAt = readJson<string | null>(p.refreshAttempt, null)
@@ -37,8 +37,8 @@ export function isRefreshDue(p: Paths, config: Config, now: Date): boolean {
 }
 
 /**
- * 作業中から済みになった issue の記録。控えは書いた後なので、失敗しても取り直しは成功のままにして、errors.log に残す。
- * 記録に成功したかを返す。失敗したら、比べの元 (最後に取った控え) を進めず、次の取り直しで、同じ issue をもう一度見つける。
+ * A record of issues that went from In Progress to Done. The board copy has already been written by then, so even on failure the re-fetch stays successful and the failure is left in errors.log.
+ * Returns whether the record succeeded. On failure, the comparison baseline (the last fetched board copy) is not advanced, and the next re-fetch finds the same issue again.
  */
 function noteCompletions(p: Paths, previous: Snapshot | null, fresh: Snapshot, config: Config, now: Date, source: BoardSource): boolean {
   try {
@@ -50,13 +50,13 @@ function noteCompletions(p: Paths, previous: Snapshot | null, fresh: Snapshot, c
   }
 }
 
-/** ボードを取り直して控えに書く。ほかのプロセスが取り直し中なら何もしない。 */
+/** Re-fetches the board and writes it to the board copy. Does nothing if another process is re-fetching. */
 export function refreshSnapshot(p: Paths, config: Config, now: Date, source: BoardSource): Snapshot | null {
   if (!tryLock(p.refreshLock)) return null
   try {
     writeJson(p.refreshAttempt, now.toISOString())
-    // 比べの元は、最後に取り直して取れた控え。Status を書き換えるスクリプト (scripts.setStatus) の後にフックが Status を直した控え (loadSnapshot) は、
-    // すでに完了になっていて、作業中から完了への変化が見えないので使わない。まだ無ければ (この仕組みの最初)、いまの控えにする
+    // The comparison baseline is the board copy from the last successful re-fetch. The board copy (loadSnapshot) in which the hook corrected Status after a script that rewrites Status (scripts.setStatus)
+    // is already Done, so the change from In Progress to Done is not visible and it is not used. If there is none yet (the very first run), the current board copy is used
     const previous = loadFetchedSnapshot(p) ?? loadSnapshot(p)
     const snapshot = source.fetchSnapshot(now)
     saveSnapshot(p, snapshot)

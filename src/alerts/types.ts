@@ -1,40 +1,40 @@
 import type { Finding } from '../findings/types.ts'
 
-/** 止まりの検知が、待機プロセスをまたいで覚える状態。 */
+/** State that stall detection remembers across watch processes. */
 export type AlertState = {
-  /** 動いている人がいない Epic ("<リポジトリ名>#番号") と、それを最初に見た時刻 */
+  /** An Epic with nobody working on it ("<repository name>#number") and the time it was first seen */
   readonly epics: Readonly<Record<string, string>>
-  /** 渡せる issue が無い部下と、それを最初に見た時刻 */
+  /** A member with no issue to hand over and the time it was first seen */
   readonly empty: Readonly<Record<string, string>>
-  /** macOS の通知を出した通知の指紋 */
+  /** Fingerprints of notifications for which a macOS notification was shown */
   readonly desktopSent: readonly string[]
-  /** 窓口に送った通知の指紋 */
+  /** Fingerprints of notifications sent to the liaison */
   readonly liaisonSent: readonly string[]
-  /** Epic ごとの、最後にオーナーへ E-STALL を通知した時刻。同じ Epic を重ねて通知しないために使う */
+  /** Per Epic, the time the owner was last notified of E-STALL. Used so that the same Epic is not notified repeatedly */
   readonly ownerPushedAt: Readonly<Record<string, string>>
 }
 
 export const EMPTY_ALERT_STATE: AlertState = { epics: {}, empty: {}, desktopSent: [], liaisonSent: [], ownerPushedAt: {} }
 
 /**
- * 窓口とオーナーへの通知。key は同じ通知かを見分ける指紋で、出した後は同じ key を重ねて出さない。
- * owner はオーナーへの PushNotification と macOS の通知を伴う。idle-line (部下の空き) と info (オーナーへは
- * 送らないと決めた通知) は、窓口に読ませるだけの 1 行。
+ * Notifications to the liaison and the owner. key is a fingerprint that tells whether it is the same notification, and once shown, the same key is not shown again.
+ * owner comes with a PushNotification and a macOS notification to the owner. idle-line (a free member) and info (a notification decided not to be
+ * sent to the owner) are one line only for the liaison to read.
  */
 export type Notice = {
   readonly key: string
   readonly kind: 'idle-line' | 'owner' | 'info'
-  /** 窓口に送る本文 (そのままオーナーに送る文を含む) */
+  /** The body sent to the liaison (includes the text sent to the owner as is) */
   readonly text: string
-  /** macOS の通知 (音なし)。無いものは出さない */
+  /** The macOS notification (silent). If absent, none is shown */
   readonly desktop?: { readonly title: string; readonly body: string }
-  /** 同じ対象 (Epic、部下) のオーナーへの通知を、minutes 分に 1 回までにするための印。detail は、送らないときに窓口に読ませる内容 */
+  /** A mark for limiting notifications to the owner about the same target (Epic, member) to once per minutes. detail is what the liaison is made to read when it is not sent */
   readonly throttle?: { readonly key: string; readonly head: string; readonly detail: string; readonly minutes: number }
-  /** 1 回の評価で出た通知を 1 通にまとめたとき、まとめた通知の指紋 (無ければ、この通知の key だけ)。出した印は、まとめた分をすべて覚える */
+  /** The fingerprints of the combined notification when notifications from one evaluation were combined into one (if none, only this notification's key). The mark for what was shown remembers all the combined items */
   readonly members?: readonly string[]
-  /** オーナーへの通知 1 件の、1 行の説明と、問いを添える対象。まとめるときに、行を並べるのに使う */
+  /** A one-line description of one notification to the owner, and the target to attach a question to. Used to line up the lines when combining */
   readonly owner?: { readonly line: string; readonly waiting: readonly string[] }
 }
 
-/** 同じ材料から作る、TechLead への指摘とオーナーへの通知。通知の key は指摘の key と同じ。 */
+/** The TechLead's findings and the owner's notifications, built from the same material. The notification's key is the same as the finding's key. */
 export type AlertEvaluation = { readonly findings: readonly Finding[]; readonly owner: readonly Notice[] }

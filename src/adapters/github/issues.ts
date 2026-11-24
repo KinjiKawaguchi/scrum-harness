@@ -2,7 +2,7 @@ import type { IssueBody, IssueComment, IssueThread } from '../../ports/index.ts'
 import type { GhRun } from './gh.ts'
 import { parseList } from './parse-list.ts'
 
-/** issue のコメントを読む。 */
+/** Reads an issue's comments. */
 export function fetchIssueComments(repo: string, number: number, run: GhRun): readonly IssueComment[] {
   const raw = JSON.parse(run(['issue', 'view', String(number), '-R', repo, '--json', 'comments'])) as {
     readonly comments?: readonly { readonly body?: string; readonly createdAt?: string; readonly url?: string }[]
@@ -17,13 +17,13 @@ export function listOpenIssues(run: GhRun, repo: string): readonly IssueBody[] {
   return parseList(output, (record) => (typeof record.number === 'number' ? { number: record.number, body: typeof record.body === 'string' ? record.body : '' } : null))
 }
 
-/** いまの issue の状態 (open か closed) と本文。 */
+/** The issue's current state (open or closed) and body. */
 function readIssue(run: GhRun, repo: string, number: number): { readonly isOpen: boolean; readonly body: string } {
   const issue = JSON.parse(run(['api', `repos/${repo}/issues/${number}`])) as { state?: unknown; body?: unknown }
   return { isOpen: issue.state === 'open', body: typeof issue.body === 'string' ? issue.body : '' }
 }
 
-/** 本文は -f で渡す (-F だと、@ で始まる本文がファイルとして読まれる)。 */
+/** The body is passed with -f (with -F, a body starting with @ would be read as a file). */
 function writeIssueBody(run: GhRun, repo: string, number: number, body: string): void {
   run(['api', '-X', 'PATCH', `repos/${repo}/issues/${number}`, '-f', `body=${body}`])
 }

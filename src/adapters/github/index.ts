@@ -7,7 +7,7 @@ import { gh } from './gh.ts'
 import { githubIssueThread } from './issues.ts'
 import { projectBoardSource } from './project-board.ts'
 
-/** GitHub Project のボード、issue、PR を、gh と設定のスクリプトで扱う。 */
+/** Handles the GitHub Project board, issues, and PRs with gh and the configured scripts. */
 export function githubPorts(config: Config): Pick<Ports, 'board' | 'writer' | 'actions' | 'issues' | 'code'> {
   return {
     board: projectBoardSource(gh, config),

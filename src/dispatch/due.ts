@@ -10,20 +10,20 @@ export type DueResult =
 
 export type IdleGateResult = Exclude<DueResult, { readonly reason: 'already-dispatched' }>
 
-/** 自動で渡すのを止める受け入れ。検査を通る形のものだけ。枠の受け入れは、枠の始まりの 15 分前から。 */
+/** An acknowledgement that stops automatic hand-over. Only those of a shape that passes the check. A slot acknowledgement applies from 15 minutes before the slot starts. */
 function isBlockingAck(ack: Ack, member: string, config: Config, now: Date): boolean {
   if (ack.rule !== 'T-IDLE' || ack.subject !== member || Date.parse(ack.until) <= now.getTime() || !isValidIdleAck(ack, config)) return false
   return ack.slotAt === undefined || now.getTime() >= Date.parse(ack.slotAt) - SLOT_LEAD_MS
 }
 
-/** 新しい issue を渡した最後の時刻 (促しは数えない)。無ければ 0。 */
+/** The last time a new issue was handed over (nudges are not counted). 0 if none. */
 function lastDispatchAt(records: readonly DispatchRecord[], member: string): number {
   return Math.max(0, ...records.filter((record) => record.member === member && record.kind !== 'nudge').map((record) => Date.parse(record.at)))
 }
 
 /**
- * 部下に何かを送る時か (新しい issue を渡すか、自分の作業中を進めるよう促すかは、別に決める)。
- * 空きが idleMinutes 続き、有効な受け入れが無く、渡す相手に入っていること。
+ * Whether it is time to send something to a member (whether to hand over a new issue or nudge them to advance their own In Progress issue is decided separately).
+ * The free span has lasted idleMinutes, there is no valid acknowledgement, and the member is among those who receive handovers.
  */
 export function idleGate(member: MemberState, acks: readonly Ack[], config: Config, now: Date): IdleGateResult {
   const dispatch = dispatchOf(config)
@@ -36,8 +36,8 @@ export function idleGate(member: MemberState, acks: readonly Ack[], config: Conf
 }
 
 /**
- * 部下に次の issue を渡す時か。idleGate に加えて、前に渡した後、その人が一度も動かないまま
- * (空きが渡した時刻より前から続いている) なら、重ねて渡さない。
+ * Whether it is time to hand the next issue to a member. In addition to idleGate, if after the previous handover the person has not moved even once
+ * (the free span has continued since before the handover time), it is not handed over again.
  */
 export function dispatchDue(
   member: MemberState,

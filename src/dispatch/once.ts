@@ -27,10 +27,10 @@ const ACTION_REASON: Readonly<Record<string, string>> = {
 }
 
 /**
- * 待機の外から、部下に 1 回だけ、選んで渡す。待機プロセスは、部下の Stop と SessionStart でしか始まらないので、
- * dispatch を有効にした時にすでに空いている部下は、次の Stop まで渡されない。その部下を、1 回だけ動かす手。
- * ボードの書き換え (担当と Status) は、待機プロセスと同じ道 (dispatchStep) で行う。部下のセッションを起こすことは、ここではできないので、
- * 返した文面を、呼んだ人が、その部下のセッションに送る。names を渡せばその人だけ、無ければ渡す相手の全員を見る。
+ * Selects and hands over to a member exactly once, from outside the watch. The watch process starts only at a member's Stop and SessionStart,
+ * so a member who is already free when dispatch is enabled is not handed anything until the next Stop. This is the means of moving that member exactly once.
+ * The board rewrite (assignee and Status) goes through the same path as the watch process (dispatchStep). It cannot wake the member's session here, so
+ * the caller sends the returned text to that member's session. If names is given, only those people; if absent, everyone among those who receive handovers is looked at.
  */
 export function dispatchOnce(p: Paths, config: Config, now: Date, ports: DispatchPorts, names: readonly string[] = []): readonly OnceResult[] {
   const dispatch = dispatchOf(config)
@@ -49,7 +49,7 @@ export function dispatchOnce(p: Paths, config: Config, now: Date, ports: Dispatc
   })
 }
 
-/** 結果を、呼んだ人が読む形にする。送る文面には、送り先を付ける。 */
+/** Turns the result into a form the caller reads. The text to send is given its destination. */
 export function formatOnce(results: readonly OnceResult[]): string {
   const sent = results.filter((result) => result.outcome !== null)
   const lines = results.map((result) => (result.outcome === null ? `${result.member}: not sending (${result.reason})` : `${result.member}: sending (${result.outcome.record.kind === 'nudge' ? 'nudge' : 'handed over'} ${result.outcome.record.label})`))

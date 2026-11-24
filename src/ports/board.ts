@@ -4,33 +4,33 @@ import type { StatusEvent } from '../sprint/effort.ts'
 import type { Mark } from '../sprint/marks.ts'
 
 /**
- * ボードを読む。読めなければ投げる。返ってきた中身が読めない形のときは FetchError (board/fetch-log.ts) を投げ、
- * 取得の生の出力を持たせる (refreshSnapshot が log に残す)。
+ * Reads the board. Throws if it cannot be read. When the returned content is in an unreadable shape, throws FetchError (board/fetch-log.ts)
+ * carrying the raw output of the fetch (refreshSnapshot leaves it in the log).
  */
 export type BoardSource = {
-  /** ボードの項目と、ボードの外も含めた開いている issue。sprint の設定があれば、作業中の issue に Status の変化の記録を付ける */
+  /** The board's items, and the open issues including those outside the board. If there is a sprint config, attaches the Status change record to In Progress issues */
   readonly fetchSnapshot: (now: Date) => Snapshot
-  /** issue ごとの Status の変化を、ラベルをキーに読む。読めなければ null (記録が無いのと「期間が 0」を取り違えない) */
+  /** Reads each issue's Status changes, keyed by label. null if it cannot be read (so "no record" and "period is 0" are not confused) */
   readonly statusEvents: (items: readonly BoardItem[]) => ReadonlyMap<string, readonly StatusEvent[]> | null
 }
 
-/** ボードに書く。書けなければ投げる。 */
+/** Writes to the board. Throws if it cannot write. */
 export type BoardWriter = {
-  /** 担当と Status を書く手段があるか。無ければ、空いた部下に仕事を渡さない */
+  /** Whether there is a means of writing the assignee and Status. If not, no work is handed to free members */
   readonly canAssign: boolean
   readonly assign: (item: BoardItem, member: string) => void
   readonly setStatus: (item: BoardItem, status: string) => void
   /** Whether a way to set the blocked reason exists. Without it, a decision cannot unblock an item. */
   readonly canSetReason: boolean
   readonly setReason: (item: BoardItem, reason: string) => void
-  /** 超えた節目の数を書く。1 件の失敗で止めず、失敗したものの説明を返す */
+  /** Writes the number of exceeded checkpoints. A single failure does not stop it; returns descriptions of the ones that failed */
   readonly writeOverrun: (marks: readonly Mark[]) => readonly string[]
 }
 
-/** エージェントのツールの呼び出しから、ボードへの書き込みを読み取る。 */
+/** Reads writes to the board from an agent's tool calls. */
 export type ActionReader = {
-  /** Bash のコマンドの文字列から、ボードを書き換えるコマンドを読む */
+  /** Reads, from a Bash command string, the command that rewrites the board */
   readonly commandsOf: (command: string) => readonly BoardCommand[]
-  /** bin/scrum が node を起こすかを決める型 (grep -E)。post はツールの呼び出しの後、pre は書き込みの前に見る。pre が空なら確かめない */
+  /** Patterns (grep -E) that decide whether bin/scrum starts node. post is checked after a tool call, pre before a write. If pre is empty, nothing is checked */
   readonly shellPatterns: () => { readonly post: string; readonly pre: string }
 }

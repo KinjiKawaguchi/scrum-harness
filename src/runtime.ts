@@ -8,13 +8,13 @@ import type { Identity } from './team/identity.ts'
 
 const CLI_PATH = fileURLToPath(new URL('./cli.ts', import.meta.url))
 
-/** ボードの取り直しを、フックを待たせない別のプロセスで始める。 */
+/** Starts the board re-fetch in a separate process that does not make the hook wait. */
 export function spawnRefresh(): void {
   const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'refresh'], { detached: true, stdio: 'ignore' })
   child.unref()
 }
 
-/** 節目の記録を、フックを待たせない別のプロセスで始める。 */
+/** Starts the checkpoint recording in a separate process that does not make the hook wait. */
 export function spawnCheckpoint(): void {
   const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'checkpoint'], { detached: true, stdio: 'ignore' })
   child.unref()

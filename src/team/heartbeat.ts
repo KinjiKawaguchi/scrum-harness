@@ -8,7 +8,7 @@ const HEARTBEAT_TTL_MS = 24 * 60 * 60 * 1000
 
 type HeartbeatFile = SessionSignal & { readonly pid: number | null }
 
-/** 次に書く心拍。同じ状態が30秒以内に続くだけなら書かない (null)。 */
+/** The next heartbeat to write. If the same state merely continues within 30 seconds, none is written (null). */
 export function nextHeartbeat(
   prev: SessionSignal | null,
   sessionId: string,

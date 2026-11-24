@@ -5,7 +5,7 @@ import { linksOf, type LinksConfig } from './config.ts'
 import { isSkipped, referencedNumbers, type OpenPr } from './extract.ts'
 import { updateBody, type PrEntry } from './section.ts'
 
-/** 1 つの issue の本文を、どう書き換えるか。before は、計画を作ったときに読んだ本文 (書く直前に、これと同じか読み直して照らす)。 */
+/** How to rewrite one issue's body. before is the body read when the plan was made (just before writing, it is re-read and checked to be the same as this). */
 export type LinkPlan = {
   readonly repo: string
   readonly issue: number
@@ -14,17 +14,17 @@ export type LinkPlan = {
   readonly after: string
 }
 
-/** 計画と、書き換えない issue の番号 (印が壊れている、書いた後の本文でも印が読めない。どちらも issue の番号の小さい順)。 */
+/** The plan, and the numbers of issues that are not rewritten (the markers are broken, or the markers cannot be read even in the body after writing. Both in ascending issue number). */
 export type Planning = { readonly plans: readonly LinkPlan[]; readonly broken: readonly number[] }
 
 /**
- * 開いている issue ごとに、その番号を指す開いている PR を並べた、印の間の新しい本文を作る。本文が変わる issue だけを計画に入れる。
- * PR の数えない条件 (Dependabot、release/、sync/) と、指す番号の読み方は extract.ts。足す先は、開いている issue の一覧で決まるので、
- * PR の番号や、無い番号を指しても、どこにも足されない。印の間だけを書き換え、人が書いた所には触らない (section.ts)。
- * PR が閉じて、指す PR が無くなった issue は、印の組が消える。印が壊れている本文は、書き換えず、broken に入れる。
- * 書いた後の本文に流し直して、変わらない (印が読める) ことも見る。閉じていないコードの囲みがある本文は、足した印が囲みの中に入って読めず、
- * 流すたびに印の組が足される。そういう本文も broken に入れる。
- * issue の一覧は新しい順で返ってくるので、番号の小さい順に並べ直す (1 回に書き換える件数の上限は、小さい順に当てる)。
+ * For each open issue, builds the new body between the markers, lining up the open PRs that point at its number. Only issues whose body changes go into the plan.
+ * The conditions for PRs not being counted (Dependabot, release/, sync/) and how the numbers pointed at are read are in extract.ts. The place to add to is decided by the list of open issues, so
+ * a PR number, or a number that does not exist, being pointed at is not added anywhere. Only between the markers is rewritten, and what a person wrote is not touched (section.ts).
+ * For an issue whose PR closed and which has no PR pointing at it, the pair of markers is removed. A body with broken markers is not rewritten and is put in broken.
+ * The body after writing is also run through again to check it does not change (the markers are readable). In a body with an unclosed code fence, the added markers land inside the fence and cannot be read, and
+ * a pair of markers is added on every run. Such a body is also put in broken.
+ * The list of issues comes back newest first, so it is reordered in ascending number (the upper limit on the number rewritten per run is applied in ascending order).
  */
 export function planLinks(repo: string, prs: readonly OpenPr[], issues: readonly IssueBody[], links: LinksConfig): Planning {
   const byIssue = new Map<number, PrEntry[]>()
@@ -47,7 +47,7 @@ export function planLinks(repo: string, prs: readonly OpenPr[], issues: readonly
   }
 }
 
-/** PR を読み、issue の本文を読み書きする。 */
+/** Reads PRs, and reads and writes issue bodies. */
 export type LinkPorts = { readonly code: Pick<CodeHost, 'openPullRequests'>; readonly issues: IssueThread }
 
 export type SkipReason = 'changed' | 'closed' | 'failed'
@@ -61,8 +61,8 @@ export type LinkResult = {
 const EMPTY_RESULT: LinkResult = { planned: [], applied: [], skipped: [], broken: [] }
 
 /**
- * 1 つの issue を書き換える。書く直前に、本文を読み直し、計画を作ったときの本文と違えば (人が直した) 書かない。
- * 書く前の本文は、log/links-before.jsonl に残す。
+ * Rewrites one issue. Just before writing, re-reads the body, and if it differs from the body when the plan was made (a person edited it), does not write.
+ * The body before writing is kept in log/links-before.jsonl.
  */
 function apply(p: Paths, issues: IssueThread, plan: LinkPlan, now: Date): SkipReason | null {
   const at = now.toISOString()
@@ -97,9 +97,9 @@ function linkRepo(p: Paths, repo: string, ports: LinkPorts, links: LinksConfig, 
 }
 
 /**
- * 設定の repos ごとに、開いている PR を読み、issue の本文の、印の間を書き換える。
- * 1 回に書き換えるのは、リポジトリ全体で maxEditsPerRun 件まで (設定のリポジトリの順に、issue の番号の小さい順)。dryRun なら、何も書き換えず、予定だけを返す。
- * 読むのに失敗したリポジトリは、記録して飛ばす。
+ * For each of the config's repos, reads the open PRs and rewrites between the markers in issue bodies.
+ * The number rewritten in one run is at most maxEditsPerRun across all repositories (in the order of the config's repositories, then ascending issue number). With dryRun, nothing is rewritten and only the plan is returned.
+ * A repository that failed to read is recorded and skipped.
  */
 export function linkPullRequests(p: Paths, config: Config, now: Date, ports: LinkPorts, options: { readonly dryRun: boolean }): LinkResult {
   const links = linksOf(config)
@@ -120,7 +120,7 @@ export function linkPullRequests(p: Paths, config: Config, now: Date, ports: Lin
   }
 }
 
-/** 前に流してから intervalMinutes たっているか。 */
+/** Whether intervalMinutes have passed since the last run. */
 export function isLinksDue(p: Paths, config: Config, now: Date): boolean {
   const links = linksOf(config)
   if (!links.enabled) return false
@@ -128,7 +128,7 @@ export function isLinksDue(p: Paths, config: Config, now: Date): boolean {
   return last === null || now.getTime() - Date.parse(last) >= links.intervalMinutes * 60_000
 }
 
-/** TechLead の待機プロセスから呼ぶ。間隔が来ていれば、1 回流す。流すと決めた時点で時刻を書く (失敗しても、30 秒ごとには試さない)。 */
+/** Called from the TechLead's watch process. If the interval has come, runs once. The time is written at the point of deciding to run (even on failure, it does not try every 30 seconds). */
 export function runLinksIfDue(p: Paths, config: Config, now: Date, ports: LinkPorts): LinkResult | null {
   if (!isLinksDue(p, config, now) || !tryLock(p.linksLock)) return null
   try {

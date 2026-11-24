@@ -1,7 +1,7 @@
 import { appendLine, readText, type Paths } from '../store.ts'
 import type { DispatchRecord } from './types.ts'
 
-/** 渡した仕事の記録を読む。読めない行は捨てる。 */
+/** Reads the record of work handed over. Unreadable lines are dropped. */
 export function readDispatches(p: Paths): readonly DispatchRecord[] {
   return readText(p.dispatches)
     .split('\n')

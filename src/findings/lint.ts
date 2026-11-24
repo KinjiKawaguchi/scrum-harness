@@ -27,18 +27,18 @@ import { bySeverity, makeFinding, type Finding } from './types.ts'
 
 export type LintContext = {
   readonly snapshot: Snapshot | null
-  /** TechLead と部下の稼働 */
+  /** Activity of the TechLead and the members */
   readonly members: readonly MemberState[]
   readonly acks: readonly Ack[]
   readonly config: Config
   readonly now: Date
-  /** 手間を数えるときの過去の記録 (節目の記録と、全セッションが止まっていた時間)。無ければ、どの節目も除かない */
+  /** Past records used when counting effort (the checkpoint records and the time when all sessions were stalled). If absent, no checkpoint is excluded */
   readonly history?: CountingHistory
-  /** 空いた部下に渡した仕事の記録 */
+  /** The record of work handed to free members */
   readonly dispatches?: readonly DispatchRecord[]
-  /** 止まりの検知が覚えている、最初に見た時刻 */
+  /** The time first seen, remembered by stall detection */
   readonly alerts?: AlertState
-  /** 待機プロセスが最後に見た、部下ごと、issue ごとの作業の印 (A-NUDGE-IGNORED が、促しの判断と同じ印で比べるため) */
+  /** The work markers the watch process last saw, per member and per issue (so that A-NUDGE-IGNORED compares with the same marker as the nudge decision) */
   readonly seen?: SeenMap
   /** Requests to the owner. One the owner answered and the team has not closed becomes R-ANSWERED. */
   readonly requests?: readonly OwnerRequest[]
@@ -48,7 +48,7 @@ export type LintResult = { readonly active: readonly Finding[]; readonly acked: 
 
 const EMPTY: Snapshot = { fetchedAt: new Date(0).toISOString(), items: [], openIssues: [] }
 
-/** 取り直しが3回続けて失敗したくらい古い控え。指摘がその古さのまま出ていることを TechLead に伝える。 */
+/** A board copy as stale as after 3 failed re-fetches in a row. Tells the TechLead that the findings are being shown at that staleness. */
 const STALE_FACTOR = 3
 
 function lintFreshness(snapshot: Snapshot | null, config: Config, now: Date): readonly Finding[] {
@@ -78,12 +78,12 @@ export function lintAll(ctx: LintContext): LintResult {
     ...evaluateAlerts({ ...ctx, dispatches: ctx.dispatches ?? [], alerts: ctx.alerts ?? EMPTY_ALERT_STATE }).findings,
     ...lintRequests(ctx.requests ?? [], ctx.config),
   ]
-  // 作るときの検査 (最長 1 時間、決まった理由) を通らない T-IDLE の受け入れは、指摘を黙らせない
+  // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
   return { active: active.toSorted(bySeverity), acked }
 }
 
-/** フックの心拍とセッションの記録を合わせる。心拍が無い部下も、空いていることが分かる。 */
+/** Combines the hook heartbeat and the session records. A member without a heartbeat is also known to be free. */
 export function collectSignals(p: Paths, now: Date, sessions: SessionDirectory): readonly SessionSignal[] {
   return [...sessions.signals(), ...readHeartbeats(p, now)]
 }

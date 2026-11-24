@@ -25,7 +25,7 @@ import type { ActionReader, IssueThread, Ports, SessionDirectory } from './ports
 
 export type Flags = Readonly<Record<string, string | true>>
 
-/** 値を取らない旗。次の語を値として取らず、位置引数のままにする (scrum dispatch --once <名前> の名前が、旗の値にならないように)。 */
+/** Flags that take no value. The next word is not taken as the value but stays a positional argument (so that the name in scrum dispatch --once <name> does not become the flag's value). */
 const SWITCH_FLAGS: ReadonlySet<string> = new Set(['once', 'json', 'refresh', 'dry-run'])
 
 export function parseFlags(args: readonly string[]): { readonly positional: readonly string[]; readonly flags: Flags } {
@@ -68,7 +68,7 @@ export function teamCommand(p: Paths, config: Config, sessions: SessionDirectory
     .join('\n')
 }
 
-/** T-IDLE の受け入れの検査。設定が無ければ、理由を検査できないので記録しない。 */
+/** The check of a T-IDLE acknowledgement. If there is no config, the reason cannot be checked, so nothing is recorded. */
 function checkIdle(config: Config | null, reason: string, durationMs: number, now: Date): IdleAckCheck {
   if (config === null) return { ok: false, message: 'There is no configuration, so a T-IDLE acknowledgement cannot be recorded' }
   return checkIdleAck({ reason, durationMs, now, config })
@@ -131,7 +131,7 @@ export function reportCommand(p: Paths, flags: Flags): string {
   return formatReport(events, since)
 }
 
-/** statusline から呼ぶ。TechLead のセッションでだけ、控えから短い表示を返す。ボードは取りに行かない。 */
+/** Called from the statusline. Only in the TechLead's session, returns a short display from the board copy. It does not go to fetch the board. */
 export function statuslineCommand(p: Paths, config: Config, input: Record<string, unknown>, sessions: SessionDirectory): string {
   const sessionId = typeof input.session_id === 'string' ? input.session_id : ''
   const now = new Date()
@@ -154,11 +154,11 @@ export function installCommand(p: Paths, isInstall: boolean): string {
   ].filter((line) => line !== '').join('\n')
 }
 
-/** 設定のスクリプト名から、bin/scrum が読む型を書く。中身が変わったときだけ書く。 */
+/** From the configured script names, writes the patterns that bin/scrum reads. Writes only when the content changes. */
 export function writeShellPatterns(p: Paths, config: Config, actions: ActionReader): void {
   const { post, pre } = actions.shellPatterns()
-  // 3 行目: 部下の待機 (空いたら次の仕事を渡す) を起こすか。bin/scrum が、部下の watch で node を起こすかを決めるのに読む
-  // 4 行目: 窓口の待機 (止まりの検知を進め、窓口に送る文を受け取る) を起こすか。窓口の名前が決まっているときだけ 1
+  // Line 3: whether to start the member's watch (hand over the next work once free). bin/scrum reads it to decide whether to start node in a member's watch
+  // Line 4: whether to start the liaison's watch (advance stall detection and receive the text to send to the liaison). 1 only when the liaison's name is set
   const alerts = alertsOf(config)
   const liaisonFlag = alerts.enabled && alerts.liaison !== undefined ? '1' : '0'
   const content = `${post}\n${pre}\n${dispatchOf(config).enabled ? '1' : '0'}\n${liaisonFlag}\n`

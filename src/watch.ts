@@ -14,14 +14,14 @@ import { transitions, type MetricsState } from './metrics/events.ts'
 import type { Ports } from './ports/index.ts'
 import { appendLine, logError, readJson, releaseLock, tryLock, writeJson, type Paths } from './store.ts'
 
-/** 待機中の TechLead を起こす指摘。TechLead が作業中なら、フックで入るので起こさない。 */
+/** Findings that wake a TechLead who is waiting. If the TechLead is working, they enter through the hook, so no wake. */
 export function decideWake(ctx: LintContext, notified: readonly string[]): readonly Finding[] {
   const techlead = ctx.members.find((member) => member.name === ctx.config.techlead)
   if (techlead?.state === 'busy') return []
   return unseen(lintAll(ctx).active, notified, 'medium')
 }
 
-/** TechLead が作業中で、知らせていない指摘があるか。あれば印を置き、次のツールの呼び出しのフックで入れる。 */
+/** Whether the TechLead is working and there is a finding not yet notified. If so, places a marker, and it is injected at the next tool-call hook. */
 export function hasPending(ctx: LintContext, notified: readonly string[]): boolean {
   const techlead = ctx.members.find((member) => member.name === ctx.config.techlead)
   if (techlead?.state !== 'busy') return false
@@ -62,8 +62,8 @@ function step(p: Paths, config: Config, ports: Ports): string | null {
 }
 
 /**
- * TechLead の Stop と SessionStart から asyncRewake で起動する。ボードを定期的に取り直し、
- * 知らせていない指摘が出たら、その文を返して exit 2 で TechLead を起こす。1つだけ動く。
+ * Started with asyncRewake from the TechLead's Stop and SessionStart. Re-fetches the board periodically, and
+ * when a finding not yet notified appears, returns its text and wakes the TechLead with exit 2. Only one runs.
  */
 export async function runWatch(p: Paths, config: Config, options: WatchOptions, ports: Ports): Promise<string | null> {
   if (!tryLock(p.watchLock)) return null

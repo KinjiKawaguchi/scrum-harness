@@ -16,15 +16,15 @@ import { observe, readSeen, tokenWith, writeSeen } from './progress.ts'
 import { appendDispatch } from './records.ts'
 import type { DispatchRecord } from './types.ts'
 
-/** 渡すのに失敗したあと、次に試すまで待つ時間。失敗が続いても、30 秒ごとには試さない。 */
+/** The time to wait before trying again after a hand-over failed. Even if failures continue, it does not try every 30 seconds. */
 const FAILURE_BACKOFF_MS = 5 * 60_000
 
 export type DispatchOutcome = { readonly message: string; readonly record: DispatchRecord }
 
-/** 渡すときに使うポート。ボードに書き、ブランチを用意し、作業の印を読み、部下の稼働を読む。 */
+/** The ports used when handing over. They write to the board, prepare the branch, read work markers, and read members' activity. */
 export type DispatchPorts = Pick<Ports, 'writer' | 'code' | 'sessions'>
 
-/** 紐づいたブランチを用意する。失敗しても、渡すことは止めない (文面に、用意できなかったと書く)。 */
+/** Prepares the linked branch. Even on failure, the hand-over is not stopped (the text says it could not be prepared). */
 function linkBranch(p: Paths, code: Ports['code'], item: BoardItem): LinkOutcome {
   try {
     return code.prepareBranch(item)
@@ -40,11 +40,11 @@ function isBackingOff(p: Paths, now: Date): boolean {
 }
 
 /**
- * 空いている部下に、次の仕事を送る (LLM は通さない)。止まっていない自分の作業中の issue があれば、新しい issue は
- * 渡さず、それを進めるよう促す (ボードは書き換えない)。無いか、止まっていれば、決まった順で次の issue を渡す。
- * 渡すときは、ボードの担当と Status を書き換える。どちらも記録を残し、部下に送る文面を返す。
- * 送らないとき (空いていない、受け入れがある、渡せるものが無い、失敗) は null。
- * 錠の中で控えを読み直し、同じ issue を 2 人に渡さない。
+ * Sends the next work to a free member (without going through the LLM). If they have their own In Progress issue that is not blocked, no new issue is
+ * handed over, and they are nudged to advance it (the board is not rewritten). If there is none, or it is blocked, the next issue is handed over in the fixed order.
+ * On a handover, the board's assignee and Status are rewritten. Both leave a record, and the text to send to the member is returned.
+ * null when nothing is sent (not free, an acknowledgement exists, nothing to hand over, a failure).
+ * Inside the lock the board copy is re-read, so the same issue is not handed to two people.
  */
 export function dispatchStep(
   p: Paths,
@@ -76,7 +76,7 @@ export function dispatchStep(
       appendLine(p.events, JSON.stringify({ type: 'nudged', count: action.count, ...record }))
       return { message: nudgeMessage(item, memberName, config), record }
     }
-    // 書き込む前に、ボードへの書き込みの守りと同じ検査 (作業中の上限、除く作者の作業中も数える) を通す。通らなければ、渡さない
+    // Before writing, runs the same check as the guard on writes to the board (In Progress limit; In Progress by excluded authors is also counted). If it does not pass, nothing is handed over
     const setDoing = { kind: 'set-status', label: label(item), status: config.statuses.doing } as const
     if (checkGuard(ctx.snapshot, [setDoing], config) !== null) return null
     if (item.assignee !== memberName) ports.writer.assign(item, memberName)
@@ -103,8 +103,8 @@ export function dispatchStep(
 export type MemberWatchOptions = { readonly maxMs: number; readonly intervalMs: number }
 
 /**
- * 部下の Stop と SessionStart から asyncRewake で起動する。ボードを定期的に取り直し、この人に渡す時が来たら、
- * 渡して、その文を返す (exit 2 でこのセッションを起こす)。部下ごとに 1 つだけ動く。
+ * Started with asyncRewake from a member's Stop and SessionStart. Re-fetches the board periodically, and when the time comes to hand over to this person,
+ * hands over and returns that text (exit 2 wakes this session). Only one runs per member.
  */
 export async function runMemberWatch(
   p: Paths,

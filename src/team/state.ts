@@ -1,6 +1,6 @@
 import type { MemberState, SessionSignal } from './types.ts'
 
-/** 同じセッションの信号を1つにする。状態は更新の新しいほう、名前を取った時刻はどちらかにあるもの。 */
+/** Merges signals of the same session into one. For the state, the more recently updated one; for the time the name was taken, whichever has it. */
 function latestPerSession(signals: readonly SessionSignal[]): readonly SessionSignal[] {
   const latest = signals.reduce<ReadonlyMap<string, SessionSignal>>((acc, signal) => {
     const current = acc.get(signal.sessionId)
@@ -24,8 +24,8 @@ function memberState(name: string, sessions: readonly SessionSignal[]): MemberSt
 }
 
 /**
- * 名前ごとに、生きているセッションのうち名前を後から取ったものの状態を採る。
- * 背景に移したあとに残った古いセッションの記録が、状態を止めたまま残ることがあるため。
+ * Per name, takes the state of the live session that took the name later.
+ * This is because a session record left behind after moving to the background can remain with its state stuck.
  */
 export function aggregateMembers(signals: readonly SessionSignal[], names: readonly string[]): readonly MemberState[] {
   const live = latestPerSession(signals).filter((signal) => signal.isAlive && signal.state !== 'ended')
