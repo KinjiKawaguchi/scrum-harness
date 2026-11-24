@@ -32,7 +32,7 @@ const C2 = jst('2026-10-29T21:00:00')
 const C3 = jst('2026-10-30T08:00:00')
 const C4 = jst('2026-10-30T13:00:00')
 const doingSince = [{ at: jst('2026-10-29T09:00:00').toISOString(), status: config.statuses.doing }]
-const doing = (overrides: Parameters<typeof issue>[1] = {}) => issue(1, { status: config.statuses.doing, tanto: 'SWE1', points: 3, statusEvents: doingSince, ...overrides })
+const doing = (overrides: Parameters<typeof issue>[1] = {}) => issue(1, { status: config.statuses.doing, assignee: 'SWE1', points: 3, statusEvents: doingSince, ...overrides })
 const stopAt = (...times: readonly Date[]) => (at: Date) => times.some((time) => time.getTime() === at.getTime())
 const eventLine = (type: string, at: Date) => JSON.stringify({ at: at.toISOString(), type, name: 'SWE1', from: 'idle', to: 'busy', minutes: 1 })
 /** 10/29 08:00 と、15:00 から今まで 1 時間おきの動き。C1 (13:00) だけが、7 時間の抜けの内側に入る */

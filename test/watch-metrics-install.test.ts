@@ -20,11 +20,11 @@ function ctx(techleadState: MemberState['state']): LintContext {
 
 describe('decideWake', () => {
   it('TechLead が空いていれば、知らせていない中以上の指摘で起こす', () => {
-    assert.deepEqual(decideWake(ctx('idle'), []).map((f) => f.key), ['B-DOING-NO-TANTO:app#1'])
+    assert.deepEqual(decideWake(ctx('idle'), []).map((f) => f.key), ['B-DOING-NO-ASSIGNEE:app#1'])
   })
 
   it('知らせた指摘では起こさない', () => {
-    assert.deepEqual(decideWake(ctx('idle'), ['B-DOING-NO-TANTO:app#1']), [])
+    assert.deepEqual(decideWake(ctx('idle'), ['B-DOING-NO-ASSIGNEE:app#1']), [])
   })
 
   it('TechLead が作業中なら起こさない (フックで入る)', () => {
@@ -42,7 +42,7 @@ describe('hasPending', () => {
   })
 
   it('知らせた指摘しか無ければ印を置かない', () => {
-    assert.equal(hasPending(ctx('busy'), ['B-DOING-NO-TANTO:app#1']), false)
+    assert.equal(hasPending(ctx('busy'), ['B-DOING-NO-ASSIGNEE:app#1']), false)
   })
 })
 

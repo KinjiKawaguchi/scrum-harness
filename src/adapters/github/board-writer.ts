@@ -54,16 +54,16 @@ function numberOf(item: BoardItem): string {
 }
 
 /**
- * 担当と Status は、設定のスクリプト (scripts.setTanto、scripts.setStatus) で書く。どちらかが無ければ、書けない (canAssign が false)。
+ * 担当と Status は、設定のスクリプト (scripts.setAssignee、scripts.setStatus) で書く。どちらかが無ければ、書けない (canAssign が false)。
  * 超過は、gh project item-edit で書く。
  */
 export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): BoardWriter {
-  const { setStatus, setTanto, setReason } = config.scripts
+  const { setStatus, setAssignee, setReason } = config.scripts
   return {
-    canAssign: setStatus !== undefined && setTanto !== undefined,
+    canAssign: setStatus !== undefined && setAssignee !== undefined,
     assign: (item, member) => {
-      if (setTanto === undefined) throw new Error('scripts.setTanto が無い')
-      exec(setTanto, [numberOf(item), member])
+      if (setAssignee === undefined) throw new Error('scripts.setAssignee が無い')
+      exec(setAssignee, [numberOf(item), member])
     },
     setStatus: (item, status) => {
       if (setStatus === undefined) throw new Error('scripts.setStatus が無い')

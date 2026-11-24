@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
 import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
+import { withConfigAliases } from './compat.ts'
 
 export type StatusNames = {
   readonly backlog: string
@@ -24,7 +25,7 @@ export type ProjectConfig = {
     readonly reason: string
     readonly since: string
     readonly owner: string
-    readonly tanto: string
+    readonly assignee: string
   }
   readonly statusFieldId: string
   readonly statuses: StatusNames
@@ -57,7 +58,7 @@ export type BoardScripts = {
   /** <番号> <止まっている理由> [YYYY-MM-DD] */
   readonly setReason?: string
   /** <番号> <担当> */
-  readonly setTanto?: string
+  readonly setAssignee?: string
   /** <Status> <リポジトリ名#番号>... */
   readonly bulkStatus?: string
   /** <owner/repo> <PR の番号> */
@@ -200,7 +201,7 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
 /** 設定ファイルはシステムの境界なので、欠けた値があれば使わない。 */
 export function parseConfig(raw: unknown): Config | null {
   if (typeof raw !== 'object' || raw === null) return null
-  const record = raw as Record<string, unknown>
+  const record = withConfigAliases(raw as Record<string, unknown>)
   const isValid =
     REQUIRED_STRINGS.every((key) => typeof record[key] === 'string') &&
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&

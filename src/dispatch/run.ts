@@ -79,14 +79,14 @@ export function dispatchStep(
     // 書き込む前に、ボードへの書き込みの守りと同じ検査 (作業中の上限、除く作者の作業中も数える) を通す。通らなければ、渡さない
     const setDoing = { kind: 'set-status', label: label(item), status: config.statuses.doing } as const
     if (checkGuard(ctx.snapshot, [setDoing], config) !== null) return null
-    if (item.tanto !== memberName) ports.writer.assign(item, memberName)
+    if (item.assignee !== memberName) ports.writer.assign(item, memberName)
     ports.writer.setStatus(item, config.statuses.doing)
     const branch = linkBranch(p, ports.code, item)
     const record: DispatchRecord = { at: now.toISOString(), member: memberName, label: label(item), title: item.title, ...(typeof branch === 'object' && branch !== null ? { branch: branch.name } : {}) }
     appendDispatch(p, record)
     appendLine(p.events, JSON.stringify({ type: 'dispatched', tier: action.tier, ...record }))
     const commands = [
-      { kind: 'set-tanto', label: record.label, tanto: memberName },
+      { kind: 'set-assignee', label: record.label, assignee: memberName },
       { kind: 'set-status', label: record.label, status: config.statuses.doing },
     ] as const
     saveSnapshot(p, applyCommands(ctx.snapshot, commands, config, now.toISOString().slice(0, 10)))

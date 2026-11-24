@@ -19,17 +19,17 @@ describe('parseBoardCommands', () => {
   })
 
   it('&& でつないだ複数のコマンドを読む', () => {
-    const commands = parse('cd t && ./set-status 1 Done && ./set-tanto 1 なし; ./set-reason 2 外部待ち 2026-10-07')
+    const commands = parse('cd t && ./set-status 1 Done && ./set-assignee 1 なし; ./set-reason 2 外部待ち 2026-10-07')
     assert.deepEqual(commands, [
       { kind: 'set-status', label: 'app#1', status: '完了' },
-      { kind: 'set-tanto', label: 'app#1', tanto: null },
+      { kind: 'set-assignee', label: 'app#1', assignee: null },
       { kind: 'set-reason', label: 'app#2', reason: '外部待ち', since: '2026-10-07' },
     ])
   })
 
   it('引用符で囲んだ担当の名前を読む', () => {
-    assert.deepEqual(parse('set-tanto 9 "別のセッション"'), [
-      { kind: 'set-tanto', label: 'app#9', tanto: '別のセッション' },
+    assert.deepEqual(parse('set-assignee 9 "別のセッション"'), [
+      { kind: 'set-assignee', label: 'app#9', assignee: '別のセッション' },
     ])
   })
 
@@ -68,8 +68,8 @@ describe('parseBoardCommands', () => {
 describe('applyCommands', () => {
   it('Status・理由・担当を控えに反映する', () => {
     const before = snapshot([issue(1)])
-    const after = applyCommands(before, parse('set-status 1 作業中 && set-tanto 1 SWE1'), config, '2026-10-08')
-    assert.deepEqual([after.items[0]?.status, after.items[0]?.tanto], ['作業中', 'SWE1'])
+    const after = applyCommands(before, parse('set-status 1 作業中 && set-assignee 1 SWE1'), config, '2026-10-08')
+    assert.deepEqual([after.items[0]?.status, after.items[0]?.assignee], ['作業中', 'SWE1'])
     assert.equal(before.items[0]?.status, 'バックログ')
   })
 
@@ -92,7 +92,7 @@ describe('applyCommands', () => {
 })
 
 describe('checkGuard', () => {
-  const full = snapshot(Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', tanto: 'SWE1' })))
+  const full = snapshot(Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', assignee: 'SWE1' })))
 
   it('上限に達しているのに作業中を増やすと拒否する', () => {
     const reason = checkGuard(snapshot([...full.items, issue(50)]), parse('set-status 50 作業中'), config)
@@ -121,7 +121,7 @@ describe('referencedLabels と mergeContext', () => {
   })
 
   it('ボードにある issue の今の状態を並べる', () => {
-    const board = snapshot([issue(11, { status: '作業中', tanto: 'SWE1' })])
+    const board = snapshot([issue(11, { status: '作業中', assignee: 'SWE1' })])
     const text = mergeContext(board, 'app#220', ['app#11', 'app#999'], config) ?? ''
     assert.match(text, /app#220 をマージした/)
     assert.match(text, /app#11 Status=作業中 理由=なし 担当=SWE1/)
@@ -148,8 +148,8 @@ describe('スクリプトの設定', () => {
   })
 
   it('値を空にする語を設定していなければ、担当はそのまま読む', () => {
-    const noClear = { ...config, scripts: { setTanto: 'set-tanto' } }
-    assert.deepEqual(parseBoardCommands('set-tanto 9 なし', noClear), [{ kind: 'set-tanto', label: 'app#9', tanto: 'なし' }])
+    const noClear = { ...config, scripts: { setAssignee: 'set-assignee' } }
+    assert.deepEqual(parseBoardCommands('set-assignee 9 なし', noClear), [{ kind: 'set-assignee', label: 'app#9', assignee: 'なし' }])
   })
 })
 

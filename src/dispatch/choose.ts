@@ -17,9 +17,9 @@ export function isOpenIssue(item: BoardItem, config: Config): boolean {
 /** 渡せる issue の区分。止まっている (理由がなし以外) もの、担当が他の人のものは渡さない。 */
 function tierOf(item: BoardItem, member: string, config: Config): Tier | null {
   if (item.reason !== config.reasonNone) return null
-  const isUnassigned = item.tanto === null || item.tanto === ''
-  if (item.status === config.statuses.next && item.tanto === member) return 1
-  if (item.status === config.statuses.backlog && item.tanto === member) return 2
+  const isUnassigned = item.assignee === null || item.assignee === ''
+  if (item.status === config.statuses.next && item.assignee === member) return 1
+  if (item.status === config.statuses.backlog && item.assignee === member) return 2
   if (item.status === config.statuses.next && isUnassigned) return 3
   return null
 }
@@ -42,7 +42,7 @@ function peoplePerEpic(snapshot: Snapshot, config: Config): ReadonlyMap<string, 
   const people = new Map<string, Set<string>>()
   doing.forEach((item) => {
     const set = people.get(item.epic ?? '') ?? new Set<string>()
-    set.add(item.tanto ?? '')
+    set.add(item.assignee ?? '')
     people.set(item.epic ?? '', set)
   })
   return new Map([...people].map(([epic, set]) => [epic, set.size]))
@@ -54,7 +54,7 @@ function peoplePerEpic(snapshot: Snapshot, config: Config): ReadonlyMap<string, 
  */
 export function ownDoingIssue(snapshot: Snapshot, member: string, config: Config): BoardItem | null {
   const own = snapshot.items.filter(
-    (item) => isOpenIssue(item, config) && item.status === config.statuses.doing && item.tanto === member && item.reason === config.reasonNone,
+    (item) => isOpenIssue(item, config) && item.status === config.statuses.doing && item.assignee === member && item.reason === config.reasonNone,
   )
   return own.toSorted((a, b) => (a.number ?? 0) - (b.number ?? 0))[0] ?? null
 }

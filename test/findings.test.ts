@@ -48,7 +48,7 @@ describe('acks', () => {
 })
 
 describe('notify', () => {
-  const high = finding('B-DOING-NO-TANTO', 'app#5', 'high')
+  const high = finding('B-DOING-NO-ASSIGNEE', 'app#5', 'high')
   const medium = finding('B-CLOSED-NOT-DONE', 'app#7')
   const low = finding('B-SINCE-STRAY', 'app#9', 'low')
 

@@ -208,7 +208,7 @@ describe('dispatchStep のブランチ', () => {
   })
 
   it('促しの文面は、ブランチを用意しない', () => {
-    saveSnapshot(p, snapshot([issue(12, { status: '作業中', tanto: 'SWE1', title: '進行中' })]))
+    saveSnapshot(p, snapshot([issue(12, { status: '作業中', assignee: 'SWE1', title: '進行中' })]))
     let called = false
     const outcome = dispatchStep(
       p,

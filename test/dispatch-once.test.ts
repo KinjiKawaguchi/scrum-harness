@@ -37,7 +37,7 @@ describe('dispatchOnce', () => {
     const [result] = dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['SWE1'])
     assert.equal(result?.member, 'SWE1')
     assert.match(result?.outcome?.message ?? '', /^scrum-harness: SWE1 に次の仕事を渡した。\napp#11 次の仕事/)
-    assert.deepEqual(calls, [['set-tanto', ['11', 'SWE1']], ['set-status', ['11', '作業中']]])
+    assert.deepEqual(calls, [['set-assignee', ['11', 'SWE1']], ['set-status', ['11', '作業中']]])
   })
 
   it('名前を渡さなければ、渡す相手 (dispatch.members) の全員を見て、同じ issue を 2 人に渡さない', () => {
@@ -66,7 +66,7 @@ describe('dispatchOnce', () => {
   })
 
   it('作業が進んでいる人 (前に見た印から変わった) は、促さず、その理由を返す', () => {
-    saveSnapshot(p, snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]))
+    saveSnapshot(p, snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]))
     state('SWE1', 'idle', 30)
     assert.notEqual(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, () => 'a'), ['SWE1'])[0]?.outcome, null)
     const later = new Date(NOW.getTime() + 12 * 60_000)

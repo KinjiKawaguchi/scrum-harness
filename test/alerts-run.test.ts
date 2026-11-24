@@ -23,7 +23,7 @@ const notify = (title: string, body: string): void => {
   sent.push([title, body])
 }
 const stalledBoard = () => snapshot([epic(), child(101, { status: '次にやる' })])
-const movingBoard = () => snapshot([epic(), child(101, { status: '作業中', tanto: 'SWE1' })])
+const movingBoard = () => snapshot([epic(), child(101, { status: '作業中', assignee: 'SWE1' })])
 
 function heartbeat(name: string, state: ActivityState, at: Date): void {
   writeHeartbeat(p, { sessionId: `session-${name}`, name, pid: null }, state, at)
@@ -156,7 +156,7 @@ describe('alertStep', () => {
   it('夜の間に止まった 4 つの Epic が、同じ評価で一度に E-STALL になっても、窓口への通知は 1 通で、1 行ずつ、止まっている理由が付く', () => {
     const epics = [100, 200, 300, 400].flatMap((number, index) => [
       issue(number, { title: `Epic ${number}`, labels: [] }),
-      child(number + 1, { status: index === 0 ? '作業中' : '次にやる', tanto: index === 0 ? 'SWE1' : null, reason: index === 0 ? '判断待ち' : 'なし', epic: `app#${number}` }),
+      child(number + 1, { status: index === 0 ? '作業中' : '次にやる', assignee: index === 0 ? 'SWE1' : null, reason: index === 0 ? '判断待ち' : 'なし', epic: `app#${number}` }),
     ])
     saveSnapshot(p, snapshot(epics))
     step(NOW)
@@ -212,7 +212,7 @@ describe('alertStep', () => {
 
   it('作業中が上限で渡せない部下は、30 分を過ぎても、オーナーへ通知しない (TechLead の Q-EMPTY だけ)', () => {
     const tight = { ...enabled, wipLimit: 1 }
-    saveSnapshot(p, snapshot([issue(1, { status: '作業中', tanto: 'SWE2' }), issue(2, { status: '次にやる' })]))
+    saveSnapshot(p, snapshot([issue(1, { status: '作業中', assignee: 'SWE2' }), issue(2, { status: '次にやる' })]))
     step(NOW, false, tight)
     step(minutesLater(45), false, tight)
     assert.equal(sent.length, 0)

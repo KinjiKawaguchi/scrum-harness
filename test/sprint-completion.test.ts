@@ -67,7 +67,7 @@ describe('recordCompletions', () => {
 
   it('止まっていた節目は、かかった節目に数えない (節目の記録の止まり)', () => {
     const p = setup()
-    const records = [{ scheduledFor: jst('2026-10-29T21:00:00').toISOString(), recordedAt: jst('2026-10-29T21:01:00').toISOString(), items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', tanto: null }] }]
+    const records = [{ scheduledFor: jst('2026-10-29T21:00:00').toISOString(), recordedAt: jst('2026-10-29T21:01:00').toISOString(), items: [{ label: 'app#1', points: 3, budget: 2, effort: 2, over: 0, reason: '判断待ち', assignee: null }] }]
     appendLine(p.checkpoints, JSON.stringify(records[0]))
     const [one] = recordCompletions(p, previous, fresh, config, NOW, () => new Map([['app#1', timeline(config.statuses.done)]]))
     assert.equal(one?.effort, 3)

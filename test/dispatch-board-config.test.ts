@@ -84,7 +84,7 @@ describe('lintDispatch (A-DISPATCHED)', () => {
   })
 
   it('lintAll に載り、TechLead への通知の対象 (中以上) になる', () => {
-    const ctx = { snapshot: snapshot([issue(11, { status: '作業中', tanto: 'SWE1' })]), members: [], acks: [], config, now: NOW, dispatches: [record(5)] }
+    const ctx = { snapshot: snapshot([issue(11, { status: '作業中', assignee: 'SWE1' })]), members: [], acks: [], config, now: NOW, dispatches: [record(5)] }
     assert.deepEqual(lintAll(ctx).active.filter((finding) => finding.rule === 'A-DISPATCHED').map((finding) => finding.severity), ['medium'])
   })
 })
@@ -120,7 +120,7 @@ describe('A-NUDGE-IGNORED', () => {
   })
 
   it('促しの後に作業が進んだ (ボードの印が変わった) なら、出さない。進んだ後の促しから数え直す', () => {
-    const board = snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })])
+    const board = snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })])
     const now = boardToken(board.items[0] as BoardItem)
     assert.deepEqual(lintDispatch([nudge(100, { board: 'before', github: null }), nudge(80, { board: 'before', github: null })], config, NOW, idle(50), board), [])
     assert.equal(lintDispatch([nudge(100, { board: 'before', github: null }), nudge(80, { board: now, github: null }), nudge(60, { board: now, github: null })], config, NOW, idle(50), board).length, 1)
@@ -138,7 +138,7 @@ describe('A-NUDGE-IGNORED', () => {
 
   it('lintAll に載る (部下の稼働を渡す)', () => {
     const ctx = {
-      snapshot: snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })]),
+      snapshot: snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })]),
       members: idle(50),
       acks: [],
       config,
@@ -150,7 +150,7 @@ describe('A-NUDGE-IGNORED', () => {
 
   it('指紋は、続いた促しの最初の時刻ごとに変わる (作業が進んだ後の、新しい続きは、また出る)', () => {
     const first = lintDispatch([nudge(60), nudge(20)], config, NOW, idle(50))[0]
-    const board = snapshot([issue(240, { status: '作業中', tanto: 'SWE1' })])
+    const board = snapshot([issue(240, { status: '作業中', assignee: 'SWE1' })])
     const progressed = lintDispatch([nudge(200, { board: 'before', github: null }), nudge(40, { board: boardToken(board.items[0] as BoardItem), github: null }), nudge(20, { board: boardToken(board.items[0] as BoardItem), github: null })], config, NOW, idle(50), board)[0]
     assert.notEqual(first?.key, progressed?.key)
   })

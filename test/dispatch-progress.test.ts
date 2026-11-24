@@ -8,12 +8,12 @@ import { activityToken, githubProbe } from '../src/adapters/github/activity.ts'
 import { boardOnly, boardToken, cachedProbe, hasProgress, observe, readSeen, seenKey, tokenWith, writeSeen } from '../src/dispatch/progress.ts'
 import { issue } from './helpers.ts'
 
-const item = issue(240, { status: '作業中', tanto: 'SWE1', reason: 'なし', since: '2026-10-08' })
+const item = issue(240, { status: '作業中', assignee: 'SWE1', reason: 'なし', since: '2026-10-08' })
 
 describe('boardToken と hasProgress', () => {
   it('Status、止まっている理由、担当、止まり始めた日を 1 つの印にする', () => {
     assert.equal(boardToken(item), '作業中|なし|SWE1|2026-10-08')
-    assert.equal(boardToken(issue(1, { status: null, reason: null, tanto: null, since: null })), '|||')
+    assert.equal(boardToken(issue(1, { status: null, reason: null, assignee: null, since: null })), '|||')
   })
 
   it('ボードの印が違えば、作業が進んだ', () => {

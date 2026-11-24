@@ -22,7 +22,7 @@ export function issue(number: number, overrides: Partial<BoardItem> = {}): Board
     reason: 'なし',
     since: null,
     owner: 'AI',
-    tanto: null,
+    assignee: null,
     ...overrides,
   }
 }
@@ -48,7 +48,7 @@ export const config: Config = {
   projectId: 'PVT_test',
   repos: ['example-org/app', 'example-org/app-mobile'],
   defaultRepo: 'example-org/app',
-  fields: { status: 'Status', reason: '止まっている理由', since: '止まり始めた日', owner: 'Owner', tanto: '担当' },
+  fields: { status: 'Status', reason: '止まっている理由', since: '止まり始めた日', owner: 'Owner', assignee: '担当' },
   statusFieldId: 'PVTSSF_status',
   statuses: { backlog: 'バックログ', next: '次にやる', doing: '作業中', release: 'リリース待ち', done: '完了' },
   reasonNone: 'なし',
@@ -61,7 +61,7 @@ export const config: Config = {
   scripts: {
     setStatus: 'set-status',
     setReason: 'set-reason',
-    setTanto: 'set-tanto',
+    setAssignee: 'set-assignee',
     bulkStatus: 'bulk-status',
     mergePr: 'merge-pr',
     clearValue: 'なし',

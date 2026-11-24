@@ -21,7 +21,7 @@
               "date": "2026-10-01"
             },
             "owner": null,
-            "tanto": {
+            "assignee": {
               "name": "SWE4"
             },
             "content": {
@@ -52,7 +52,7 @@
             },
             "since": null,
             "owner": null,
-            "tanto": null,
+            "assignee": null,
             "content": {
               "number": 102,
               "title": "fixture title",
@@ -72,7 +72,7 @@
             "reason": null,
             "since": null,
             "owner": null,
-            "tanto": null,
+            "assignee": null,
             "content": {
               "number": 103,
               "title": "fixture title",
@@ -97,7 +97,7 @@
             "reason": null,
             "since": null,
             "owner": null,
-            "tanto": null,
+            "assignee": null,
             "content": {
               "title": "fixture title"
             }

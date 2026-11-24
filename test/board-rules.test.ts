@@ -9,23 +9,23 @@ function rulesOf(items: Parameters<typeof snapshot>[0], openIssues?: Parameters<
 
 describe('lintBoard', () => {
   it('作業中が上限を超えると B-WIP-OVER を出す', () => {
-    const doing = Array.from({ length: 11 }, (_, i) => issue(i + 1, { status: '作業中', tanto: 'SWE1' }))
+    const doing = Array.from({ length: 11 }, (_, i) => issue(i + 1, { status: '作業中', assignee: 'SWE1' }))
     assert.deepEqual(rulesOf(doing), ['B-WIP-OVER board'])
   })
 
   it('作業中がちょうど上限なら何も出さない', () => {
-    const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', tanto: 'SWE1' }))
+    const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', assignee: 'SWE1' }))
     assert.deepEqual(rulesOf(doing), [])
   })
 
   it('閉じた issue の作業中は上限に数えない', () => {
-    const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', tanto: 'SWE1' }))
-    const closed = issue(99, { status: '作業中', state: 'CLOSED', tanto: 'SWE1' })
+    const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', assignee: 'SWE1' }))
+    const closed = issue(99, { status: '作業中', state: 'CLOSED', assignee: 'SWE1' })
     assert.deepEqual(rulesOf([...doing, closed]), ['B-CLOSED-NOT-DONE app#99'])
   })
 
-  it('作業中に担当が無いと B-DOING-NO-TANTO を出す', () => {
-    assert.deepEqual(rulesOf([issue(5, { status: '作業中' })]), ['B-DOING-NO-TANTO app#5'])
+  it('作業中に担当が無いと B-DOING-NO-ASSIGNEE を出す', () => {
+    assert.deepEqual(rulesOf([issue(5, { status: '作業中' })]), ['B-DOING-NO-ASSIGNEE app#5'])
   })
 
   it('閉じた issue が完了でないと B-CLOSED-NOT-DONE を出す', () => {
@@ -94,8 +94,8 @@ describe('lintBoard', () => {
   it('指摘に重さと直し方が付く', () => {
     const [finding] = lintBoard(snapshot([issue(5, { status: '作業中' })]), config, NOW)
     assert.equal(finding?.severity, 'high')
-    assert.equal(finding?.key, 'B-DOING-NO-TANTO:app#5')
-    assert.match(finding?.fix ?? '', /set-tanto 5 /)
+    assert.equal(finding?.key, 'B-DOING-NO-ASSIGNEE:app#5')
+    assert.match(finding?.fix ?? '', /set-assignee 5 /)
   })
 
   it('中身の読めない項目があれば、B-OFF-BOARD は判じられないので出さず、B-UNREADABLE を1件出す', () => {

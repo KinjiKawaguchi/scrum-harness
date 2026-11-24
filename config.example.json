@@ -9,7 +9,7 @@
     "reason": "止まっている理由",
     "since": "止まり始めた日",
     "owner": "Owner",
-    "tanto": "担当"
+    "assignee": "担当"
   },
   "statusFieldId": "PVTSSF_xxxxxxxxxxxxxxxxxxxx",
   "statuses": {
@@ -32,7 +32,7 @@
   "scripts": {
     "setStatus": "set-status",
     "setReason": "set-reason",
-    "setTanto": "set-tanto",
+    "setAssignee": "set-assignee",
     "bulkStatus": "bulk-status",
     "mergePr": "merge-pr",
     "clearValue": "なし"
