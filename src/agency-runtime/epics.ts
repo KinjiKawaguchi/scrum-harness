@@ -31,7 +31,7 @@ function forecastOf(ref: string, children: readonly BoardItem[], parent: BoardIt
 }
 
 /** Epics that still have unfinished children, in ref order. Finished epics are not reported. */
-export function epicForecasts(items: readonly BoardItem[], config: Config): readonly EpicForecast[] {
+export function epicForecasts(items: readonly BoardItem[], config: Config): EpicForecast[] {
   const children = Map.groupBy(
     items.filter((item) => item.kind === 'issue' && item.epic != null && !config.excludeAuthors.includes(item.author ?? '')),
     (item) => item.epic as string,

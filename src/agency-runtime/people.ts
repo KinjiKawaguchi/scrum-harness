@@ -13,7 +13,7 @@ const minutesSince = (iso: string, now: Date): number => Math.max(0, Math.floor(
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`
 
 /** Refs of the open items assigned to a person that are not finished. */
-function holdingOf(name: string, items: readonly BoardItem[], config: Config): readonly string[] {
+function holdingOf(name: string, items: readonly BoardItem[], config: Config): string[] {
   return items
     .filter((item) => item.kind === 'issue' && item.state === 'OPEN' && item.assignee === name && !isFinished(workStatusOf(item, config)) && workStatusOf(item, config) !== null)
     .map(label)
@@ -47,7 +47,7 @@ function stateOf(member: MemberState, role: 'lead' | 'member', holding: readonly
 }
 
 /** The lead and the members as agents, then the owner as a human. */
-export function peopleOf(members: readonly MemberState[], items: readonly BoardItem[], requests: readonly Request[], config: Config, now: Date): readonly PersonStatus[] {
+export function peopleOf(members: readonly MemberState[], items: readonly BoardItem[], requests: readonly Request[], config: Config, now: Date): PersonStatus[] {
   const agents = members.map((member): PersonStatus => {
     const role = member.name === config.techlead ? 'lead' : 'member'
     const holding = holdingOf(member.name, items, config)

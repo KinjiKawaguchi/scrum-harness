@@ -33,7 +33,7 @@ export const blockedSince = (item: BoardItem, fetchedAt: string): string =>
   item.since !== null && /^\d{4}-\d{2}-\d{2}$/.test(item.since) ? item.since : fetchedAt.slice(0, 10)
 
 /** Open issues of the team, without the parents of other items (those are reported as epics). */
-export function workItems(items: readonly BoardItem[], config: Config, fetchedAt: string, epicRefs: ReadonlySet<string>): readonly WorkItem[] {
+export function workItems(items: readonly BoardItem[], config: Config, fetchedAt: string, epicRefs: ReadonlySet<string>): WorkItem[] {
   return items
     .filter((item) => item.kind === 'issue' && item.state === 'OPEN' && !config.excludeAuthors.includes(item.author ?? '') && !epicRefs.has(label(item)))
     .flatMap((item): readonly WorkItem[] => {
