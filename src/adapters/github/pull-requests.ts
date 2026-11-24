@@ -12,7 +12,7 @@ export function listOpenPrs(run: GhRun, repo: string): readonly OpenPr[] {
   )
 }
 
-/** PR の本文。取れなければ null。ラベルは "<リポジトリ名>#123" の形、repo は full の名前。 */
+/** The PR body. null if it cannot be fetched. The label has the form "<repository name>#123", and repo is the full name. */
 export function fetchPrBody(run: GhRun, prLabel: string, repo: string): string | null {
   const number = prLabel.split('#')[1] ?? ''
   try {
@@ -24,7 +24,7 @@ export function fetchPrBody(run: GhRun, prLabel: string, repo: string): string |
 
 const REFERENCE = /(?<![\w/.#-])(?:([A-Za-z0-9_.-]+)#|#)(\d+)/g
 
-/** PR の本文から issue への言及 (#番号、リポジトリ名#番号) を拾う。 */
+/** Picks up mentions of issues (#number, repository name#number) from the PR body. */
 export function referencedLabels(body: string, repo: string): readonly string[] {
   const labels = [...body.matchAll(REFERENCE)].map((match) => `${match[1] ?? shortRepo(repo)}#${match[2]}`)
   return [...new Set(labels)]

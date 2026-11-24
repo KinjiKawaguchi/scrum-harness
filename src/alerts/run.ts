@@ -13,19 +13,19 @@ import { EMPTY_ALERT_STATE, type AlertState, type Notice } from './types.ts'
 export type AlertOptions = {
   readonly notify: Notifier
   readonly sessions: SessionDirectory
-  /** 窓口の待機プロセスのとき true。窓口に送る通知を返し、送った指紋を覚える */
+  /** True when this is the liaison's watch process. Returns the notifications to send to the liaison and remembers the fingerprints sent */
   readonly isLiaison: boolean
 }
 
-/** 今ある通知の指紋だけを残す。直ってから再び起きた通知は、また出す。 */
+/** Keeps only the fingerprints of notifications that exist now. A notification that arises again after being fixed is shown again. */
 function prune(keys: readonly string[], current: readonly Notice[]): readonly string[] {
   const live = new Set(current.map((notice) => notice.key))
   return [...new Set(keys)].filter((key) => live.has(key)).toSorted()
 }
 
 /**
- * オーナーへの通知のうち、macOS の通知としてまだ出していないものを、1 つにまとめて出す。失敗しても、同じ通知を重ねて試さない。
- * 出した (試した) 通知の指紋を返す。
+ * Among notifications to the owner, combines those not yet shown as a macOS notification into one and shows it. Even on failure, the same notification is not tried again repeatedly.
+ * Returns the fingerprints of the notifications shown (attempted).
  */
 function sendDesktop(p: Paths, owner: readonly Notice[], sent: readonly string[], notify: Notifier, config: Config, now: Date): readonly string[] {
   const fresh = owner.filter((notice) => notice.desktop !== undefined && !sent.includes(notice.key))
@@ -52,9 +52,9 @@ function nextState(advanced: AlertState, notices: readonly Notice[], sent: Sent)
 }
 
 /**
- * 止まりの検知の 1 回分。待機プロセス (TechLead、部下、窓口) のどれからでも呼ぶ。
- * 最初に見た時刻を進め、オーナーへの通知を macOS の通知として、まだ出していなければ出す。
- * 窓口の待機プロセスのときだけ、窓口にまだ送っていない通知を返す。錠が取れなければ何もしない。
+ * One round of stall detection. It may be called from any watch process (TechLead, member, liaison).
+ * Advances the time first seen, and shows the notification to the owner as a macOS notification if it has not been shown.
+ * Only in the liaison's watch process, returns the notifications not yet sent to the liaison. If the lock cannot be taken, does nothing.
  */
 export function alertStep(p: Paths, config: Config, now: Date, options: AlertOptions): readonly Notice[] {
   if (!alertsOf(config).enabled || !tryLock(p.alertsLock)) return []

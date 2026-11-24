@@ -1,20 +1,20 @@
 import type { BoardItem } from '../board/types.ts'
 import type { OpenPr } from '../links/extract.ts'
 
-/** issue に紐づいたブランチ。isNew は、いま作ったか (すでに紐づいたものがあれば false)。 */
+/** A branch linked to an issue. isNew is whether it was just created (false if a linked branch already existed). */
 export type LinkedBranch = { readonly name: string; readonly isNew: boolean }
 
-/** 渡した仕事の文面に載せる結果。failed は、用意しようとして失敗したこと。 */
+/** The result put in the handed-over work's text. failed means preparing was attempted and failed. */
 export type LinkOutcome = LinkedBranch | 'failed' | null
 
-/** PR とブランチ。コードの置き場は、ボードの置き場と別に選べる。 */
+/** PRs and branches. The code host can be chosen separately from the board's host. */
 export type CodeHost = {
-  /** 開いている PR。読めなければ投げる */
+  /** Open PRs. Throws if unreadable */
   readonly openPullRequests: (repo: string) => readonly OpenPr[]
-  /** PR の本文が触れている issue のラベル ("<リポジトリ名>#番号")。PR を読めなければ null */
+  /** Labels of the issues that a PR body touches ("<repository name>#number"). null if the PR cannot be read */
   readonly referencedIssues: (prLabel: string, repo: string) => readonly string[] | null
-  /** 渡す issue に、紐づいたブランチを用意する。設定が無ければ null。失敗すれば投げる */
+  /** Prepares a linked branch for the issue being handed over. null if there is no config. Throws on failure */
   readonly prepareBranch: (item: BoardItem) => LinkedBranch | null
-  /** issue の作業が進んだかを見る印 (コメント、ブランチ、PR)。読めなければ null か、投げる */
+  /** A marker for seeing whether work on an issue progressed (comments, branch, PR). null if unreadable, or throws */
   readonly activity: (item: BoardItem) => string | null
 }

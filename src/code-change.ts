@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** このハーネスのソースの置き場所。 */
+/** Where this harness's source is placed. */
 export const SOURCE_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function newestMtime(dir: string): number {
@@ -14,8 +14,8 @@ function newestMtime(dir: string): number {
 }
 
 /**
- * 起動した後にソースが変わったか。長く動く待機プロセスが古いコードのまま控えを書き換えないよう、
- * 変わっていたら終わらせ、次の Stop で新しいコードの待機プロセスを起動させる。
+ * Whether the source changed since startup. So that a long-running watch process does not rewrite the board copy with stale code,
+ * if it changed, it is ended, and the next Stop starts a watch process with the new code.
  */
 export function hasCodeChanged(dir: string, startedAtMs: number): boolean {
   try {

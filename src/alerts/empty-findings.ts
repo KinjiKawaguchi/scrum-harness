@@ -12,10 +12,10 @@ function reasonText(reason: EmptyReason, member: string, config: Config): string
 }
 
 /**
- * 渡せる issue が無いまま空いている部下。TechLead には見つけた時から指摘 (Q-EMPTY、重さ高) を出す。
- * 渡せるものが尽きた (no-candidate) まま emptyEscalateMinutes たっても直らなければ、オーナーにも伝わる指摘 (Q-EMPTY-OWNER、重さ高) と通知を足す
- * (同じ人は emptyPushMinutes に 1 回まで)。作業中が上限 (wip-limit) で渡せないときは、渡すものが尽きたのではないので、TechLead だけに出す。
- * 最初に見た時刻は state が持つ (まだ見ていない人は出さない)。理由ごとに数えるので、作業中が上限で空いていた人が、渡せる issue が無いに変わったら、その時から 30 分を数える。
+ * A member who is free with no issue to hand over. The TechLead gets a finding (Q-EMPTY, high severity) from the moment it is found.
+ * If it is still not fixed after emptyEscalateMinutes with the handable work exhausted (no-candidate), a finding that also reaches the owner (Q-EMPTY-OWNER, high severity) and a notification are added
+ * (at most once per emptyPushMinutes for the same person). When In Progress is at its limit (wip-limit) and nothing can be handed over, the work to hand over has not run out, so only the TechLead is told.
+ * The time first seen is held by state (a person not yet seen is not raised). It is counted per reason, so if a person who was free because In Progress was at its limit becomes no issue to hand over, the 30 minutes are counted from that moment.
  */
 export function evaluateEmpty(
   choices: readonly EmptyChoice[],

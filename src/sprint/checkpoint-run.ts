@@ -8,8 +8,8 @@ import { appendRecord, buildRecord, dueCheckpoint, loadRecords, type CheckpointR
 import { loadCountingHistory } from './counting-history.ts'
 
 /**
- * まだ記録していない節目があれば記録し、ボードの「超過」を書き換える。
- * 書き換えは apply に任せる (試験では書かない)。記録しなければ null。
+ * If there is a checkpoint not yet recorded, records it and rewrites the board's "Overrun".
+ * The rewrite is left to apply (tests do not write). null if nothing was recorded.
  */
 export function recordDueCheckpoint(
   p: Paths,
@@ -31,8 +31,8 @@ export function recordDueCheckpoint(
 }
 
 /**
- * 待機プロセスと `scrum checkpoint` から呼ぶ。節目の時刻より前の控えなら取り直してから記録し
- * (節目の直前に入れたポイントを拾うため)、ボードの「超過」を書く。書けなかったものは errors.log に残す。
+ * Called from the watch process and `scrum checkpoint`. If the board copy is older than the checkpoint time, re-fetches it and then records
+ * (to pick up points entered just before the checkpoint), and writes the board's "Overrun". Those that could not be written are left in errors.log.
  */
 export function runCheckpoint(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'writer'>): CheckpointRecord | null {
   if (config.sprint === undefined || dueCheckpoint(loadRecords(p), config, now) === null) return null
@@ -44,7 +44,7 @@ export function runCheckpoint(p: Paths, config: Config, now: Date, ports: Pick<P
   }
 }
 
-/** 錠を取ったあとに節目をもう一度確かめ (ほかのプロセスが先に記録したかもしれない)、記録する。 */
+/** After taking the lock, checks the checkpoint again (another process may have recorded it first) and records it. */
 function recordWithFreshSnapshot(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'writer'>): CheckpointRecord | null {
   const due = dueCheckpoint(loadRecords(p), config, now)
   if (due === null) return null

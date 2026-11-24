@@ -10,8 +10,8 @@ export function label(item: { readonly repo: string; readonly number: number | n
 }
 
 /**
- * 直し方。スクリプトが設定されていて、既定のリポジトリの issue ならそのコマンド、それ以外は文で返す
- * (スクリプトは既定のリポジトリの番号しか受け取らない)。
+ * How to fix it. If the script is configured and the issue is in the default repository, the command; otherwise it is returned as text
+ * (the script accepts only numbers of the default repository).
  */
 function fixWith(
   config: Config,
@@ -182,8 +182,8 @@ function unreadableFinding(count: number): Finding {
 }
 
 /**
- * 中身の読めない項目があると、どの issue がボードにあるかを判じられない。そのときは B-OFF-BOARD を出さず、
- * 読めないことを1件の指摘にする。
+ * If there are items whose content cannot be read, it cannot be judged which issues are on the board. In that case B-OFF-BOARD is not raised, and
+ * the unreadability is made into a single finding.
  */
 export function lintBoard(snapshot: Snapshot, config: Config, now: Date): readonly Finding[] {
   const items = snapshot.items.filter((item) => !config.excludeAuthors.includes(item.author ?? ''))

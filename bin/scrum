@@ -1,18 +1,18 @@
 #!/bin/sh
-# scrum-harness の入口。フックはこの Mac のすべてのセッションで動く。負荷の高い Mac で
-# ツールの呼び出しのたびに node を起こさないよう、セッションの役 (src/team/identity.ts が
-# ~/.claude/scrum/identity/<session_id>.json に書く控え) を見てここで振り分ける。
-#   チームの外: 何もしない
-#   部下: ターンの境目の心拍だけを裏で書く。ツールの呼び出しでは何もしない。dispatch が有効なときだけ、
-#         Stop と SessionStart の待機 (空いたら次の仕事を渡される時を待つ) で node を起こす
-#   窓口: alerts が有効なときだけ、Stop と SessionStart の待機 (止まりの検知が決めた通知の文を待つ) で node を起こす。
-#         それ以外のフックでは何もしない
-#   TechLead: ボードに関わるコマンドの後と、待機プロセスが印 (notify/pending) を置いたときだけ node を起こす
+# Entry point of scrum-harness. The hooks run in every session on this Mac. On a heavily loaded Mac,
+# to avoid starting node on every tool call, dispatch here by the session's role (the record that src/team/identity.ts
+# writes to ~/.claude/scrum/identity/<session_id>.json).
+#   Outside the team: do nothing
+#   Member: only write the turn-boundary heartbeat in the background. Do nothing on tool calls. Start node only when dispatch is enabled,
+#         for the Stop and SessionStart watch (waiting for the moment the next work is handed over once the member is free)
+#   Liaison: start node only when alerts is enabled, for the Stop and SessionStart watch (waiting for the notification text that stall detection decided).
+#         Do nothing on other hooks
+#   TechLead: start node only after board-related commands and when the watch process has placed a marker (notify/pending)
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 STATE=${SCRUM_STATE_DIR:-$HOME/.claude/scrum}
 CLI="$DIR/src/cli.ts"
-# node を起こすコマンドの型。設定のスクリプト名から node が書く (src/cli-commands.ts の writeShellPatterns)。
-# まだ無ければ gh のコマンドだけを見る。
+# Command patterns that start node. node writes them from the script names in the config (writeShellPatterns in src/cli-commands.ts).
+# While they are not yet written, only gh commands are checked.
 POST_PATTERN=$(sed -n 1p "$STATE/cache/shell-patterns" 2>/dev/null)
 PRE_PATTERN=$(sed -n 2p "$STATE/cache/shell-patterns" 2>/dev/null)
 [ -n "$POST_PATTERN" ] || POST_PATTERN='gh pr merge|gh issue close|gh project|ProjectV2'
@@ -27,7 +27,7 @@ event=${2:-$1}
 run() { printf '%s' "$input" | node --no-warnings "$CLI" "$@"; }
 run_detached() { (printf '%s' "$input" | node --no-warnings "$CLI" "$@" >/dev/null 2>&1 &); }
 
-# 書き込みのガードは役に関係なく効かせる。Status を変えるスクリプトを呼ぶときだけ確かめる。
+# The write guard applies regardless of role. It is checked only when a script that changes Status is called.
 if [ "$event" = PreToolUse ]; then
   if [ -n "$PRE_PATTERN" ] && printf '%s' "$input" | grep -Eq "$PRE_PATTERN"; then
     run "$@"
@@ -42,24 +42,24 @@ else
   sid=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -n 1)
   cache="$STATE/identity/$sid.json"
   [ -f "$cache" ] && role=$(sed -n 's/.*"role": "\([a-z]*\)".*/\1/p' "$cache")
-  # 名前は後で変わることがあるので、チームの外という判定は1時間で取り直す
+  # Names can change later, so the "outside the team" verdict is re-fetched after 1 hour
   if [ "$role" = none ] && [ -z "$(find "$cache" -mmin -60 2>/dev/null)" ]; then role=""; fi
 fi
 
-# statusline は TechLead のセッションでだけ出す
+# The statusline is shown only in the TechLead session
 if [ "$event" = statusline ]; then
   [ "$role" = techlead ] || [ "$role" = env ] && run "$@"
   exit 0
 fi
 
-# チームのセッションが仕事をしている間、10 分に 1 回、動きの記録 (activity) を events.jsonl に 1 行足す。node は起こさない。
-# 動きの記録を watch だけが書くと、watch が止まっている間にチームが動いても記録が無く、その間の節目が、全セッションが
-# 止まっていた節目として手間から除かれる。
-# 足すのは PostToolUse だけ。ツールの結果は、API の応答があって初めて出るので、仕事の印になる。UserPromptSubmit、SessionStart、
-# Stop は、週の上限の間も通る (予定の実行の入力は、フックを通った後に、API が上限の応答を返す)。足すと、全セッションが止まっていた
-# 間にも記録が書かれ、止まりを読めなくなる。
-# 書かない回 (ほとんどの呼び出し) で、プロセスを起こさないよう、シェルの組み込みだけで見る: 印 activity-due の更新時刻を
-# 「次に書く時刻」にし、いまの時刻の印 activity-now (: > で更新時刻が今になる) と -nt で比べる。書けなくても、振り分けは変えない。
+# While a team session is working, append one activity line to events.jsonl once every 10 minutes. This does not start node.
+# If only watch wrote the activity record, then when the team worked while watch was stopped there would be no record, and the checkpoints in that span would be excluded from effort as checkpoints when all sessions were
+# stalled.
+# Append only on PostToolUse. A tool result appears only after the API has responded, so it is a mark of work. UserPromptSubmit, SessionStart, and
+# Stop still pass during the weekly limit (a scheduled run's input passes the hook, and only after that does the API return the limit response). Appending on them would write
+# records even while all sessions were stalled, and the stall could not be read.
+# To avoid starting a process on the turns that do not write (most calls), use only shell builtins: take the mtime of the mark activity-due as
+# the "next time to write" and compare it with -nt against the mark activity-now for the current time (: > sets its mtime to now). If the write fails, the dispatch does not change.
 record_activity() {
   due="$STATE/cache/activity-due"
   marker="$STATE/cache/activity-now"
@@ -89,7 +89,7 @@ case "$role" in
     case "$event" in
       PostToolUse) exit 0 ;;
       watch)
-        # shell-patterns の 3 行目 (node が設定から書く) が 1 のときだけ、待機を起こす
+        # Start the watch only when line 3 of shell-patterns (written by node from the config) is 1
         if [ "$(sed -n 3p "$STATE/cache/shell-patterns" 2>/dev/null)" = 1 ]; then
           run "$@"
           exit $?
@@ -117,7 +117,7 @@ case "$role" in
     exit $?
     ;;
   *)
-    # 役が分からない (控えが無い、SCRUM_NAME で指定): node が引いて控えを書く
+    # The role is unknown (no record, or specified by SCRUM_NAME): node looks it up and writes the record
     run "$@"
     exit $?
     ;;

@@ -12,7 +12,7 @@ function doingDetail(view: EpicView): string {
   return `children In Progress: ${shown.join(', ')}${view.doing.length > 3 ? ` and ${view.doing.length - 3} more` : ''}`
 }
 
-/** まとめた通知の 1 行に書く、動く人がいない理由。オーナーの答え待ちだけ、作業中の子の理由、作業中の子なし (子の状態の数)、のどれか。 */
+/** The reason nobody is working, written on one line of the combined notification. One of: only waiting for the owner's answer, the reason of the In Progress children, or no In Progress children (the state of the children). */
 function stallReason(view: EpicView, config: Config): string {
   const waiting = ownerWaitLabels(view, config)
   if (waiting.length > 0) return `waiting for ${config.ownerLabel}'s answer (${waiting.join(', ')})`
@@ -21,19 +21,19 @@ function stallReason(view: EpicView, config: Config): string {
   return `no children In Progress (${config.statuses.next} ${count(config.statuses.next)}, ${config.statuses.backlog} ${count(config.statuses.backlog)})`
 }
 
-/** 作業中の子がすべて、オーナーの判断待ちなら、その子の一覧。そうでなければ (作業中の子が無いときも) 空。 */
+/** If all In Progress children are waiting for the owner's decision, the list of those children. Otherwise (including when there are no In Progress children) empty. */
 function ownerWaitLabels(view: EpicView, config: Config): readonly string[] {
   return view.doing.every((child) => child.reason === config.reasonJudge) ? view.doing.map(label) : []
 }
 
-/** 「app#100「題」」の形。題が無いときは、続く助詞との間に空白を置く。 */
+/** The form `app#100 "title"`. When there is no title, a space is put before the particle that follows. */
 function titled(view: EpicView): string {
   return view.title === null ? view.epic : `${view.epic} "${shortTitle(view.title)}"`
 }
 
 /**
- * 動いている人がいない状態が epicStallMinutes 続いた Epic。TechLead に指摘 (E-STALL、重さ高) を出し、
- * オーナーにも伝える通知を作る。最初に見た時刻は state が持つ (まだ見ていない Epic は出さない)。
+ * An Epic whose state of having nobody working on it has lasted epicStallMinutes. Raises a finding (E-STALL, high severity) to the TechLead and
+ * builds a notification that also reaches the owner. The time first seen is held by state (an Epic not yet seen is not raised).
  */
 export function evaluateEpicStalls(
   views: readonly EpicView[],

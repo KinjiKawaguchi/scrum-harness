@@ -1,14 +1,14 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { writeJson, type Paths } from './store.ts'
 
-/** 足したフックを見分ける目印。コマンドのパスに含まれる。 */
+/** A mark that identifies the hooks that were added. It is included in the command's path. */
 export const MARKER = 'scrum-harness'
 
 type HookEntry = { readonly type: string; readonly command?: string; readonly timeout?: number; readonly asyncRewake?: boolean }
 type HookGroup = { readonly matcher?: string; readonly hooks: readonly HookEntry[] }
 type Settings = { readonly hooks?: Readonly<Record<string, readonly HookGroup[]>> } & Record<string, unknown>
 
-/** asyncRewake のフックには timeout が効くので、待機の上限 (50分) より少し長くする。 */
+/** timeout applies to asyncRewake hooks, so it is set slightly longer than the watch's upper limit (50 minutes). */
 const WATCH_TIMEOUT_SECONDS = 3100
 
 function groups(bin: string): Readonly<Record<string, readonly HookGroup[]>> {
@@ -43,7 +43,7 @@ export function withHooks(settings: Settings, bin: string): Settings {
   return { ...settings, hooks }
 }
 
-/** settings.json を控えてからフックを書き換える。 */
+/** Takes a copy of settings.json and then rewrites the hooks. */
 export function updateSettings(settingsPath: string, change: (settings: Settings) => Settings): string {
   const backup = `${settingsPath}.bak-scrum-harness`
   copyFileSync(settingsPath, backup)
@@ -52,7 +52,7 @@ export function updateSettings(settingsPath: string, change: (settings: Settings
   return backup
 }
 
-/** 設定が無ければ例を写す。例の値はボードに合わせて直す必要がある。 */
+/** If there is no config, copies the example. The example's values must be adjusted to match the board. */
 export function ensureConfig(p: Paths): boolean {
   const path = `${p.dir}/config.json`
   if (existsSync(path)) return false

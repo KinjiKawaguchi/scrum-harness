@@ -1,7 +1,7 @@
 export type Severity = 'high' | 'medium' | 'low'
 
 /**
- * 規則に反している1件。key は「同じ指摘か」を見分ける指紋で、通知済みかの判定に使う。
+ * One violation of a rule. key is a fingerprint that tells whether it is "the same finding", used to judge whether it has been notified.
  */
 export type Finding = {
   readonly rule: string
@@ -10,7 +10,7 @@ export type Finding = {
   readonly severity: Severity
   readonly message: string
   readonly fix?: string
-  /** 部下の指摘の、その状態が続いている分数 (statusline の表示に使う) */
+  /** For a member's finding, the minutes that the state has lasted (used for the statusline display) */
   readonly minutes?: number
 }
 

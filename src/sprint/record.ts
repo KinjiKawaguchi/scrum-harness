@@ -8,16 +8,16 @@ import type { CountingHistory } from './counting-history.ts'
 
 export type CheckpointItem = Assessment & { readonly reason: string | null; readonly assignee: string | null }
 
-/** 節目の記録。その時点の作業中の issue ごとの見積もりと手間を残す。 */
+/** The checkpoint record. It keeps, per In Progress issue at that moment, the estimate and the effort. */
 export type CheckpointRecord = {
   readonly scheduledFor: string
   readonly recordedAt: string
-  /** 記録に使ったボードの控えの時刻。取り直しに失敗すると節目より古いことがある */
+  /** The time of the board copy used for the record. If the re-fetch failed, it may be older than the checkpoint */
   readonly snapshotAt?: string
   readonly items: readonly CheckpointItem[]
 }
 
-/** 作業中の開いている issue (除く作者を除く)。 */
+/** Open In Progress issues (excluding excluded authors). */
 export function doingIssues(snapshot: Snapshot, config: Config) {
   return snapshot.items.filter(
     (item) =>
@@ -43,7 +43,7 @@ export function buildRecord(
   return { scheduledFor: scheduledFor.toISOString(), recordedAt: now.toISOString(), snapshotAt: snapshot.fetchedAt, items }
 }
 
-/** まだ記録していない、今以前の最後の節目。記録済みなら null。 */
+/** The last checkpoint at or before now that has not yet been recorded. null if already recorded. */
 export function dueCheckpoint(records: readonly CheckpointRecord[], config: Config, now: Date): Date | null {
   if (config.sprint === undefined) return null
   const latest = latestCheckpoint(now, config.sprint)

@@ -1,4 +1,4 @@
-/** gh の `--json` の一覧を読む。配列でなければ投げる。pick が null を返したものは捨てる。 */
+/** Reads a list from gh's `--json`. Throws if it is not an array. Items for which pick returns null are discarded. */
 export function parseList<T>(output: string, pick: (record: Record<string, any>) => T | null): readonly T[] {
   const list: unknown = JSON.parse(output)
   if (!Array.isArray(list)) throw new Error('the gh output is not an array')

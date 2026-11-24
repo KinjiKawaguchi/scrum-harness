@@ -1,24 +1,24 @@
 import type { Config } from '../config.ts'
 
 /**
- * 止まりの検知 (E-STALL、Q-EMPTY) と、窓口・オーナーへの通知。無いか enabled が true でなければ、動かない。
- * 何を、誰に、いつ伝えるかはハーネスが決める。窓口のセッションは、決まった文を送る手になるだけ。
+ * Stall detection (E-STALL, Q-EMPTY) and notifications to the liaison and the owner. If it is absent or enabled is not true, it does not run.
+ * The harness decides what to tell, whom, and when. The liaison session only acts as the hand that sends the fixed text.
  */
 export type AlertsConfig = {
   readonly enabled: boolean
-  /** 窓口のセッションの名前。この名前のセッションが待機して、ハーネスが決めた通知の文を受け取る */
+  /** Name of the liaison session. The session with this name watches and receives the notification text the harness decided */
   readonly liaison?: string
-  /** 動いている人がいない Epic を、E-STALL として出すまでの分数 */
+  /** Minutes before an Epic with nobody working on it is raised as E-STALL */
   readonly epicStallMinutes: number
-  /** 渡せる issue が無い部下を、オーナーにも伝えるまでの分数 */
+  /** Minutes before a member with no issue to hand over is also reported to the owner */
   readonly emptyEscalateMinutes: number
-  /** ハーネスが macOS の通知 (音なし) を直接出すか。窓口が作業中でも、オーナーに届くようにする */
+  /** Whether the harness shows a macOS notification (silent) directly. So that it reaches the owner even while the liaison is working */
   readonly isDesktopEnabled: boolean
-  /** この名前のラベルが付いた Epic は、意図して積んであるので、E-STALL に数えない (ラベルを付けるのは TechLead) */
+  /** An Epic with a label of this name is parked on purpose, so it is not counted as E-STALL (the TechLead attaches the label) */
   readonly parkedLabels: readonly string[]
-  /** 同じ Epic の E-STALL を、オーナーに通知する間隔の下限 (分)。TechLead と窓口には、この間隔に関係なく伝わる */
+  /** Lower bound (minutes) on the interval for notifying the owner of the E-STALL of the same Epic. The TechLead and the liaison are told regardless of this interval */
   readonly epicPushMinutes: number
-  /** 渡せる issue が無い同じ部下 (Q-EMPTY-OWNER) を、オーナーに通知する間隔の下限 (分) */
+  /** Lower bound (minutes) on the interval for notifying the owner about the same member with no issue to hand over (Q-EMPTY-OWNER) */
   readonly emptyPushMinutes: number
 }
 
@@ -39,7 +39,7 @@ export function alertsOf(config: Config): AlertsConfig {
 const isStringList = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((one) => typeof one === 'string')
 const isPositiveNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
 
-/** alerts の設定を読む。形が違えば、この機能だけを止める (undefined)。足りない項目は既定で埋める。 */
+/** Reads the alerts config. If the shape differs, only this feature is stopped (undefined). Missing items are filled with defaults. */
 export function parseAlerts(raw: unknown): AlertsConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const { enabled, liaison, epicStallMinutes, emptyEscalateMinutes, isDesktopEnabled, parkedLabels, epicPushMinutes, emptyPushMinutes } = raw as Record<string, unknown>

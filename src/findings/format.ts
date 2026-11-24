@@ -19,7 +19,7 @@ function countBy(findings: readonly Finding[], pick: (finding: Finding) => strin
 
 const SEVERITIES: readonly Severity[] = ['high', 'medium', 'low']
 
-/** セッションの始まりと圧縮の後に入れる要約。 */
+/** The summary injected at the start of a session and after compaction. */
 export function formatSummary(findings: readonly Finding[], ackedCount: number): string {
   const bySev = countBy(findings, (finding) => finding.severity)
   const counts = SEVERITIES.map((sev) => `${SEVERITY_LABEL[sev]} ${bySev.get(sev) ?? 0}`).join(', ')

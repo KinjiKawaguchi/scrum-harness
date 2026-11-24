@@ -1,12 +1,12 @@
 import { label } from '../board/rules.ts'
 import type { Snapshot } from '../board/types.ts'
 
-/** ボードの「超過」の欄に書く値。null は空にする。 */
+/** The value written in the board's "Overrun" field. null means empty. */
 export type Mark = { readonly itemId: string; readonly label: string; readonly value: number | null }
 
 /**
- * 超えた数がボードと違う issue だけを書き換える。作業中で超えている issue はその数、
- * それ以外 (超えていない、作業中でない) は空にする。
+ * Rewrites only issues whose exceeded number differs from the board. For an issue that is In Progress and exceeded, that number;
+ * for the rest (not exceeded, or not In Progress), empty.
  */
 export function planMarks(snapshot: Snapshot, overByLabel: ReadonlyMap<string, number>): readonly Mark[] {
   return snapshot.items

@@ -4,7 +4,7 @@ export type ItemKind = 'issue' | 'pr' | 'draft'
 
 export type ContentState = 'OPEN' | 'CLOSED' | 'MERGED'
 
-/** ボードの1項目。issue・PR・下書きを同じ形で持つ。 */
+/** One item of the board. Issues, PRs, and drafts are held in the same shape. */
 export type BoardItem = {
   readonly itemId: string
   readonly kind: ItemKind
@@ -15,25 +15,25 @@ export type BoardItem = {
   readonly author: string | null
   readonly status: string | null
   readonly reason: string | null
-  /** 止まり始めた日 (YYYY-MM-DD) */
+  /** The date it started being blocked (YYYY-MM-DD) */
   readonly since: string | null
   readonly owner: string | null
   readonly assignee: string | null
-  /** ストーリーポイント (sprint の設定があるときだけ取る) */
+  /** Story points (fetched only when there is a sprint config) */
   readonly points?: number | null
-  /** ハーネスがボードに書いた、超えた節目の数 */
+  /** The number of exceeded checkpoints that the harness wrote to the board */
   readonly overrun?: number | null
-  /** Status の変化の記録。作業中の issue のときだけ取る */
+  /** The record of Status changes. Fetched only for In Progress issues */
   readonly statusEvents?: readonly StatusEvent[]
-  /** 渡す順の欄 (dispatch の設定があるときだけ取る)。小さいほど先 */
+  /** The hand-over order field (fetched only when there is a dispatch config). Smaller comes first */
   readonly order?: number | null
-  /** issue のラベルの名前 (dispatch の設定があるときだけ取る) */
+  /** The names of the issue's labels (fetched only when there is a dispatch config) */
   readonly labels?: readonly string[]
-  /** 親の issue (Epic) の "<リポジトリ名>#番号" (dispatch の設定があるときだけ取る) */
+  /** The parent issue (Epic)'s "<repository name>#number" (fetched only when there is a dispatch config) */
   readonly epic?: string | null
 }
 
-/** ボードの外も含めた、対象のリポジトリの開いている issue。 */
+/** Open issues of the target repositories, including those outside the board. */
 export type OpenIssue = {
   readonly repo: string
   readonly number: number

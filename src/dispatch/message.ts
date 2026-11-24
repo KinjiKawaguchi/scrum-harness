@@ -3,7 +3,7 @@ import type { BoardItem } from '../board/types.ts'
 import { dispatchOf, type Config } from '../config.ts'
 import type { LinkOutcome } from '../ports/index.ts'
 
-/** 空いた部下に、止まっていない自分の作業中の issue を進めるよう促す、決まった文面。ボードは書き換えない。 */
+/** The fixed text that nudges a free member to advance their own In Progress issue that is not blocked. It does not rewrite the board. */
 export function nudgeMessage(item: BoardItem, member: string, config: Config): string {
   return [
     `scrum-harness: ${member} is idle. Continue ${label(item)} ${item.title}, which is In Progress.`,
@@ -11,7 +11,7 @@ export function nudgeMessage(item: BoardItem, member: string, config: Config): s
   ].join('\n')
 }
 
-/** 部下に送る、決まった文面。issue の番号と題、ブランチの土台、PR の宛先、マージする人、その日の決まり。 */
+/** The fixed text sent to a member: the issue's number and title, the base of the branch, the PR's destination, who merges, and the day's rules. */
 function branchLines(item: BoardItem, branch: LinkOutcome, config: Config): readonly string[] {
   const base = dispatchOf(config).baseBranch
   if (branch === null) return []

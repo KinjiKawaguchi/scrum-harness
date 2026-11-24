@@ -8,11 +8,11 @@ import { doingIssues } from './record.ts'
 
 const cell = (value: number | null): string => (value === null ? '-' : String(value))
 const overCell = (over: number | null): string => (over === null ? '-' : over > 0 ? `+${over}` : '0')
-/** 手間。全セッションが止まっていて除いた節目があれば、その数を添える。 */
+/** Effort. If there are checkpoints excluded because all sessions were stalled, adds that number. */
 const effortCell = (assessment: Assessment): string =>
   assessment.teamStopped === undefined ? cell(assessment.effort) : `${cell(assessment.effort)} (excluded checkpoints ${assessment.teamStopped})`
 
-/** 済んだ issue を、新しい順に並べて出す件数。 */
+/** The number of finished issues shown, lined up newest first. */
 const RECENT_COMPLETIONS = 20
 
 const medianOf = (values: readonly number[]): string => {
@@ -23,15 +23,15 @@ const medianOf = (values: readonly number[]): string => {
 }
 
 /**
- * 同じ issue の記録が複数あれば (作業中から完了、戻して作業中、また完了)、新しいものだけを使う。かかった節目は、
- * Status の変化の記録を通しで数えるので、新しい記録が、前の分も含んでいる。
+ * If there are several records for the same issue (In Progress to Done, sent back to In Progress, Done again), only the latest is used. The checkpoints it took are
+ * counted across the whole Status change record, so the latest record includes the earlier part.
  */
 function latestPerIssue(completions: readonly Completion[]): readonly Completion[] {
   const oldestFirst = completions.toSorted((a, b) => a.detectedAt.localeCompare(b.detectedAt))
   return [...new Map(oldestFirst.map((one) => [one.label, one])).values()]
 }
 
-/** 済んだ issue の、ポイント・目安・かかった節目を 1 件ずつ並べ、ポイントごとに件数・中央値・幅・目安を超えた件数を出す。 */
+/** Lines up, one by one, the points, budget, and checkpoints taken for finished issues, and shows, per point value, the count, median, range, and the count that exceeded the budget. */
 export function formatCompletions(all: readonly Completion[]): readonly string[] {
   const completions = latestPerIssue(all)
   if (completions.length === 0) return []
@@ -58,7 +58,7 @@ export function formatCompletions(all: readonly Completion[]): readonly string[]
   ]
 }
 
-/** `scrum points` の表。作業中の issue を、超えた数の多い順に並べる。済んだ issue の予実が記録にあれば、その下に出す。 */
+/** The table of `scrum points`. Lines up In Progress issues in descending order of exceeded number. If the record has estimate-versus-actual for finished issues, shows it below. */
 export function formatPoints(
   snapshot: Snapshot,
   history: CountingHistory,

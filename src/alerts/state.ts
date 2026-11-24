@@ -8,7 +8,7 @@ const isRecordOfText = (value: unknown): value is Readonly<Record<string, string
   typeof value === 'object' && value !== null && !Array.isArray(value) && Object.values(value).every((one) => typeof one === 'string')
 const isTextList = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((one) => typeof one === 'string')
 
-/** 状態を読む。無いか壊れていれば、何も見ていない状態から始める。 */
+/** Reads the state. If it is absent or broken, starts from a state in which nothing has been seen. */
 export function readAlertState(p: Paths): AlertState {
   const raw = readJson<Partial<Record<keyof AlertState, unknown>>>(p.alertsState, {})
   return {
@@ -25,8 +25,8 @@ export function writeAlertState(p: Paths, state: AlertState): void {
 }
 
 /**
- * いまの様子から、「動く人がいない Epic」と「渡せる issue が無い部下」を最初に見た時刻を進める。
- * 直った (動き出した、渡せるものができた) ものは消える。通知を出した指紋はそのまま持ち越す。
+ * From the current picture, advances the time first seen for "an Epic with nobody working on it" and "a member with no issue to hand over".
+ * Those that were fixed (work started, something became handable) are dropped. The fingerprints of notifications already shown are carried over as they are.
  */
 export function advanceAlertState(input: AlertInput): AlertState {
   const { snapshot, members, acks, dispatches, alerts, config, now } = input

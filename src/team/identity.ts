@@ -13,14 +13,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 type CachedIdentity = {
   readonly name: string | null
   readonly pid: number | null
-  /** bin/scrum はこれを見て、node を起こすかを決める */
+  /** bin/scrum looks at this to decide whether to start node */
   readonly role: Role | 'none'
   readonly checkedAt: string
 }
 
 /**
- * フックを呼んだセッションの名前 (ListAgents に出る名前) を決める。SCRUM_NAME があればそれを使う。
- * 無ければ session_id でセッションの記録を引き、5分だけ覚える。
+ * Decides the name of the session that called the hook (the name shown in ListAgents). If SCRUM_NAME is set, it is used.
+ * If not, it looks up the session record by session_id and remembers it for only 5 minutes.
  */
 export function resolveIdentity(p: Paths, sessionId: string, now: Date, config: Config, sessions: SessionDirectory): Identity | null {
   const fromEnv = process.env.SCRUM_NAME

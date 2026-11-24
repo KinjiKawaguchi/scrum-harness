@@ -2,7 +2,7 @@ import { alertsOf } from '../../alerts/config.ts'
 import { shortRepo, type Config } from '../../config.ts'
 import type { BoardItem, ContentState, ItemKind } from '../../board/types.ts'
 
-/** GraphQL が返す、ボードの1項目 (ProjectV2Item)。 */
+/** One item of the board that GraphQL returns (ProjectV2Item). */
 export type RawNode = {
   readonly id: string
   readonly type: string
@@ -27,7 +27,7 @@ export type RawNode = {
 
 const KINDS: Readonly<Record<string, ItemKind>> = { ISSUE: 'issue', PULL_REQUEST: 'pr', DRAFT_ISSUE: 'draft' }
 
-/** dispatch か alerts の設定があるときだけ取る、渡す順・ラベル・親の issue。取っていなければ、キーを足さない。 */
+/** The hand-over order, labels, and parent issue, fetched only when a dispatch or alerts config exists. When not fetched, the key is not added. */
 function dispatchFields(node: RawNode): Partial<BoardItem> {
   const content = node.content ?? {}
   const parent = content.parent
@@ -73,15 +73,15 @@ function sprintFields(config: Config): string {
   return [number('points', sprint.pointsField), ...(sprint.overrunField === undefined ? [] : [number('overrun', sprint.overrunField)])].join(' ')
 }
 
-/** dispatch を使うときだけ、渡す順の欄を取る。 */
+/** Fetches the hand-over order field only when dispatch is used. */
 function dispatchItemFields(config: Config): string {
   const field = config.dispatch?.enabled === true ? config.dispatch.orderField : undefined
   return field === undefined ? '' : `order: fieldValueByName(name:"${field}"){ ... on ProjectV2ItemFieldNumberValue{ number } }`
 }
 
 /**
- * ボードの1項目 (ProjectV2Item) で読む欄。ボード全体を数える問い合わせ (itemsQuery) と、項目を1件ずつ読む問い合わせ
- * (off-board.ts) が、同じ欄を読むので、ここに1つだけ置く。
+ * The fields read for one board item (ProjectV2Item). The query that counts the whole board (itemsQuery) and the query that reads items one by one
+ * (off-board.ts) read the same fields, so they are placed in one spot here.
  */
 export function itemNodeSelection(config: Config): string {
   const single = (alias: string, field: string) =>

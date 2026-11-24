@@ -1,17 +1,17 @@
 import { readText, type Paths } from '../store.ts'
 import type { Interval } from './effort.ts'
 
-/** 動きの記録がこれだけ途切れたら、その間は全セッションが止まっていたとみなす (2 時間)。 */
+/** If the activity record has a gap this long, all sessions are regarded as having been stalled during it (2 hours). */
 export const TEAM_STOP_MS = 2 * 60 * 60 * 1000
 
 /**
- * チームの誰かが動いたことを示す記録の種類。member-state、stop-blocked、woke、acked は watch が書き、activity は、
- * チームのセッションのフック (bin/scrum) が、watch が動いていなくても 10 分に 1 回書く。
- * launchd が誰も動いていなくても書く指摘の開閉 (finding-opened、finding-closed) は、動きに数えない。
+ * The kinds of records that show someone on the team moved. member-state, stop-blocked, woke, and acked are written by watch, and activity is written by
+ * the team sessions' hook (bin/scrum) once every 10 minutes even when watch is not running.
+ * The opening and closing of findings (finding-opened, finding-closed), which launchd writes even when nobody is moving, are not counted as activity.
  */
 const ACTIVITY_TYPES: ReadonlySet<string> = new Set(['member-state', 'stop-blocked', 'woke', 'acked', 'activity'])
 
-/** その時刻に、全セッションが止まっていたか。 */
+/** Whether all sessions were stalled at that time. */
 export type TeamStop = (at: Date) => boolean
 
 export const NEVER_STOPPED: TeamStop = () => false
@@ -27,7 +27,7 @@ function activityTime(line: string): readonly number[] {
   }
 }
 
-/** events.jsonl の本文から、動きの記録の時刻 (ミリ秒) を古い順に返す。読めない行と、動きでない種類は捨てる。 */
+/** From the text of events.jsonl, returns the times (milliseconds) of the activity records, oldest first. Unreadable lines and kinds that are not activity are dropped. */
 export function activityTimes(text: string): readonly number[] {
   return text
     .split('\n')
@@ -36,8 +36,8 @@ export function activityTimes(text: string): readonly number[] {
 }
 
 /**
- * 動きの記録が minimum 以上途切れた期間。最後の動きから今までも、minimum 以上なら含める。
- * 動きの記録が 1 件も無ければ、何も言えないので空を返す。
+ * The periods in which the activity record had a gap of at least minimum. The span from the last activity to now is included too if it is at least minimum.
+ * If there is not a single activity record, nothing can be said, so empty is returned.
  */
 export function stoppedSpans(times: readonly number[], now: Date, minimum: number = TEAM_STOP_MS): readonly Interval[] {
   const edges = [...times, now.getTime()]
@@ -47,12 +47,12 @@ export function stoppedSpans(times: readonly number[], now: Date, minimum: numbe
   })
 }
 
-/** 止まっていた期間のどれかの内側 (両端は含まない) にある時刻を、止まっていたとみなす。 */
+/** A time that lies inside one of the stalled periods (endpoints not included) is regarded as stalled. */
 export function teamStopFrom(spans: readonly Interval[]): TeamStop {
   return (at) => spans.some((span) => span.start < at.getTime() && at.getTime() < span.end)
 }
 
-/** ~/.claude/scrum/log/events.jsonl から、全セッションが止まっていた期間を作る。 */
+/** From ~/.claude/scrum/log/events.jsonl, builds the periods in which all sessions were stalled. */
 export function loadTeamStop(p: Paths, now: Date): TeamStop {
   return teamStopFrom(stoppedSpans(activityTimes(readText(p.events)), now))
 }

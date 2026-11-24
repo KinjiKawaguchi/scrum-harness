@@ -7,7 +7,7 @@ import type { BoardWriter } from '../../ports/index.ts'
 import type { Mark } from '../../sprint/marks.ts'
 import type { GhRun } from './gh.ts'
 
-/** ボードを書き換えるスクリプトを実行する。失敗したら投げる。 */
+/** Runs the script that rewrites the board. Throws on failure. */
 export type Exec = (script: string, args: readonly string[]) => void
 
 const SCRIPT_TIMEOUT_MS = 60_000
@@ -32,7 +32,7 @@ function fieldId(run: GhRun, config: Config, fieldName: string): string {
   return id
 }
 
-/** 計画した値をボードの「超過」の欄に書く。1件の失敗で止めず、失敗したものを返す。 */
+/** Writes the planned values into the board's "Overrun" field. A single failure does not stop it; it returns the ones that failed. */
 export function applyMarks(run: GhRun, marks: readonly Mark[], config: Config): readonly string[] {
   const fieldName = config.sprint?.overrunField
   if (fieldName === undefined || marks.length === 0) return []
@@ -54,8 +54,8 @@ function numberOf(item: BoardItem): string {
 }
 
 /**
- * 担当と Status は、設定のスクリプト (scripts.setAssignee、scripts.setStatus) で書く。どちらかが無ければ、書けない (canAssign が false)。
- * 超過は、gh project item-edit で書く。
+ * The assignee and Status are written with the configured scripts (scripts.setAssignee, scripts.setStatus). If either is missing, writing is impossible (canAssign is false).
+ * The overrun is written with gh project item-edit.
  */
 export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): BoardWriter {
   const { setStatus, setAssignee, setReason } = config.scripts

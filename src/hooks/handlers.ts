@@ -14,17 +14,17 @@ export type HookDeps = {
   readonly config: Config
   readonly now: Date
   readonly identity: Identity | null
-  /** 操作の読み取り (actions)、PR が触れている issue (code)、稼働 (sessions) を使う */
+  /** Uses the reading of operations (actions), the issues that a PR touches (code), and activity (sessions) */
   readonly ports: Pick<Ports, 'actions' | 'code' | 'sessions'>
-  /** ボードの取り直しを裏で始める */
+  /** Starts the board re-fetch in the background */
   readonly spawnRefresh: () => void
-  /** 節目の記録を裏で始める */
+  /** Starts the checkpoint recording in the background */
   readonly spawnCheckpoint: () => void
 }
 
 export type HookInput = Record<string, unknown>
 
-/** stdout に書く JSON と終了コード。stdout が無ければ何も出さない。 */
+/** The JSON written to stdout and the exit code. If there is no stdout, nothing is output. */
 export type HookResult = { readonly stdout?: unknown; readonly exitCode: 0 }
 
 const NOTHING: HookResult = { exitCode: 0 }
@@ -85,9 +85,9 @@ function techlead(event: string, input: HookInput, deps: HookDeps): HookResult {
 }
 
 /**
- * フックの入口。チームの外のセッションでは何もしない。どの役でも心拍を書き、記録していない節目があれば
- * 記録を裏で始める (TechLead のターンの区切りを待たずに、チームの誰かが動けば記録されるように)。
- * TechLead にだけ指摘を入れる。書き込みのガードは役に関係なく効かせる。
+ * The hook's entry point. Does nothing in a session outside the team. Writes the heartbeat in every role, and if there is a checkpoint not yet recorded,
+ * starts recording in the background (so that it is recorded if anyone on the team moves, without waiting for the TechLead's turn boundary).
+ * Injects findings only to the TechLead. The write guard applies regardless of role.
  */
 export function handleHook(event: string, input: HookInput, deps: HookDeps): HookResult {
   if (event === 'PreToolUse') return guard(input, deps)

@@ -2,10 +2,10 @@ import type { Config } from '../config.ts'
 import { dispatchOf } from '../config.ts'
 import type { Ack } from '../findings/acks.ts'
 
-/** T-IDLE の受け入れの最長。これより長くは黙らせない。 */
+/** The longest T-IDLE acknowledgement. It does not silence for longer than this. */
 export const IDLE_ACK_MAX_MS = 60 * 60_000
 
-/** 「枠」の受け入れは、枠の始まりのこの時間前までは、自動で渡すのを止めない。 */
+/** A "slot" acknowledgement does not stop automatic hand-over until this long before the slot starts. */
 export const SLOT_LEAD_MS = 15 * 60_000
 
 const SLOT = /^slot ([01]\d|2[0-3]):([0-5]\d)$/
@@ -18,7 +18,7 @@ export function offsetMinutes(offset: string): number {
   return sign * (Number(hours) * 60 + Number(minutes))
 }
 
-/** now と同じ日 (時差の側の日付) の、その時刻の瞬間。 */
+/** The instant of that time on the same day as now (the date on the offset's side). */
 function clockOnSameDay(now: Date, hour: number, minute: number, offset: string): number {
   const shift = offsetMinutes(offset) * 60_000
   const local = new Date(now.getTime() + shift)
@@ -26,8 +26,8 @@ function clockOnSameDay(now: Date, hour: number, minute: number, offset: string)
 }
 
 /**
- * 枠の始まりの瞬間。今日のその時刻が 1 時間より前なら、終わった枠とみなして明日のその時刻にする。
- * 過去 1 時間以内なら、いまが枠の中なので、今日のその時刻のままにする。
+ * The instant a slot starts. If today's time was more than 1 hour ago, it is regarded as a finished slot and tomorrow's time is used.
+ * If it was within the past hour, the present is inside the slot, so today's time is kept.
  */
 export function slotInstant(now: Date, hour: number, minute: number, offset: string): Date {
   const today = clockOnSameDay(now, hour, minute, offset)
@@ -35,9 +35,9 @@ export function slotInstant(now: Date, hour: number, minute: number, offset: str
 }
 
 /**
- * 保存された T-IDLE の受け入れが、作るときの検査 (checkIdleAck) を通る形か。最長 1 時間 (期限 - 作った時刻)、理由は完全一致の
- * 「<オーナー>の答え待ち」か、枠の始まりを持つ「枠 HH:MM」。検査を入れる前に作られた受け入れ (長い期限、余力などの理由、
- * 理由の後ろに文字がある) は通らず、自動で渡すのも、T-IDLE の指摘も止めない。T-IDLE 以外の受け入れは見ない。
+ * Whether a stored T-IDLE acknowledgement is of a shape that passes the check at creation (checkIdleAck). At most 1 hour (deadline - creation time), and the reason is exactly
+ * "waiting for <owner>'s answer" or "slot HH:MM" with the slot's start. An acknowledgement not created through the check (a long deadline, a reason such as spare capacity,
+ * or text after the reason) does not pass, and stops neither automatic hand-over nor the T-IDLE finding. Acknowledgements other than T-IDLE are not looked at.
  */
 export function isValidIdleAck(ack: Ack, config: Config): boolean {
   if (ack.rule !== 'T-IDLE') return true
@@ -48,8 +48,8 @@ export function isValidIdleAck(ack: Ack, config: Config): boolean {
 }
 
 /**
- * T-IDLE の受け入れを検査する。理由は決まった言葉から選ぶ (オーナーの答え待ち、枠 HH:MM)。
- * コンテキストの余力は理由にできない。長さは最長 1 時間。
+ * Checks a T-IDLE acknowledgement. The reason is chosen from fixed phrases (waiting for the owner's answer, slot HH:MM).
+ * Spare context capacity cannot be a reason. The length is at most 1 hour.
  */
 export function checkIdleAck(input: { readonly reason: string; readonly durationMs: number; readonly now: Date; readonly config: Config }): IdleAckCheck {
   const { reason, durationMs, now, config } = input

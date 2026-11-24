@@ -1,13 +1,13 @@
 import { atLeast, type Finding, type Severity } from './types.ts'
 
-/** まだ知らせていない、指定の重さ以上の指摘。 */
+/** Findings of the specified severity or higher that have not been notified yet. */
 export function unseen(findings: readonly Finding[], seenKeys: readonly string[], min: Severity): readonly Finding[] {
   const seen = new Set(seenKeys)
   return findings.filter(atLeast(min)).filter((finding) => !seen.has(finding.key))
 }
 
 /**
- * 知らせた指紋を覚える。今ある指摘の指紋だけを残すので、直ってから再び起きた指摘はまた知らせる。
+ * Remembers the fingerprints that were notified. Only the fingerprints of current findings are kept, so a finding that arises again after being fixed is notified again.
  */
 export function remember(
   seenKeys: readonly string[],
@@ -20,8 +20,8 @@ export function remember(
 }
 
 /**
- * ターンの終わりを止めるか。止めるのは、止めたことのない高い指摘があるときだけで、
- * Stop フックで続いているターン (stop_hook_active) では止めない。
+ * Whether to stop the end of the turn. It stops only when there is a high finding that has never been stopped on,
+ * and does not stop on a turn that continues from a Stop hook (stop_hook_active).
  */
 export function decideStop(
   high: readonly Finding[],

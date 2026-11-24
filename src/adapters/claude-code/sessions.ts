@@ -16,7 +16,7 @@ export function findSessionName(records: readonly SessionRecord[], sessionId: st
   return typeof record?.name === 'string' ? record.name : null
 }
 
-/** ~/.claude/sessions/<pid>.json を読む。Claude Code の内部の記録なので、読めないものは捨てる。 */
+/** Reads ~/.claude/sessions/<pid>.json. It is Claude Code's internal record, so anything unreadable is discarded. */
 export function readSessionRecords(dir: string = sessionsDir()): readonly SessionRecord[] {
   try {
     return readdirSync(dir)
@@ -40,8 +40,8 @@ const SESSION_STATUS: Readonly<Record<string, ActivityState>> = {
 const toIso = (value: unknown): string | null => (typeof value === 'number' ? new Date(value).toISOString() : null)
 
 /**
- * ~/.claude/sessions/<pid>.json (Claude Code の内部の記録で、形式は公開されていない) を信号に変える。
- * 読めない形なら null を返し、フックの心拍だけで動くようにする。
+ * Turns ~/.claude/sessions/<pid>.json (Claude Code's internal record, whose format is not public) into a signal.
+ * Returns null when the shape is unreadable, so that only the hook heartbeat drives it.
  */
 export function parseSessionFile(raw: unknown, isAlive: (pid: number) => boolean): SessionSignal | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -54,7 +54,7 @@ export function parseSessionFile(raw: unknown, isAlive: (pid: number) => boolean
   return { sessionId, name, state, since: at, updatedAt: at, isAlive: isAlive(pid), nameSince: toIso(record.nameSince) }
 }
 
-/** Claude Code のセッションの記録 (~/.claude/sessions、SCRUM_SESSIONS_DIR で変えられる) を、読むたびに読み直す。 */
+/** Re-reads Claude Code's session records (~/.claude/sessions, changeable with SCRUM_SESSIONS_DIR) on every read. */
 export function claudeCodeSessions(): SessionDirectory {
   return {
     find: (sessionId) => {

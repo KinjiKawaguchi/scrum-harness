@@ -2,9 +2,9 @@ import type { BoardItem } from '../../board/types.ts'
 import type { GhRun } from './gh.ts'
 
 /**
- * issue の作業の印のうち、GitHub から取る部分: issue のコメントの数、紐づいたブランチの先頭、その issue の PR の番号と状態と先頭のコミット。
- * PR は、ほかの人の PR を拾わないよう絞る: 紐づいたブランチ (仕事を渡したときに作る、issue ごとに 1 本) があれば、そのブランチから出た PR だけ。
- * 紐づいたブランチが無ければ、題の括弧の中か、ブランチ名の先頭の番号が、その issue と合う PR だけ。
+ * The part of an issue's work marks that comes from GitHub: the number of issue comments, the head of the linked branch, and the number, state, and head commit of the issue's PR.
+ * PRs are narrowed so that other people's PRs are not picked up: if there is a linked branch (made when work is handed over, one per issue), only PRs from that branch.
+ * If there is no linked branch, only PRs whose parenthesized number in the title or leading number in the branch name matches the issue.
  */
 
 const QUERY = `query($owner:String!, $name:String!, $number:Int!){ repository(owner:$owner, name:$name){ issue(number:$number){
@@ -22,18 +22,18 @@ type IssueActivity = {
   }
 }
 
-/** 題の括弧の中の `#N` (`feat: x (#123)`、`(#123、#124)`)。 */
+/** The `#N` in parentheses in a title (`feat: x (#123)`, `(#123, #124)`). */
 function titleCites(title: string, number: number): boolean {
   return [...title.matchAll(/\(([^)]*)\)/g)].some((group) => [...(group[1] ?? '').matchAll(/#(\d+)\b/g)].some((one) => Number(one[1]) === number))
 }
 
-/** ブランチ名の先頭の番号 (`feat/456-ci`、`456-foo`)。番号の後ろが `-`、`_`、`/` か終わりのときだけ。 */
+/** The leading number in a branch name (`feat/456-ci`, `456-foo`). Only when the number is followed by `-`, `_`, `/`, or the end. */
 function branchStartsWith(name: string, number: number): boolean {
   const match = /^(?:[a-z]+\/)?(\d+)(?:[-_/]|$)/.exec(name)
   return match !== null && Number(match[1]) === number
 }
 
-/** gh の答えを、順に並べた安定した文字列にする。issue が無ければ投げる。number は、その issue の番号 (PR を絞るのに使う)。 */
+/** Turns gh's answer into a stable, ordered string. Throws if the issue does not exist. number is the issue's number (used to narrow the PRs). */
 export function activityToken(output: string, number: number | null = null): string {
   const issue = (JSON.parse(output) as { data?: { repository?: { issue?: IssueActivity | null } | null } }).data?.repository?.issue
   if (!issue) throw new Error('cannot read the issue')

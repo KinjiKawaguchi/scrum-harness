@@ -5,8 +5,8 @@ import type { Config } from './config.ts'
 import type { Ports } from './ports/index.ts'
 
 /**
- * 設定から、中心に渡すポートを組み立てる。中心のコードはアダプタを import せず、ここで作ったものだけを受け取る。
- * ボードとコードは GitHub、セッションは Claude Code、通知は macOS。
+ * Builds, from the config, the ports handed to the core. The core code does not import adapters and receives only what is built here.
+ * The board and code are GitHub, sessions are Claude Code, and notifications are macOS.
  */
 export function buildPorts(config: Config): Ports {
   return { ...githubPorts(config), sessions: claudeCodeSessions(), notify: macosNotify }

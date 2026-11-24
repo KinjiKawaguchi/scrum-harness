@@ -2,11 +2,11 @@ import type { IssueComment } from '../ports/index.ts'
 
 export type { IssueComment }
 
-/** 超過の扱いの決め方。見積もりを直す、分ける、手を足す、見積もりのまま (超えた分は待ち) の 4 つ。 */
+/** The ways to settle an overrun. Four: revise the estimate, split, add hands, or keep the estimate (the excess is waited out). */
 export const OVERRUN_DECISIONS = ['reestimate', 'split', 'add-hands', 'keep'] as const
 export type OverrunDecision = (typeof OVERRUN_DECISIONS)[number]
 
-/** 超過の扱いを決めた印。issue のコメントの 1 行目に、人が読む文より前に置く HTML コメント。 */
+/** The marker that records how the overrun was settled. An HTML comment placed on the first line of an issue comment, before the text a person reads. */
 export type OverrunMark = {
   readonly decision: OverrunDecision
   readonly from: number
@@ -15,7 +15,7 @@ export type OverrunMark = {
 
 const MARK_LINE = /^<!-- scrum:points-overrun decision=([a-z-]+) from=(\d+) to=(\d+) -->$/
 
-/** コメントの 1 行目が印なら、その中身。印でなければ、決めが 4 つのどれでもなければ null。 */
+/** If the first line of the comment is a marker, its content. null if it is not a marker, or if the decision is none of the four. */
 export function parseOverrunMark(body: string): OverrunMark | null {
   const found = MARK_LINE.exec(body.split('\n', 1)[0]?.trim() ?? '')
   if (found === null) return null
@@ -23,7 +23,7 @@ export function parseOverrunMark(body: string): OverrunMark | null {
   return decision === undefined ? null : { decision, from: Number(found[2]), to: Number(found[3]) }
 }
 
-/** 印の中身が、決めと合っているか。合っていなければ、その理由。 */
+/** Whether the marker's content agrees with the decision. If not, the reason. */
 function markProblem(mark: OverrunMark, boardPoints: number | null): string | null {
   if (mark.decision === 'keep' && mark.from !== mark.to) return `keep leaves the estimate as it is, so from and to must be the same (from=${mark.from} to=${mark.to})`
   if (mark.decision === 'reestimate' && mark.from === mark.to) return `reestimate changes the estimate, so from and to must differ (from=${mark.from} to=${mark.to})`
@@ -36,8 +36,8 @@ function markProblem(mark: OverrunMark, boardPoints: number | null): string | nu
 export type OverrunBasis = { readonly ok: true; readonly basis: string } | { readonly ok: false; readonly message: string }
 
 /**
- * S-POINTS-OVER を受け入れてよいか。超過を出した節目 (overSince) より後に付いた、正しい印のコメントが 1 つでもあれば、その印を根拠にする。
- * 無ければ、受け入れない (見積もりを直したか、分けたか、手を足したか、見積もりのままにすると決めた記録が、まだ無い)。
+ * Whether S-POINTS-OVER may be accepted. If there is even one valid marker comment posted after the checkpoint at which the overrun was raised (overSince), that marker is the basis.
+ * If there is none, it is not accepted (there is no record that it was decided to revise the estimate, split, add hands, or keep the estimate).
  */
 export function overrunBasis(comments: readonly IssueComment[], overSince: string, boardPoints: number | null): OverrunBasis {
   const after = comments

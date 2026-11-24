@@ -38,7 +38,7 @@ const SCRIPT_KEYS: readonly ScriptKey[] = ['setStatus', 'setReason', 'setAssigne
 
 const baseName = (name: string): string => name.split('/').pop() ?? name
 
-/** 実行したプログラムが、設定のどのスクリプトか。 */
+/** Which of the configured scripts the executed program is. */
 function scriptOf(program: string, scripts: BoardScripts): ScriptKey | null {
   return SCRIPT_KEYS.find((key) => scripts[key] !== undefined && baseName(scripts[key] ?? '') === program) ?? null
 }
@@ -80,8 +80,8 @@ function parseSegment(words: readonly string[], config: Config): BoardCommand | 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
- * bin/scrum が node を起こすかを決める型 (grep -E)。post はツールの呼び出しの後に見るコマンド、
- * pre は書き込みの前に確かめるコマンド (Status を変えるスクリプト)。pre が空なら確かめない。
+ * Patterns (grep -E) that decide whether bin/scrum starts node. post is the command checked after a tool call,
+ * pre is the command checked before a write (a script that changes Status). When pre is empty, nothing is checked.
  */
 export function shellPatterns(config: Config): { readonly post: string; readonly pre: string } {
   const names = (keys: readonly ScriptKey[]) =>
@@ -112,7 +112,7 @@ export function parseBoardCommands(command: string, config: Config): readonly Bo
   return hasRaw ? [...parsed, { kind: 'raw-mutation' }] : parsed
 }
 
-/** Bash から gh と設定のスクリプトでボードを書き換えるときの読み取り。 */
+/** Reads what is done when Bash rewrites the board with gh and the configured scripts. */
 export function bashActionReader(config: Config): ActionReader {
   return { commandsOf: (command) => parseBoardCommands(command, config), shellPatterns: () => shellPatterns(config) }
 }

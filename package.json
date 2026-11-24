@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT OR Apache-2.0",
   "type": "module",
-  "description": "GitHub Project ボードの不変条件と部下の稼働を検出し、Claude Code のフックで TechLead に知らせる",
+  "description": "Checks GitHub Project board invariants and member activity, and notifies the TechLead through Claude Code hooks",
   "engines": {
     "node": ">=24"
   },

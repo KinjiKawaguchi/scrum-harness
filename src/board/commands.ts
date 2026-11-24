@@ -7,7 +7,7 @@ export type BoardCommand =
   | { readonly kind: 'set-reason'; readonly label: string; readonly reason: string; readonly since: string | null }
   | { readonly kind: 'set-assignee'; readonly label: string; readonly assignee: string | null }
   | { readonly kind: 'bulk-status'; readonly labels: readonly string[]; readonly status: string }
-  /** repo は、コマンドが指したリポジトリの full の名前 (owner/name)。ラベルの短い名前から引き直すと、設定に無いリポジトリを defaultRepo と取り違える */
+  /** repo is the full name (owner/name) of the repository the command pointed at. Looking it up again from the label's short name would mistake a repository not in the config for defaultRepo */
   | { readonly kind: 'merge-pr'; readonly label: string; readonly repo: string }
   | { readonly kind: 'close-issue'; readonly label: string }
   | { readonly kind: 'raw-mutation' }
@@ -49,7 +49,7 @@ function applyOne(snapshot: Snapshot, command: BoardCommand, config: Config, tod
   }
 }
 
-/** コマンドが成功したとみなして、取り直しを待たずに控えへ反映する。 */
+/** Treats the command as having succeeded and reflects it in the board copy without waiting for a re-fetch. */
 export function applyCommands(snapshot: Snapshot, commands: readonly BoardCommand[], config: Config, today: string): Snapshot {
   return commands.reduce((acc, command) => applyOne(acc, command, config, today), snapshot)
 }
@@ -65,12 +65,12 @@ function statusTargets(commands: readonly BoardCommand[]): readonly { readonly l
 const isDoingIssue = (item: BoardItem | undefined, config: Config): boolean =>
   item?.kind === 'issue' && item.state === 'OPEN' && item.status === config.statuses.doing
 
-/** 作業中の issue の数。作業中の上限の守り (checkGuard) と、渡す側 (chooseNext) が、同じ数え方を使う (除く作者の issue も数える)。 */
+/** The number of In Progress issues. The In Progress limit guard (checkGuard) and the hand-over side (chooseNext) use the same way of counting (issues by excluded authors are also counted). */
 export function countDoing(snapshot: Snapshot, config: Config): number {
   return snapshot.items.filter((item) => isDoingIssue(item, config)).length
 }
 
-/** 書き込みの前に、作ってはいけない状態 (作業中の上限超え、PR の Status) を止める。止める理由か null を返す。 */
+/** Before a write, stops states that must not be created (exceeding the In Progress limit, the PR's Status). Returns the reason for stopping, or null. */
 export function checkGuard(snapshot: Snapshot, commands: readonly BoardCommand[], config: Config, rawCommand = ''): string | null {
   if (rawCommand.includes('SCRUM_GUARD=off')) return null
   const byLabel = new Map(snapshot.items.map((item) => [label(item), item]))

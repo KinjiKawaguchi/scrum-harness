@@ -1,19 +1,19 @@
 export type ActivityState = 'busy' | 'idle' | 'waiting' | 'ended'
 
-/** 1セッションの稼働の記録。フックの心拍と Claude Code のセッションの記録の両方から作る。 */
+/** The activity record of one session. Built from both the hook heartbeat and Claude Code's session record. */
 export type SessionSignal = {
   readonly sessionId: string
   readonly name: string
   readonly state: ActivityState
-  /** この状態に入った時刻 (ISO 8601) */
+  /** The time it entered this state (ISO 8601) */
   readonly since: string
   readonly updatedAt: string
   readonly isAlive: boolean
-  /** その名前を取った時刻。同じ名前のセッションが複数あるときは、後から取ったほうが正 (ListAgents と同じ) */
+  /** The time it took that name. When several sessions have the same name, the one that took it later is correct (same as ListAgents) */
   readonly nameSince: string | null
 }
 
-/** 名前 (部下) ごとにまとめた稼働。同じ名前のセッションが複数動いていることがある。 */
+/** Activity grouped by name (member). Several sessions with the same name may be running. */
 export type MemberState = {
   readonly name: string
   readonly state: 'busy' | 'idle' | 'waiting' | 'unknown'

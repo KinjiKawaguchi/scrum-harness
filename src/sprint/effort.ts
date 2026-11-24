@@ -1,12 +1,12 @@
 import type { SprintConfig } from '../config.ts'
 import { checkpointsBetween } from './checkpoints.ts'
 
-/** Status の変化の記録 (GitHub の issue の timeline から)。 */
+/** The Status change record (from the GitHub issue's timeline). */
 export type StatusEvent = { readonly at: string; readonly status: string | null }
 
 export type Interval = { readonly start: number; readonly end: number }
 
-/** 作業中にいた期間を、出入りした回数だけ返す。今も作業中なら今で閉じる。 */
+/** Returns the periods spent in In Progress, one per entry and exit. If it is still In Progress, the period is closed at now. */
 export function doingIntervals(events: readonly StatusEvent[], doing: string, now: Date): readonly Interval[] {
   const sorted = events.toSorted((a, b) => Date.parse(a.at) - Date.parse(b.at))
   const { intervals, openedAt } = sorted.reduce<{ readonly intervals: readonly Interval[]; readonly openedAt: number | null }>(
@@ -21,7 +21,7 @@ export function doingIntervals(events: readonly StatusEvent[], doing: string, no
   return openedAt === null ? intervals : [...intervals, { start: openedAt, end: now.getTime() }]
 }
 
-/** 作業中の期間にまたいだ節目 (止まっていた節目は除く)。古い順。 */
+/** The checkpoints crossed during the In Progress periods (excluding stalled checkpoints). Oldest first. */
 export function countedCheckpoints(
   intervals: readonly Interval[],
   sprint: SprintConfig,
@@ -33,7 +33,7 @@ export function countedCheckpoints(
     .toSorted((a, b) => a.getTime() - b.getTime())
 }
 
-/** 作業中の期間にまたいだ節目の数。止まっていた節目は数えない。 */
+/** The number of checkpoints crossed during the In Progress periods. Stalled checkpoints are not counted. */
 export function countEffort(
   intervals: readonly Interval[],
   sprint: SprintConfig,
@@ -42,7 +42,7 @@ export function countEffort(
   return countedCheckpoints(intervals, sprint, isBlockedAt).length
 }
 
-/** ポイントから決めた目安の節目の数。段に無いポイントは null。 */
+/** The budget number of checkpoints decided from the points. null for points not in the tiers. */
 export function budgetFor(points: number | null, sprint: SprintConfig): number | null {
   if (points === null) return null
   return sprint.pointBudgets[String(points)] ?? null
