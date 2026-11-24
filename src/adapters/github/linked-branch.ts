@@ -1,18 +1,7 @@
-import type { BoardItem } from '../board/types.ts'
-import { dispatchOf, type Config } from '../config.ts'
-import { ghWithin } from '../github.ts'
-
-/** gh を呼び、標準出力を返す。失敗すれば投げる。試験では偽物を渡す。 */
-export type GhRun = (args: readonly string[]) => string
-
-/** issue に紐づいたブランチ。isNew は、いま作ったか (すでに紐づいたものがあれば false)。 */
-export type LinkedBranch = { readonly name: string; readonly isNew: boolean }
-
-/** 渡す issue に、紐づいたブランチを用意する。設定が無ければ null。失敗すれば投げる。 */
-export type LinkBranch = (item: BoardItem, config: Config) => LinkedBranch | null
-
-/** 渡した仕事の文面に載せる結果。failed は、用意しようとして失敗したこと。 */
-export type LinkOutcome = LinkedBranch | 'failed' | null
+import type { BoardItem } from '../../board/types.ts'
+import { dispatchOf, type Config } from '../../config.ts'
+import type { LinkedBranch } from '../../ports/index.ts'
+import type { GhRun } from './gh.ts'
 
 export function branchName(prefix: string, number: number): string {
   return `${prefix}/${number}`
@@ -62,8 +51,8 @@ export function ensureLinkedBranch(
 }
 
 /** 設定の linkedBranchPrefix があるときだけ、渡す issue に紐づいたブランチを用意する。 */
-export function linkBranchWith(run: GhRun): LinkBranch {
-  return (item, config) => {
+export function linkBranchWith(run: GhRun, config: Config): (item: BoardItem) => LinkedBranch | null {
+  return (item) => {
     const { linkedBranchPrefix, baseBranch } = dispatchOf(config)
     if (linkedBranchPrefix === undefined || item.number === null) return null
     return ensureLinkedBranch(run, { repo: item.repo, number: item.number, baseBranch, prefix: linkedBranchPrefix })
@@ -72,5 +61,3 @@ export function linkBranchWith(run: GhRun): LinkBranch {
 
 /** 渡す錠の中で呼ぶので、1 回の gh を 15 秒で打ち切る (最大 2 回で 30 秒。ネットワークが詰まっても、ほかの部下への渡しを長く待たせない)。 */
 export const LINK_GH_TIMEOUT_MS = 15_000
-
-export const defaultLink: LinkBranch = linkBranchWith(ghWithin(LINK_GH_TIMEOUT_MS))

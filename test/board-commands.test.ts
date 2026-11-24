@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyCommands, checkGuard, mergeContext, parseBoardCommands, referencedLabels } from '../src/board/commands.ts'
+import { parseBoardCommands, shellPatterns } from '../src/adapters/github/action-reader.ts'
+import { referencedLabels } from '../src/adapters/github/pull-requests.ts'
+import { applyCommands, checkGuard, mergeContext } from '../src/board/commands.ts'
 import { config, issue, pr, snapshot } from './helpers.ts'
 
 const parse = (command: string) => parseBoardCommands(command, config)
@@ -151,9 +153,7 @@ describe('スクリプトの設定', () => {
   })
 })
 
-describe('shellPatterns', async () => {
-  const { shellPatterns } = await import('../src/board/commands.ts')
-
+describe('shellPatterns', () => {
   it('フックが node を起こすコマンドの型に、設定のスクリプト名を入れる', () => {
     const patterns = shellPatterns(config)
     assert.match('set-status 1 作業中', new RegExp(patterns.post))

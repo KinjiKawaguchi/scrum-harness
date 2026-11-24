@@ -1,40 +1,14 @@
-import { readdirSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { alertsOf } from '../alerts/config.ts'
 import type { Config } from '../config.ts'
+import type { SessionDirectory } from '../ports/index.ts'
 import { readJson, writeJson, type Paths } from '../store.ts'
-
-type SessionRecord = { readonly pid?: unknown; readonly sessionId?: unknown; readonly name?: unknown }
 
 export type Identity = { readonly sessionId: string; readonly name: string; readonly pid: number | null }
 
 export type Role = 'techlead' | 'member' | 'liaison'
 
 const CACHE_TTL_MS = 5 * 60 * 1000
-
-export function sessionsDir(): string {
-  return process.env.SCRUM_SESSIONS_DIR ?? join(homedir(), '.claude', 'sessions')
-}
-
-export function findSessionName(records: readonly SessionRecord[], sessionId: string): string | null {
-  const record = records.find((one) => one.sessionId === sessionId)
-  return typeof record?.name === 'string' ? record.name : null
-}
-
-/** ~/.claude/sessions/<pid>.json を読む。Claude Code の内部の記録なので、読めないものは捨てる。 */
-export function readSessionRecords(dir: string = sessionsDir()): readonly SessionRecord[] {
-  try {
-    return readdirSync(dir)
-      .filter((name) => name.endsWith('.json'))
-      .flatMap((name) => {
-        const record = readJson<SessionRecord | null>(join(dir, name), null)
-        return record === null ? [] : [record]
-      })
-  } catch {
-    return []
-  }
-}
 
 type CachedIdentity = {
   readonly name: string | null
@@ -48,7 +22,7 @@ type CachedIdentity = {
  * フックを呼んだセッションの名前 (ListAgents に出る名前) を決める。SCRUM_NAME があればそれを使う。
  * 無ければ session_id でセッションの記録を引き、5分だけ覚える。
  */
-export function resolveIdentity(p: Paths, sessionId: string, now: Date, config: Config): Identity | null {
+export function resolveIdentity(p: Paths, sessionId: string, now: Date, config: Config, sessions: SessionDirectory): Identity | null {
   const fromEnv = process.env.SCRUM_NAME
   if (fromEnv) return { sessionId, name: fromEnv, pid: null }
   const cachePath = join(p.identity, `${sessionId}.json`)
@@ -56,10 +30,7 @@ export function resolveIdentity(p: Paths, sessionId: string, now: Date, config: 
   if (cached !== null && now.getTime() - Date.parse(cached.checkedAt) < CACHE_TTL_MS) {
     return cached.name === null ? null : { sessionId, name: cached.name, pid: cached.pid }
   }
-  const records = readSessionRecords()
-  const record = records.find((one) => one.sessionId === sessionId)
-  const name = findSessionName(records, sessionId)
-  const pid = typeof record?.pid === 'number' ? record.pid : null
+  const { name, pid } = sessions.find(sessionId)
   const role = (name === null ? null : roleOf(name, config)) ?? 'none'
   writeJson(cachePath, { name, pid, role, checkedAt: now.toISOString() } satisfies CachedIdentity)
   return name === null ? null : { sessionId, name, pid }

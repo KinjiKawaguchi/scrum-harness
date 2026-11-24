@@ -99,6 +99,13 @@ pnpm typecheck   # tsc
 
 ソースに特定のボードやチームの値は持たない。値は設定ファイルにだけ書く。
 
+外のシステムとのつなぎ目は、ポートとアダプタに分けてある。依存は、アダプタから中心へだけ向く。
+
+- `src/ports/`: 中心が外に求めるものの型 (ボードを読む・書く、操作の読み取り、issue、PR とブランチ、セッション、通知)。
+- `src/adapters/<システム>/`: ポートの実装。`github/` (gh と設定のスクリプト)、`claude-code/` (`~/.claude/sessions`)、`macos/` (osascript)。
+- `src/wiring.ts`: 設定からアダプタを作り、ポートとして中心に渡す。中心の機能のフォルダ (`board/`、`team/`、`sprint/` など) は、アダプタを import しない。
+- 試験では `test/fake-ports.ts` の偽のポートを渡し、外に出ない。
+
 ## ライセンス
 
 MIT と Apache-2.0 の、どちらか好きなほう ([LICENSE-MIT](LICENSE-MIT)、[LICENSE-APACHE](LICENSE-APACHE))。

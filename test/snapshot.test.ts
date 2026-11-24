@@ -3,11 +3,18 @@ import assert from 'node:assert/strict'
 import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { checkGuard, parseBoardCommands } from '../src/board/commands.ts'
+import { parseBoardCommands } from '../src/adapters/github/action-reader.ts'
+import { gh } from '../src/adapters/github/gh.ts'
+import { parseItemPages, projectBoardSource } from '../src/adapters/github/project-board.ts'
+import { checkGuard } from '../src/board/commands.ts'
 import { lintBoard } from '../src/board/rules.ts'
-import { isRefreshDue, parseItemPages, refreshSnapshot } from '../src/board/snapshot.ts'
-import { paths, writeJson } from '../src/store.ts'
+import { isRefreshDue, refreshSnapshot as refreshWith } from '../src/board/snapshot.ts'
+import type { Config } from '../src/config.ts'
+import { paths, writeJson, type Paths } from '../src/store.ts'
 import { config, issue, snapshot } from './helpers.ts'
+
+/** GitHub のアダプタで取り直す。gh は、試験ごとに PATH の先頭に置いた偽物が答える。 */
+const refreshSnapshot = (p: Paths, c: Config, now: Date) => refreshWith(p, c, now, projectBoardSource(gh, c))
 
 const page = JSON.parse(readFileSync(new URL('./fixtures/graphql-page.json', import.meta.url), 'utf8'))
 

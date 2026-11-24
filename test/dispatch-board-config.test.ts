@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseItemPages } from '../src/board/snapshot.ts'
+import { parseItemPages } from '../src/adapters/github/project-board.ts'
 import { parseConfig } from '../src/config.ts'
 import { boardToken } from '../src/dispatch/progress.ts'
 import { lintDispatch } from '../src/dispatch/rules.ts'

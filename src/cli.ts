@@ -15,14 +15,14 @@ import {
 import { alertsCommand } from './alerts/command.ts'
 import { configPath, dispatchOf, loadConfig, type Config } from './config.ts'
 import { dispatchOnce, formatOnce } from './dispatch/once.ts'
-import { realExec, runMemberWatch } from './dispatch/run.ts'
 import { handleHook } from './hooks/handlers.ts'
-import { gh } from './github.ts'
 import { linkPullRequests, type LinkPlan } from './links/run.ts'
 import { hookDeps, parseInput, readStdin } from './runtime.ts'
 import { logError, paths, type Paths } from './store.ts'
 import { resolveIdentity } from './team/identity.ts'
+import type { Ports } from './ports/index.ts'
 import { watchFor } from './watch-role.ts'
+import { buildPorts } from './wiring.ts'
 
 const USAGE = `scrum: GitHub Project のボードと部下の稼働を点検する
   scrum lint [--refresh] [--json]   指摘の全件
@@ -41,9 +41,9 @@ const USAGE = `scrum: GitHub Project のボードと部下の稼働を点検す�
   scrum install | uninstall         ~/.claude/settings.json にフックを足す・外す
   scrum hook <Event> | watch        Claude Code のフックから呼ぶ`
 
-function identityOf(p: Paths, input: Record<string, unknown>, now: Date, config: Config) {
+function identityOf(p: Paths, input: Record<string, unknown>, now: Date, config: Config, ports: Ports) {
   const sessionId = typeof input.session_id === 'string' ? input.session_id : ''
-  return sessionId === '' ? null : resolveIdentity(p, sessionId, now, config)
+  return sessionId === '' ? null : resolveIdentity(p, sessionId, now, config, ports.sessions)
 }
 
 /** フックは失敗してもセッションを止めない。エラーは記録だけして exit 0。 */
@@ -53,7 +53,8 @@ async function runHook(p: Paths, event: string): Promise<number> {
   try {
     const input = parseInput(await readStdin())
     const now = new Date()
-    const result = handleHook(event, input, hookDeps(p, config, identityOf(p, input, now, config), now))
+    const ports = buildPorts(config)
+    const result = handleHook(event, input, hookDeps(p, config, identityOf(p, input, now, config, ports), now, ports))
     if (result.stdout !== undefined) process.stdout.write(JSON.stringify(result.stdout))
   } catch (error) {
     logError(p, `hook ${event}`, error)
@@ -73,9 +74,10 @@ async function runWatchCommand(p: Paths): Promise<number> {
   const config = loadConfig()
   if (config === null) return 0
   const input = parseInput(await readStdin())
-  const identity = identityOf(p, input, new Date(), config)
+  const ports = buildPorts(config)
+  const identity = identityOf(p, input, new Date(), config, ports)
   if (identity === null) return 0
-  const message = await watchFor(p, config, identity.name, { maxMs: WATCH_MAX_MS, intervalMs: WATCH_INTERVAL_MS })
+  const message = await watchFor(p, config, identity.name, { maxMs: WATCH_MAX_MS, intervalMs: WATCH_INTERVAL_MS }, ports)
   if (message === null) return 0
   process.stderr.write(message)
   return 2
@@ -90,33 +92,34 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0
   }
   const config = loadConfig()
-  if (config !== null) writeShellPatterns(p, config)
-  const needConfig = (run: (config: Config) => string) =>
-    print(config === null ? `設定が無いか、欠けた値がある: ${configPath()} (config.example.json を写して直す)` : run(config))
+  const ports = config === null ? null : buildPorts(config)
+  if (config !== null && ports !== null) writeShellPatterns(p, config, ports.actions)
+  const needConfig = (run: (config: Config, ports: Ports) => string) =>
+    print(config === null || ports === null ? `設定が無いか、欠けた値がある: ${configPath()} (config.example.json を写して直す)` : run(config, ports))
   switch (command) {
     case 'hook':
       return runHook(p, positional[0] ?? '')
     case 'watch':
       return runWatchCommand(p)
     case 'refresh': {
-      return needConfig((c) => {
-        const snapshot = refreshSnapshot(p, c, new Date())
+      return needConfig((c, ports) => {
+        const snapshot = refreshSnapshot(p, c, new Date(), ports.board)
         return snapshot === null ? `取り直せなかった (ほかで取り直し中か、エラー。${p.errors})` : `${snapshot.items.length} 項目を取り直した`
       })
     }
     case 'lint':
-      return needConfig((c) => lintCommand(p, c, flags))
+      return needConfig((c, ports) => lintCommand(p, c, flags, ports))
     case 'team':
-      return needConfig((c) => teamCommand(p, c))
+      return needConfig((c, ports) => teamCommand(p, c, ports.sessions))
     case 'ack':
-      return print(ackCommand(p, positional, flags, config))
+      return print(ackCommand(p, positional, flags, config, new Date(), ports?.issues ?? null))
     case 'acks':
       return print(acksCommand(p))
     case 'report':
       return print(reportCommand(p, flags))
     case 'link-prs':
-      return needConfig((c) => {
-        const result = linkPullRequests(p, c, new Date(), gh, { dryRun: flags['dry-run'] === true })
+      return needConfig((c, ports) => {
+        const result = linkPullRequests(p, c, new Date(), ports, { dryRun: flags['dry-run'] === true })
         const reasonOf = (plan: LinkPlan) => result.skipped.find((one) => one.plan === plan)?.reason
         const mark = (plan: LinkPlan) => (result.applied.includes(plan) ? ' (書き換えた)' : reasonOf(plan) === undefined ? '' : ` (飛ばした: ${reasonOf(plan)})`)
         const lines = result.planned.map((plan) => `${plan.repo}#${plan.issue}: ${plan.entries.map((entry) => `#${entry.number}`).join(' ') || '(印の組を消す)'}${mark(plan)}`)
@@ -124,21 +127,21 @@ async function main(argv: readonly string[]): Promise<number> {
         return [...lines, ...broken, `書き換える予定 ${result.planned.length} 件、書き換えた ${result.applied.length} 件、飛ばした ${result.skipped.length} 件、印が壊れている ${result.broken.length} 件`].join('\n')
       })
     case 'alerts':
-      return needConfig((c) => alertsCommand(p, c, new Date()))
+      return needConfig((c, ports) => alertsCommand(p, c, new Date(), ports))
     case 'dispatch':
-      return needConfig((c) => {
+      return needConfig((c, ports) => {
         if (flags.once !== true) return '使い方: scrum dispatch --once [<名前>...]'
         const now = new Date()
-        if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now)
-        return formatOnce(dispatchOnce(p, c, now, realExec(c), positional))
+        if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now, ports.board)
+        return formatOnce(dispatchOnce(p, c, now, ports, positional))
       })
     case 'checkpoint':
-      return needConfig((c) => checkpointCommand(p, c))
+      return needConfig((c, ports) => checkpointCommand(p, c, ports))
     case 'points':
       return needConfig((c) => pointsCommand(p, c))
     case 'statusline': {
       const input = parseInput(await readStdin())
-      return config === null ? 0 : print(statuslineCommand(p, config, input))
+      return config === null || ports === null ? 0 : print(statuslineCommand(p, config, input, ports.sessions))
     }
     case 'install':
     case 'uninstall':

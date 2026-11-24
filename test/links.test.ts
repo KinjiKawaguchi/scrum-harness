@@ -4,13 +4,26 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { parseConfig } from '../src/config.ts'
-import type { GhRun } from '../src/dispatch/linked-branch.ts'
+import type { GhRun } from '../src/adapters/github/gh.ts'
+import { githubIssueThread } from '../src/adapters/github/issues.ts'
+import { listOpenPrs } from '../src/adapters/github/pull-requests.ts'
 import { DEFAULT_LINKS, parseLinks, type LinksConfig } from '../src/links/config.ts'
 import { isSkipped, referencedNumbers, type OpenPr } from '../src/links/extract.ts'
-import { isLinksDue, linkPullRequests, listOpenPrs, planLinks, runLinksIfDue } from '../src/links/run.ts'
+import { isLinksDue, linkPullRequests as linkWithPorts, planLinks, runLinksIfDue as runWithPorts, type LinkPorts } from '../src/links/run.ts'
 import { describe as describeTitle, entryLine, MARKER_END as END, MARKER_START as START, updateBody, type BodyUpdate } from '../src/links/section.ts'
 import { paths, readJson, type Paths } from '../src/store.ts'
+import { fakePorts } from './fake-ports.ts'
 import { config, NOW } from './helpers.ts'
+
+/** gh の偽物を、GitHub のアダプタ越しに使う (PR と issue の読み書きの gh の形も、合わせて見る)。 */
+const viaGh = (run: GhRun): LinkPorts => ({ code: { openPullRequests: (repo) => listOpenPrs(run, repo) }, issues: githubIssueThread(run) })
+const linkPullRequests = (p: Paths, c: typeof config, now: Date, run: GhRun, options: { readonly dryRun: boolean }) => linkWithPorts(p, c, now, viaGh(run), options)
+/** 待機の 1 周で使うポート。PR と issue だけを gh の偽物で読み、ほかは外に出ない。 */
+const watchPorts = (run: GhRun) => {
+  const gh = viaGh(run)
+  return fakePorts({ code: { ...fakePorts().code, ...gh.code }, issues: gh.issues })
+}
+const runLinksIfDue = (p: Paths, c: typeof config, now: Date, run: GhRun) => runWithPorts(p, c, now, viaGh(run))
 
 const links: LinksConfig = { ...DEFAULT_LINKS, enabled: true }
 const pr = (number: number, overrides: Partial<OpenPr> = {}): OpenPr => ({ number, title: `PR ${number}`, body: '', headRefName: `feat/x-${number}`, author: 'someone', ...overrides })
@@ -441,7 +454,7 @@ describe('TechLead の待機', async () => {
       calls.push(args)
       return args[0] === 'api' ? '{}' : '[]'
     }
-    await runWatch(p, { ...config, repos: ['example-org/app'], links }, { maxMs: 200, intervalMs: 20 }, run)
+    await runWatch(p, { ...config, repos: ['example-org/app'], links }, { maxMs: 200, intervalMs: 20 }, watchPorts(run))
     assert.equal(calls.filter((args) => args[0] === 'pr').length, 1)
     assert.equal(calls.filter((args) => args[0] === 'issue').length, 1)
   })
@@ -450,10 +463,11 @@ describe('TechLead の待機', async () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-links-watch-')))
     saveSnapshot(p, { ...snapshot([]), fetchedAt: new Date().toISOString() })
     const calls: (readonly string[])[] = []
-    await runWatch(p, { ...config, repos: ['example-org/app'] }, { maxMs: 100, intervalMs: 20 }, (args) => {
+    const run: GhRun = (args) => {
       calls.push(args)
       return '[]'
-    })
+    }
+    await runWatch(p, { ...config, repos: ['example-org/app'] }, { maxMs: 100, intervalMs: 20 }, watchPorts(run))
     assert.equal(calls.length, 0)
   })
 })

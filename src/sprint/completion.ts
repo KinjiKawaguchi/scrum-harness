@@ -4,7 +4,7 @@ import type { Config } from '../config.ts'
 import { appendLine, readText, type Paths } from '../store.ts'
 import { assessItem } from './assess.ts'
 import type { StatusEvent } from './effort.ts'
-import { statusEventsFor } from './history.ts'
+import type { BoardSource } from '../ports/index.ts'
 import { loadCountingHistory, type CountingHistory } from './counting-history.ts'
 
 /** 済んだ issue の、ポイントと実際にかかった節目 (止まっていた節目は除く)。1 件 1 行で p.completions に残す。 */
@@ -80,13 +80,13 @@ export function recordCompletions(
   fresh: Snapshot,
   config: Config,
   now: Date,
-  readEvents: typeof statusEventsFor = statusEventsFor,
+  readEvents: BoardSource['statusEvents'],
 ): readonly Completion[] {
   if (config.sprint === undefined) return []
   const alreadyRecorded = alreadyLogged(previous, loadCompletions(p))
   const pairs = newlyFinished(previous, fresh, config).filter((pair) => !alreadyRecorded.has(label(pair.item)))
   if (pairs.length === 0) return []
-  const statusHistory = readEvents(pairs.map((pair) => pair.item), config)
+  const statusHistory = readEvents(pairs.map((pair) => pair.item))
   const countingHistory = loadCountingHistory(p, now)
   const completions = pairs.map((pair) => toCompletion(pair, statusHistory, countingHistory, config, now))
   completions.forEach((one) => appendLine(p.completions, JSON.stringify(one)))

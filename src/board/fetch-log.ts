@@ -5,7 +5,7 @@ import type { Paths } from '../store.ts'
 const PREFIX = 'fetch-failed-'
 const KEEP = 5
 
-/** 取得の結果を読めなかったとき、gh の出力をそのまま持ち運ぶ。refreshSnapshot が log に残す。 */
+/** 取得の結果を読めなかったとき、取得の生の出力をそのまま持ち運ぶ。refreshSnapshot が log に残す。 */
 export class FetchError extends Error {
   readonly raw: string
 
@@ -16,8 +16,8 @@ export class FetchError extends Error {
 }
 
 /**
- * 読めなかった gh の出力を log/fetch-failed-<時刻>.json に残し、新しい5件だけを保つ。
- * GitHub が何を返したかを、後から調べられるようにするため。
+ * 読めなかった取得の出力を log/fetch-failed-<時刻>.json に残し、新しい5件だけを保つ。
+ * ボードの置き場が何を返したかを、後から調べられるようにするため。
  */
 export function saveFailedFetch(p: Paths, now: Date, raw: string): void {
   const dir = join(p.dir, 'log')

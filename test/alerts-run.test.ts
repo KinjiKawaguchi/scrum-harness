@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from 'node:test'
+import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,6 +13,9 @@ import { writeHeartbeat } from '../src/team/heartbeat.ts'
 import type { ActivityState } from '../src/team/types.ts'
 import { issue, NOW, snapshot } from './helpers.ts'
 import { child, enabled, epic, minutesLater } from './alerts-fixtures.ts'
+import { fakePorts } from './fake-ports.ts'
+
+const sessions = fakePorts().sessions
 
 let p: Paths
 let sent: (readonly [string, string])[]
@@ -25,19 +28,14 @@ const movingBoard = () => snapshot([epic(), child(101, { status: '作業中', ta
 function heartbeat(name: string, state: ActivityState, at: Date): void {
   writeHeartbeat(p, { sessionId: `session-${name}`, name, pid: null }, state, at)
 }
-const step = (now: Date, isLiaison = false, config = enabled) => alertStep(p, config, now, { notify, isLiaison })
+const step = (now: Date, isLiaison = false, config = enabled) => alertStep(p, config, now, { notify, sessions, isLiaison })
 const kinds = (notices: readonly { readonly kind: string }[]) => notices.map((notice) => notice.kind)
 
 beforeEach(() => {
   p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-')))
-  process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
   sent = []
   saveSnapshot(p, stalledBoard())
   heartbeat('SWE1', 'idle', minutesLater(-20))
-})
-
-afterEach(() => {
-  delete process.env.SCRUM_SESSIONS_DIR
 })
 
 describe('alertStep', () => {
@@ -79,9 +77,9 @@ describe('alertStep', () => {
       attempts += 1
       throw new Error('osascript が失敗')
     }
-    alertStep(p, enabled, NOW, { notify: failing, isLiaison: false })
-    alertStep(p, enabled, minutesLater(60), { notify: failing, isLiaison: false })
-    alertStep(p, enabled, minutesLater(61), { notify: failing, isLiaison: false })
+    alertStep(p, enabled, NOW, { notify: failing, sessions, isLiaison: false })
+    alertStep(p, enabled, minutesLater(60), { notify: failing, sessions, isLiaison: false })
+    alertStep(p, enabled, minutesLater(61), { notify: failing, sessions, isLiaison: false })
     assert.equal(attempts, 1)
     assert.match(readFileSync(p.errors, 'utf8'), /alert-desktop: osascript が失敗/)
   })
@@ -187,11 +185,11 @@ describe('alertStep', () => {
     assert.deepEqual(readAlertState(p).empty, { 'SWE1:no-candidate': NOW.toISOString() })
     step(minutesLater(29))
     assert.equal(sent.length, 0)
-    assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(29))).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')), ['Q-EMPTY'])
+    assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(29), sessions)).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')), ['Q-EMPTY'])
     step(minutesLater(30))
     assert.equal(sent.length, 1)
     assert.match(sent[0]?.[1] ?? '', /^SWE1 に渡せる issue が無いまま 30 分たちました/)
-    assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(30))).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')).toSorted(), ['Q-EMPTY', 'Q-EMPTY-OWNER'])
+    assert.deepEqual(lintAll(loadContext(p, enabled, minutesLater(30), sessions)).active.map((one) => one.rule).filter((rule) => rule.startsWith('Q-')).toSorted(), ['Q-EMPTY', 'Q-EMPTY-OWNER'])
   })
 
   it('渡せる issue が尽きた部下のオーナーへの通知は、同じ人について 60 分に 1 回まで。間隔が過ぎれば、また出る', () => {
@@ -218,7 +216,7 @@ describe('alertStep', () => {
     step(NOW, false, tight)
     step(minutesLater(45), false, tight)
     assert.equal(sent.length, 0)
-    const rules = lintAll(loadContext(p, tight, minutesLater(45))).active.map((finding) => finding.rule)
+    const rules = lintAll(loadContext(p, tight, minutesLater(45), sessions)).active.map((finding) => finding.rule)
     assert.ok(rules.includes('Q-EMPTY'))
     assert.ok(!rules.includes('Q-EMPTY-OWNER'))
   })
@@ -240,16 +238,16 @@ describe('lintAll への組み込み', () => {
   it('最初に見た時刻から 60 分たった Epic は、lint に E-STALL (高) で出る。alerts が無効なら出ない', () => {
     step(NOW)
     const now = minutesLater(60)
-    const stall = lintAll(loadContext(p, enabled, now)).active.find((finding) => finding.rule === 'E-STALL')
+    const stall = lintAll(loadContext(p, enabled, now, sessions)).active.find((finding) => finding.rule === 'E-STALL')
     assert.deepEqual([stall?.subject, stall?.severity], ['app#100', 'high'])
-    assert.equal(lintAll(loadContext(p, { ...enabled, alerts: undefined }, now)).active.some((finding) => finding.rule === 'E-STALL'), false)
+    assert.equal(lintAll(loadContext(p, { ...enabled, alerts: undefined }, now, sessions)).active.some((finding) => finding.rule === 'E-STALL'), false)
   })
 
   it('受け入れた E-STALL は active から外れ、acked に入る', () => {
     step(NOW)
     const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: '意図した待ち', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
-    const result = lintAll(loadContext(p, enabled, minutesLater(60)))
+    const result = lintAll(loadContext(p, enabled, minutesLater(60), sessions))
     assert.equal(result.active.some((finding) => finding.rule === 'E-STALL'), false)
     assert.equal(result.acked.some((finding) => finding.rule === 'E-STALL'), true)
   })
@@ -274,11 +272,11 @@ describe('runLiaisonWatch', async () => {
   it('窓口に送る通知があれば、その文を返し、錠を返す。送った通知は、次の待機では返さない', async () => {
     saveSnapshot(p, freshBoard())
     heartbeat('SWE2', 'idle', new Date(Date.now() - 20 * 60_000))
-    const message = await runLiaisonWatch(p, enabled, 'Liaison', options, notify)
+    const message = await runLiaisonWatch(p, enabled, 'Liaison', options, fakePorts({ notify }))
     assert.match(message ?? '', /^scrum-harness: 窓口への通知/)
     assert.match(message ?? '', /- SWE2 が 20 分空いた。受け入れ: なし。ハーネスの動き: まだ送っていない/)
     assert.equal(existsSync(p.memberWatchLock('Liaison')), false)
-    assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', { maxMs: 60, intervalMs: 10 }, notify), null)
+    assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', { maxMs: 60, intervalMs: 10 }, fakePorts({ notify })), null)
   })
 
   it('同じ窓口の待機が動いていれば、重ねて動かない', async () => {
@@ -286,6 +284,6 @@ describe('runLiaisonWatch', async () => {
     heartbeat('SWE2', 'idle', new Date(Date.now() - 20 * 60_000))
     mkdirSync(dirname(p.memberWatchLock('Liaison')), { recursive: true })
     writeFileSync(p.memberWatchLock('Liaison'), String(process.ppid))
-    assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', options, notify), null)
+    assert.equal(await runLiaisonWatch(p, enabled, 'Liaison', options, fakePorts({ notify })), null)
   })
 })

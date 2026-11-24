@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Config } from '../src/config.ts'
 import { parseConfig } from '../src/config.ts'
-import { normalizeNodes } from '../src/board/snapshot.ts'
-import { parseStatusHistory, statusHistoryQuery, withStatusHistory } from '../src/sprint/history.ts'
+import { normalizeNodes } from '../src/adapters/github/item-node.ts'
+import { parseStatusHistory, statusHistoryQuery, withStatusHistory } from '../src/adapters/github/status-history.ts'
+import { gh } from '../src/adapters/github/gh.ts'
 import { planMarks } from '../src/sprint/marks.ts'
 import { recordDueCheckpoint } from '../src/sprint/checkpoint-run.ts'
 import { loadRecords } from '../src/sprint/record.ts'
@@ -117,7 +118,7 @@ describe('withStatusHistory の gh の失敗', () => {
 
   it('一部の issue が読めなくても (終了コード 1)、読めた issue の記録は使い、読めなかった issue には足さない', () => {
     withFakeGh(`#!/bin/sh\ncat <<'EOF'\n${partial}\nEOF\necho 'gh: Could not resolve to an Issue with the number of 2.' >&2\nexit 1\n`, () => {
-      const items = withStatusHistory([doing('example-org/app', 5), doing('example-org/app', 2)], config)
+      const items = withStatusHistory([doing('example-org/app', 5), doing('example-org/app', 2)], config, gh)
       assert.deepEqual(items.map((one) => one.statusEvents?.length ?? null), [1, null])
     })
   })
@@ -126,7 +127,7 @@ describe('withStatusHistory の gh の失敗', () => {
     const logFile = join(mkdtempSync(join(tmpdir(), 'scrum-gh-log-')), 'args.txt')
     const ok = JSON.stringify({ data: { r0: { i2: { timelineItems: { nodes: [] } } }, r1: { i2: { timelineItems: { nodes: [] } } } } })
     withFakeGh(`#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${logFile}'\ncat <<'EOF'\n${ok}\nEOF\n`, () => {
-      withStatusHistory([doing('other-owner/tool', 2), doing('example-org/app', 2)], config)
+      withStatusHistory([doing('other-owner/tool', 2), doing('example-org/app', 2)], config, gh)
     })
     const query = readFileSync(logFile, 'utf8')
     assert.match(query, /repository\(owner:"other-owner", name:"tool"\)\{ i2: issue\(number:2\)/)
@@ -136,7 +137,7 @@ describe('withStatusHistory の gh の失敗', () => {
   it('設定の repos に無いリポジトリの issue だけでも、そのリポジトリに問い合わせ、defaultRepo の同じ番号を引かない', () => {
     const logFile = join(mkdtempSync(join(tmpdir(), 'scrum-gh-log-')), 'args.txt')
     withFakeGh(`#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${logFile}'\necho '{"data":{"r0":{"i2":{"timelineItems":{"nodes":[]}}}}}'\n`, () => {
-      const items = withStatusHistory([doing('other-owner/tool', 2)], config)
+      const items = withStatusHistory([doing('other-owner/tool', 2)], config, gh)
       assert.deepEqual(items.map((one) => one.statusEvents), [[]])
     })
     const query = readFileSync(logFile, 'utf8')
@@ -146,7 +147,7 @@ describe('withStatusHistory の gh の失敗', () => {
 
   it('標準出力に何も無い失敗 (通信の失敗など) は、記録を足さずに返す', () => {
     withFakeGh('#!/bin/sh\nexit 1\n', () => {
-      const items = withStatusHistory([doing('example-org/app', 5)], config)
+      const items = withStatusHistory([doing('example-org/app', 5)], config, gh)
       assert.deepEqual(items.map((one) => one.statusEvents), [undefined])
     })
   })

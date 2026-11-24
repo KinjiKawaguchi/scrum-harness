@@ -3,29 +3,41 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { bashActionReader } from '../src/adapters/github/action-reader.ts'
+import { referencedLabels } from '../src/adapters/github/pull-requests.ts'
 import { loadSnapshot, saveSnapshot } from '../src/board/snapshot.ts'
 import { handleHook, type HookDeps } from '../src/hooks/handlers.ts'
 import { paths, readJson, writeJson, type Paths } from '../src/store.ts'
+import { fakePorts } from './fake-ports.ts'
 import { config, issue, NOW, pr, snapshot } from './helpers.ts'
 
 let p: Paths
 let refreshes = 0
 let checkpoints = 0
 
-function deps(name: string | null, overrides: Partial<HookDeps> = {}): HookDeps {
+/** prBody は、マージした PR の本文 (読めなければ null)。本文から issue を拾うのは GitHub のアダプタのまま使う。 */
+type DepsOverrides = Partial<HookDeps> & { readonly prBody?: (prLabel: string, repo: string) => string | null }
+
+function deps(name: string | null, overrides: DepsOverrides = {}): HookDeps {
+  const { prBody = () => '#1 の続き', ...rest } = overrides
+  const used = rest.config ?? config
+  const referencedIssues = (prLabel: string, repo: string) => {
+    const body = prBody(prLabel, repo)
+    return body === null ? null : referencedLabels(body, repo)
+  }
   return {
     p,
-    config,
+    config: used,
     now: NOW,
     identity: name === null ? null : { sessionId: `sid-${name}`, name, pid: null },
-    fetchPrBody: () => '#1 の続き',
+    ports: { actions: bashActionReader(used), code: { ...fakePorts().code, referencedIssues }, sessions: fakePorts().sessions },
     spawnRefresh: () => {
       refreshes += 1
     },
     spawnCheckpoint: () => {
       checkpoints += 1
     },
-    ...overrides,
+    ...rest,
   }
 }
 
@@ -34,7 +46,6 @@ const context = (result: ReturnType<typeof handleHook>) =>
 
 beforeEach(() => {
   p = paths(mkdtempSync(join(tmpdir(), 'scrum-hooks-')))
-  process.env.SCRUM_SESSIONS_DIR = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
   refreshes = 0
   checkpoints = 0
   saveSnapshot(p, snapshot([issue(1, { status: '作業中' }), issue(2), pr(102, { state: 'OPEN' })]))
@@ -69,7 +80,7 @@ describe('TechLead', () => {
   it('PR の本文は、コマンドが指したリポジトリで読む (設定に無いリポジトリを defaultRepo と取り違えない)', () => {
     const asked: (readonly [string, string])[] = []
     const input = { tool_name: 'Bash', tool_input: { command: 'gh pr merge 3 -R other-owner/tool --squash' } }
-    handleHook('PostToolUse', input, deps('TechLead', { fetchPrBody: (prLabel, repo) => (asked.push([prLabel, repo]), null) }))
+    handleHook('PostToolUse', input, deps('TechLead', { prBody: (prLabel, repo) => (asked.push([prLabel, repo]), null) }))
     assert.deepEqual(asked, [['tool#3', 'other-owner/tool']])
   })
 
@@ -78,7 +89,7 @@ describe('TechLead', () => {
     const asked: (readonly [string, string])[] = []
     const input = { tool_name: 'Bash', tool_input: { command: 'merge-pr other-owner/tool 3 abc123' } }
     const text = context(
-      handleHook('PostToolUse', input, deps('TechLead', { fetchPrBody: (prLabel, repo) => (asked.push([prLabel, repo]), '#1 の続き') })),
+      handleHook('PostToolUse', input, deps('TechLead', { prBody: (prLabel, repo) => (asked.push([prLabel, repo]), '#1 の続き') })),
     )
     assert.deepEqual(asked, [['tool#3', 'other-owner/tool']])
     assert.match(text, /tool#3 をマージした[\s\S]*tool#1 Status=作業中/)
@@ -87,7 +98,7 @@ describe('TechLead', () => {
   it('別のリポジトリの PR のマージは、本文が触れる番号を、そのリポジトリの issue として読む', () => {
     saveSnapshot(p, snapshot([...(loadSnapshot(p)?.items ?? []), { ...issue(1, { status: '作業中' }), repo: 'other-owner/tool' }]))
     const input = { tool_name: 'Bash', tool_input: { command: 'gh pr merge 3 -R other-owner/tool --squash' } }
-    const text = context(handleHook('PostToolUse', input, deps('TechLead', { fetchPrBody: () => '#1 の続き' })))
+    const text = context(handleHook('PostToolUse', input, deps('TechLead', { prBody: () => '#1 の続き' })))
     assert.match(text, /tool#3 をマージした[\s\S]*tool#1 Status=作業中/)
     assert.doesNotMatch(text, /tool#3 をマージした[\s\S]*app#1 Status/)
   })

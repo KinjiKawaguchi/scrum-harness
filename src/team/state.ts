@@ -1,4 +1,4 @@
-import type { ActivityState, MemberState, SessionSignal } from './types.ts'
+import type { MemberState, SessionSignal } from './types.ts'
 
 /** 同じセッションの信号を1つにする。状態は更新の新しいほう、名前を取った時刻はどちらかにあるもの。 */
 function latestPerSession(signals: readonly SessionSignal[]): readonly SessionSignal[] {
@@ -30,28 +30,4 @@ function memberState(name: string, sessions: readonly SessionSignal[]): MemberSt
 export function aggregateMembers(signals: readonly SessionSignal[], names: readonly string[]): readonly MemberState[] {
   const live = latestPerSession(signals).filter((signal) => signal.isAlive && signal.state !== 'ended')
   return names.map((name) => memberState(name, live.filter((signal) => signal.name === name)))
-}
-
-const SESSION_STATUS: Readonly<Record<string, ActivityState>> = {
-  busy: 'busy',
-  shell: 'busy',
-  idle: 'idle',
-  waiting: 'waiting',
-}
-
-const toIso = (value: unknown): string | null => (typeof value === 'number' ? new Date(value).toISOString() : null)
-
-/**
- * ~/.claude/sessions/<pid>.json (Claude Code の内部の記録で、形式は公開されていない) を信号に変える。
- * 読めない形なら null を返し、フックの心拍だけで動くようにする。
- */
-export function parseSessionFile(raw: unknown, isPidAlive: (pid: number) => boolean): SessionSignal | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const record = raw as Record<string, unknown>
-  const state = SESSION_STATUS[String(record.status)]
-  const { pid, sessionId, name } = record
-  const at = toIso(record.statusUpdatedAt)
-  if (state === undefined || typeof name !== 'string' || typeof sessionId !== 'string') return null
-  if (typeof pid !== 'number' || at === null) return null
-  return { sessionId, name, state, since: at, updatedAt: at, isAlive: isPidAlive(pid), nameSince: toIso(record.nameSince) }
 }

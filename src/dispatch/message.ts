@@ -1,7 +1,7 @@
 import { label } from '../board/rules.ts'
 import type { BoardItem } from '../board/types.ts'
 import { dispatchOf, type Config } from '../config.ts'
-import type { LinkOutcome } from './linked-branch.ts'
+import type { LinkOutcome } from '../ports/index.ts'
 
 /** 空いた部下に、止まっていない自分の作業中の issue を進めるよう促す、決まった文面。ボードは書き換えない。 */
 export function nudgeMessage(item: BoardItem, member: string, config: Config): string {

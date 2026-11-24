@@ -1,4 +1,6 @@
-import { gh } from '../github.ts'
+import type { IssueComment } from '../ports/index.ts'
+
+export type { IssueComment }
 
 /** 超過の扱いの決め方。見積もりを直す、分ける、手を足す、見積もりのまま (超えた分は待ち) の 4 つ。 */
 export const OVERRUN_DECISIONS = ['reestimate', 'split', 'add-hands', 'keep'] as const
@@ -10,9 +12,6 @@ export type OverrunMark = {
   readonly from: number
   readonly to: number
 }
-
-/** issue のコメント 1 件。createdAt は ISO 8601。 */
-export type IssueComment = { readonly body: string; readonly createdAt: string; readonly url?: string }
 
 const MARK_LINE = /^<!-- scrum:points-overrun decision=([a-z-]+) from=(\d+) to=(\d+) -->$/
 
@@ -59,14 +58,4 @@ export function overrunBasis(comments: readonly IssueComment[], overSince: strin
     ok: false,
     message: `S-POINTS-OVER は、見積もりを直す、分ける、手を足す、見積もりのままにすると決めた記録 (issue のコメントの 1 行目の印) が付くまで、受け入れられない: ${detail}。印は <!-- scrum:points-overrun decision=<${OVERRUN_DECISIONS.join('|')}> from=<前のポイント> to=<後のポイント> -->`,
   }
-}
-
-/** issue のコメントを読む。 */
-export function fetchIssueComments(repo: string, number: number, run: (args: readonly string[]) => string = gh): readonly IssueComment[] {
-  const raw = JSON.parse(run(['issue', 'view', String(number), '-R', repo, '--json', 'comments'])) as {
-    readonly comments?: readonly { readonly body?: string; readonly createdAt?: string; readonly url?: string }[]
-  }
-  return (raw.comments ?? []).flatMap((one): readonly IssueComment[] =>
-    typeof one.body === 'string' && typeof one.createdAt === 'string' ? [{ body: one.body, createdAt: one.createdAt, ...(one.url === undefined ? {} : { url: one.url }) }] : [],
-  )
 }

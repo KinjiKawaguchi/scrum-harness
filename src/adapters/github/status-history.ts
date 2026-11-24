@@ -1,8 +1,8 @@
-import { label } from '../board/rules.ts'
-import type { BoardItem } from '../board/types.ts'
-import { shortRepo, type Config } from '../config.ts'
-import { gh } from '../github.ts'
-import type { StatusEvent } from './effort.ts'
+import { label } from '../../board/rules.ts'
+import type { BoardItem } from '../../board/types.ts'
+import { shortRepo, type Config } from '../../config.ts'
+import type { GhRun } from './gh.ts'
+import type { StatusEvent } from '../../sprint/effort.ts'
 
 /** 1つの issue で読む Status の変化の数。作業中を何度も出入りしても、これだけあれば足りる。 */
 const EVENTS_PER_ISSUE = 50
@@ -62,9 +62,9 @@ export function parseStatusHistory(response: RawResponse, targets: readonly Hist
  * gh の問い合わせの答え。GraphQL は、一部の issue が読めない (番号が PR、消えた issue) と、ほかの結果を持ったまま
  * 終了コードが 1 になり、gh が例外を投げる。例外の標準出力に、読めた分が残るので、それを使う (1 つの issue の失敗で、全員の手間を捨てない)。
  */
-function readHistory(query: string): RawResponse | null {
+function readHistory(run: GhRun, query: string): RawResponse | null {
   try {
-    return JSON.parse(gh(['api', 'graphql', '-f', `query=${query}`])) as RawResponse
+    return JSON.parse(run(['api', 'graphql', '-f', `query=${query}`])) as RawResponse
   } catch (error) {
     const stdout = (error as { stdout?: unknown }).stdout
     if (typeof stdout !== 'string') return null
@@ -78,10 +78,10 @@ function readHistory(query: string): RawResponse | null {
 }
 
 /** 指定した issue の Status の変化を、ラベルごとに読む。読めなければ null (記録が無いのと「期間が 0」を取り違えない)。 */
-export function statusEventsFor(items: readonly BoardItem[], config: Config): ReadonlyMap<string, readonly StatusEvent[]> | null {
+export function statusEventsFor(items: readonly BoardItem[], config: Config, run: GhRun): ReadonlyMap<string, readonly StatusEvent[]> | null {
   const targets = items.flatMap((item): HistoryTarget[] => (item.kind === 'issue' && item.number !== null ? [{ repo: item.repo, number: item.number }] : []))
   if (targets.length === 0) return new Map()
-  const response = readHistory(statusHistoryQuery(targets))
+  const response = readHistory(run, statusHistoryQuery(targets))
   return response === null ? null : parseStatusHistory(response, targets, config)
 }
 
@@ -92,11 +92,11 @@ const isDoing = (item: BoardItem, config: Config): boolean =>
  * sprint の設定があれば、作業中の issue に Status の変化の記録を足す。取れなければ足さない
  * (手間が分からないだけで、ほかの指摘は出せるので、取得全体は失敗にしない)。
  */
-export function withStatusHistory(items: readonly BoardItem[], config: Config): readonly BoardItem[] {
+export function withStatusHistory(items: readonly BoardItem[], config: Config, run: GhRun): readonly BoardItem[] {
   if (config.sprint === undefined) return items
   const doing = items.filter((item) => isDoing(item, config))
   if (doing.length === 0) return items
-  const history = statusEventsFor(doing, config)
+  const history = statusEventsFor(doing, config, run)
   if (history === null) return items
   return items.map((item) => {
     const events = history.get(label(item))

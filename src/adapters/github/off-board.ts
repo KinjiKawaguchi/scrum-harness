@@ -1,7 +1,7 @@
-import { shortRepo, type Config } from '../config.ts'
-import type { GhRun } from '../github.ts'
+import { shortRepo, type Config } from '../../config.ts'
+import type { GhRun } from './gh.ts'
 import { itemNodeSelection, normalizeNodes, type RawNode } from './item-node.ts'
-import type { BoardItem, OpenIssue } from './types.ts'
+import type { BoardItem, OpenIssue } from '../../board/types.ts'
 
 /**
  * ボードに入っている項目が、ページの一覧 (items) にも総数 (totalCount) にも出ないことがある。足されてから何時間も続くことがあり、

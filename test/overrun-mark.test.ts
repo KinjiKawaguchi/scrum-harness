@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchIssueComments, overrunBasis, parseOverrunMark, type IssueComment } from '../src/sprint/overrun-mark.ts'
+import { fetchIssueComments } from '../src/adapters/github/issues.ts'
+import { overrunBasis, parseOverrunMark, type IssueComment } from '../src/sprint/overrun-mark.ts'
 
 const mark = (decision: string, from: number, to: number) => `<!-- scrum:points-overrun decision=${decision} from=${from} to=${to} -->`
 const OVER_SINCE = '2026-10-30T08:00:00+09:00'

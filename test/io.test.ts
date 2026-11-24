@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { normalizeNodes } from '../src/board/snapshot.ts'
+import { normalizeNodes } from '../src/adapters/github/item-node.ts'
 import { nextHeartbeat } from '../src/team/heartbeat.ts'
-import { findSessionName } from '../src/team/identity.ts'
+import { claudeCodeSessions, findSessionName } from '../src/adapters/claude-code/sessions.ts'
 import { paths, readJson, tryLock, writeJson } from '../src/store.ts'
 
 describe('normalizeNodes', () => {
@@ -111,8 +111,8 @@ describe('resolveIdentity', () => {
     process.env.SCRUM_SESSIONS_DIR = sessions
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-identity-')))
     const now = new Date('2026-10-08T06:00:00.000Z')
-    assert.deepEqual(resolveIdentity(p, 'lead', now, config), { sessionId: 'lead', name: 'TechLead', pid: 10 })
-    resolveIdentity(p, 'other', now, config)
+    assert.deepEqual(resolveIdentity(p, 'lead', now, config, claudeCodeSessions()), { sessionId: 'lead', name: 'TechLead', pid: 10 })
+    resolveIdentity(p, 'other', now, config, claudeCodeSessions())
     assert.equal(readJson<{ role?: string } | null>(join(p.identity, 'other.json'), null)?.role, 'none')
     assert.equal(readJson<{ role?: string } | null>(join(p.identity, 'lead.json'), null)?.role, 'techlead')
   })
