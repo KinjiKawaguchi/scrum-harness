@@ -1,0 +1,109 @@
+{
+  "data": {
+    "node": {
+      "items": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        },
+        "nodes": [
+          {
+            "id": "PVTI_fixture_101",
+            "type": "ISSUE",
+            "isArchived": false,
+            "status": {
+              "name": "作業中"
+            },
+            "reason": {
+              "name": "前の作業待ち"
+            },
+            "since": {
+              "date": "2026-10-01"
+            },
+            "owner": null,
+            "tanto": {
+              "name": "SWE4"
+            },
+            "content": {
+              "number": 101,
+              "title": "fixture title",
+              "state": "OPEN",
+              "closedAt": null,
+              "author": {
+                "login": "owner"
+              },
+              "assignees": {
+                "nodes": []
+              },
+              "repository": {
+                "nameWithOwner": "example-org/app"
+              }
+            }
+          },
+          {
+            "id": "PVTI_fixture_102",
+            "type": "PULL_REQUEST",
+            "isArchived": false,
+            "status": {
+              "name": "作業中"
+            },
+            "reason": {
+              "name": "なし"
+            },
+            "since": null,
+            "owner": null,
+            "tanto": null,
+            "content": {
+              "number": 102,
+              "title": "fixture title",
+              "state": "MERGED",
+              "repository": {
+                "nameWithOwner": "example-org/app"
+              }
+            }
+          },
+          {
+            "id": "PVTI_fixture_103",
+            "type": "ISSUE",
+            "isArchived": false,
+            "status": {
+              "name": "バックログ"
+            },
+            "reason": null,
+            "since": null,
+            "owner": null,
+            "tanto": null,
+            "content": {
+              "number": 103,
+              "title": "fixture title",
+              "state": "OPEN",
+              "closedAt": null,
+              "author": {
+                "login": "owner"
+              },
+              "assignees": {
+                "nodes": []
+              },
+              "repository": {
+                "nameWithOwner": "example-org/app"
+              }
+            }
+          },
+          {
+            "id": "PVTI_fixture_0",
+            "type": "DRAFT_ISSUE",
+            "isArchived": false,
+            "status": null,
+            "reason": null,
+            "since": null,
+            "owner": null,
+            "tanto": null,
+            "content": {
+              "title": "fixture title"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

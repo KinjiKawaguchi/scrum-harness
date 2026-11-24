@@ -1,0 +1,92 @@
+{
+  "projectId": "PVT_xxxxxxxxxxxxxxxxxxxx",
+  "repos": [
+    "your-org/your-repo"
+  ],
+  "defaultRepo": "your-org/your-repo",
+  "fields": {
+    "status": "Status",
+    "reason": "止まっている理由",
+    "since": "止まり始めた日",
+    "owner": "Owner",
+    "tanto": "担当"
+  },
+  "statusFieldId": "PVTSSF_xxxxxxxxxxxxxxxxxxxx",
+  "statuses": {
+    "backlog": "バックログ",
+    "next": "次にやる",
+    "doing": "作業中",
+    "release": "リリース待ち",
+    "done": "完了"
+  },
+  "reasonNone": "なし",
+  "reasonJudge": "判断待ち",
+  "ownerUser": "@your-github-login",
+  "excludeAuthors": [],
+  "techlead": "TechLead",
+  "members": [
+    "SWE1",
+    "SWE2"
+  ],
+  "ownerLabel": "オーナー",
+  "scripts": {
+    "setStatus": "set-status",
+    "setReason": "set-reason",
+    "setTanto": "set-tanto",
+    "bulkStatus": "bulk-status",
+    "mergePr": "merge-pr",
+    "clearValue": "なし"
+  },
+  "wipLimit": 10,
+  "staleBlockDays": 7,
+  "idleMinutes": 10,
+  "waitingMinutes": 5,
+  "untrackedMinutes": 30,
+  "refreshSeconds": 300,
+  "isStopBlockEnabled": true,
+  "dispatch": {
+    "enabled": false,
+    "baseBranch": "main",
+    "skipLabels": [],
+    "orderField": "順",
+    "utcOffset": "+09:00",
+    "members": ["SWE1", "SWE2"],
+    "scriptDir": "~/path/to/board-scripts",
+    "linkedBranchPrefix": "feat",
+    "notes": []
+  },
+  "links": {
+    "enabled": false,
+    "intervalMinutes": 30,
+    "maxEditsPerRun": 20,
+    "skipAuthors": ["app/dependabot", "dependabot[bot]", "dependabot"],
+    "skipBranchPrefixes": ["release/", "sync/"]
+  },
+  "alerts": {
+    "enabled": false,
+    "liaison": "Liaison",
+    "epicStallMinutes": 60,
+    "emptyEscalateMinutes": 30,
+    "isDesktopEnabled": true,
+    "parkedLabels": ["epic:parked"],
+    "epicPushMinutes": 1440,
+    "emptyPushMinutes": 60
+  },
+  "sprint": {
+    "checkpoints": [
+      "08:00",
+      "13:00",
+      "21:00"
+    ],
+    "utcOffset": "+09:00",
+    "pointsField": "ストーリーポイント",
+    "overrunField": "超過",
+    "pointBudgets": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "5": 3,
+      "8": 5
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "scrum-harness",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "description": "GitHub Project ボードの不変条件と部下の稼働を検出し、Claude Code のフックで TechLead に知らせる",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --no-warnings --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  }
+}

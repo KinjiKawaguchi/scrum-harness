@@ -1,0 +1,124 @@
+#!/bin/sh
+# scrum-harness の入口。フックはこの Mac のすべてのセッションで動く。負荷の高い Mac で
+# ツールの呼び出しのたびに node を起こさないよう、セッションの役 (src/team/identity.ts が
+# ~/.claude/scrum/identity/<session_id>.json に書く控え) を見てここで振り分ける。
+#   チームの外: 何もしない
+#   部下: ターンの境目の心拍だけを裏で書く。ツールの呼び出しでは何もしない。dispatch が有効なときだけ、
+#         Stop と SessionStart の待機 (空いたら次の仕事を渡される時を待つ) で node を起こす
+#   窓口: alerts が有効なときだけ、Stop と SessionStart の待機 (止まりの検知が決めた通知の文を待つ) で node を起こす。
+#         それ以外のフックでは何もしない
+#   TechLead: ボードに関わるコマンドの後と、待機プロセスが印 (notify/pending) を置いたときだけ node を起こす
+DIR=$(cd "$(dirname "$0")/.." && pwd)
+STATE=${SCRUM_STATE_DIR:-$HOME/.claude/scrum}
+CLI="$DIR/src/cli.ts"
+# node を起こすコマンドの型。設定のスクリプト名から node が書く (src/cli-commands.ts の writeShellPatterns)。
+# まだ無ければ gh のコマンドだけを見る。
+POST_PATTERN=$(sed -n 1p "$STATE/cache/shell-patterns" 2>/dev/null)
+PRE_PATTERN=$(sed -n 2p "$STATE/cache/shell-patterns" 2>/dev/null)
+[ -n "$POST_PATTERN" ] || POST_PATTERN='gh pr merge|gh issue close|gh project|ProjectV2'
+
+if [ "$1" != hook ] && [ "$1" != watch ] && [ "$1" != statusline ]; then
+  exec node --no-warnings "$CLI" "$@"
+fi
+
+input=$(cat)
+event=${2:-$1}
+
+run() { printf '%s' "$input" | node --no-warnings "$CLI" "$@"; }
+run_detached() { (printf '%s' "$input" | node --no-warnings "$CLI" "$@" >/dev/null 2>&1 &); }
+
+# 書き込みのガードは役に関係なく効かせる。Status を変えるスクリプトを呼ぶときだけ確かめる。
+if [ "$event" = PreToolUse ]; then
+  if [ -n "$PRE_PATTERN" ] && printf '%s' "$input" | grep -Eq "$PRE_PATTERN"; then
+    run "$@"
+  fi
+  exit 0
+fi
+
+role=""
+if [ -n "$SCRUM_NAME" ]; then
+  role=env
+else
+  sid=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -n 1)
+  cache="$STATE/identity/$sid.json"
+  [ -f "$cache" ] && role=$(sed -n 's/.*"role": "\([a-z]*\)".*/\1/p' "$cache")
+  # 名前は後で変わることがあるので、チームの外という判定は1時間で取り直す
+  if [ "$role" = none ] && [ -z "$(find "$cache" -mmin -60 2>/dev/null)" ]; then role=""; fi
+fi
+
+# statusline は TechLead のセッションでだけ出す
+if [ "$event" = statusline ]; then
+  [ "$role" = techlead ] || [ "$role" = env ] && run "$@"
+  exit 0
+fi
+
+# チームのセッションが仕事をしている間、10 分に 1 回、動きの記録 (activity) を events.jsonl に 1 行足す。node は起こさない。
+# 動きの記録を watch だけが書くと、watch が止まっている間にチームが動いても記録が無く、その間の節目が、全セッションが
+# 止まっていた節目として手間から除かれる。
+# 足すのは PostToolUse だけ。ツールの結果は、API の応答があって初めて出るので、仕事の印になる。UserPromptSubmit、SessionStart、
+# Stop は、週の上限の間も通る (予定の実行の入力は、フックを通った後に、API が上限の応答を返す)。足すと、全セッションが止まっていた
+# 間にも記録が書かれ、止まりを読めなくなる。
+# 書かない回 (ほとんどの呼び出し) で、プロセスを起こさないよう、シェルの組み込みだけで見る: 印 activity-due の更新時刻を
+# 「次に書く時刻」にし、いまの時刻の印 activity-now (: > で更新時刻が今になる) と -nt で比べる。書けなくても、振り分けは変えない。
+record_activity() {
+  due="$STATE/cache/activity-due"
+  marker="$STATE/cache/activity-now"
+  [ -d "$STATE/log" ] || return 0
+  : >"$marker" 2>/dev/null || return 0
+  [ "$due" -nt "$marker" ] && return 0
+  next=$(date -v+10M +%Y%m%d%H%M.%S 2>/dev/null || date -d '+10 minutes' +%Y%m%d%H%M.%S 2>/dev/null) || return 0
+  touch -t "$next" "$due" 2>/dev/null || return 0
+  printf '{"at":"%s","type":"activity","role":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" "$role" >>"$STATE/log/events.jsonl" 2>/dev/null
+  return 0
+}
+case "$role" in
+  none | "") ;;
+  *)
+    case "$event" in
+      PostToolUse) record_activity ;;
+      *) ;;
+    esac
+    ;;
+esac
+
+case "$role" in
+  none)
+    exit 0
+    ;;
+  member)
+    case "$event" in
+      PostToolUse) exit 0 ;;
+      watch)
+        # shell-patterns の 3 行目 (node が設定から書く) が 1 のときだけ、待機を起こす
+        if [ "$(sed -n 3p "$STATE/cache/shell-patterns" 2>/dev/null)" = 1 ]; then
+          run "$@"
+          exit $?
+        fi
+        exit 0
+        ;;
+      *) run_detached "$@"; exit 0 ;;
+    esac
+    ;;
+  liaison)
+    if [ "$event" = watch ] && [ "$(sed -n 4p "$STATE/cache/shell-patterns" 2>/dev/null)" = 1 ]; then
+      run "$@"
+      exit $?
+    fi
+    exit 0
+    ;;
+  techlead)
+    if [ "$event" = PostToolUse ]; then
+      if printf '%s' "$input" | grep -Eq "$POST_PATTERN" || [ -e "$STATE/notify/pending" ]; then
+        run "$@"
+      fi
+      exit 0
+    fi
+    run "$@"
+    exit $?
+    ;;
+  *)
+    # 役が分からない (控えが無い、SCRUM_NAME で指定): node が引いて控えを書く
+    run "$@"
+    exit $?
+    ;;
+esac
