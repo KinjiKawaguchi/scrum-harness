@@ -72,6 +72,14 @@
     "epicPushMinutes": 1440,
     "emptyPushMinutes": 60
   },
+  "runtime": {
+    "label": "App",
+    "blockedReasons": {
+      "external": "External",
+      "waitingOnPrevious": "Waiting on previous",
+      "timeOrEquipment": "Time or equipment"
+    }
+  },
   "sprint": {
     "checkpoints": [
       "08:00",

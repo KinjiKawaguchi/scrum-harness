@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
+import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
 
 export type StatusNames = {
   readonly backlog: string
@@ -118,7 +119,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig }
 
 export function dispatchOf(config: Config): DispatchConfig {
   return config.dispatch ?? DEFAULT_DISPATCH
@@ -205,11 +206,12 @@ export function parseConfig(raw: unknown): Config | null {
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null)
   if (!isValid) return null
-  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, ...rest } = record
+  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, ...rest } = record
   const sprint = parseSprint(rawSprint)
   const dispatch = parseDispatch(rawDispatch)
   const links = parseLinks(rawLinks)
   const alerts = parseAlerts(rawAlerts)
+  const runtime = parseRuntime(rawRuntime)
   return {
     ...DEFAULT_TUNING,
     ...DEFAULT_ADAPTERS,
@@ -218,6 +220,7 @@ export function parseConfig(raw: unknown): Config | null {
     ...(dispatch === undefined ? {} : { dispatch }),
     ...(links === undefined ? {} : { links }),
     ...(alerts === undefined ? {} : { alerts }),
+    ...(runtime === undefined ? {} : { runtime }),
   } as Config
 }
 
