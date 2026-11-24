@@ -40,9 +40,9 @@ describe('parseFlags', () => {
   })
 
   it('値を取る旗 (--for、--reason、--until、--since) は、次の語を値にする', () => {
-    assert.deepEqual(parseFlags(['T-IDLE', 'SWE3', '--reason', '枠 05:45', '--for', '1h']), {
+    assert.deepEqual(parseFlags(['T-IDLE', 'SWE3', '--reason', 'slot 05:45', '--for', '1h']), {
       positional: ['T-IDLE', 'SWE3'],
-      flags: { reason: '枠 05:45', for: '1h' },
+      flags: { reason: 'slot 05:45', for: '1h' },
     })
     assert.deepEqual(parseFlags(['--since', '2026-11-01']), { positional: [], flags: { since: '2026-11-01' } })
   })
@@ -51,21 +51,21 @@ describe('parseFlags', () => {
 describe('ackCommand', () => {
   it('理由と期限があれば受け入れを書く', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-ack-')))
-    const text = ackCommand(p, ['B-BLOCK-STALE', 'app#12'], { for: '2h', reason: '今夜の作業待ち' })
-    assert.match(text, /受け入れた: B-BLOCK-STALE app#12/)
-    assert.equal(readJson<readonly { reason: string }[]>(p.acks, [])[0]?.reason, '今夜の作業待ち')
+    const text = ackCommand(p, ['B-BLOCK-STALE', 'app#12'], { for: '2h', reason: 'Waiting for the night run' })
+    assert.match(text, /Acknowledged: B-BLOCK-STALE app#12/)
+    assert.equal(readJson<readonly { reason: string }[]>(p.acks, [])[0]?.reason, 'Waiting for the night run')
   })
 
   it('理由が無ければ使い方を返し、何も書かない', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-ack-')))
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '2h' }), /^使い方/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '2h' }), /^Usage/)
     assert.deepEqual(readJson(p.acks, []), [])
   })
 
   it('T-IDLE の受け入れは、決まった理由と 1 時間までなら書き、枠には枠の始まりを残す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-ack-')))
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: 'オーナーの答え待ち' }, config, NOW), /受け入れた: T-IDLE SWE3/)
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE2'], { for: '1h', reason: '枠 15:30' }, config, NOW), /受け入れた: T-IDLE SWE2/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: "Waiting for the owner's answer" }, config, NOW), /Acknowledged: T-IDLE SWE3/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE2'], { for: '1h', reason: 'slot 15:30' }, config, NOW), /Acknowledged: T-IDLE SWE2/)
     const acks = readJson<readonly { subject: string; slotAt?: string }[]>(p.acks, [])
     assert.equal(acks.find((ack) => ack.subject === 'SWE3')?.slotAt, undefined)
     assert.equal(acks.find((ack) => ack.subject === 'SWE2')?.slotAt, '2026-10-08T06:30:00.000Z')
@@ -73,9 +73,9 @@ describe('ackCommand', () => {
 
   it('T-IDLE の受け入れは、決まった理由以外、1 時間より長い期限、設定が無いときは、何も書かない', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-ack-')))
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: 'コンテキストの余力のため' }, config, NOW), /コンテキストの余力は理由にできない/)
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '2h', reason: 'オーナーの答え待ち' }, config, NOW), /最長 1 時間/)
-    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: 'オーナーの答え待ち' }, null, NOW), /設定が無い/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: 'Because of spare context capacity' }, config, NOW), /Spare context capacity cannot be a reason/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '2h', reason: "Waiting for the owner's answer" }, config, NOW), /at most 1 hour/)
+    assert.match(ackCommand(p, ['T-IDLE', 'SWE3'], { for: '1h', reason: "Waiting for the owner's answer" }, null, NOW), /There is no configuration/)
     assert.deepEqual(readJson(p.acks, []), [])
   })
 })
@@ -84,7 +84,7 @@ describe('parseConfig の任意の値', () => {
   it('呼び方とスクリプトが無ければ既定値を入れる', () => {
     const { ownerLabel: _o, scripts: _s, ...rest } = config
     const parsed = parseConfig(rest)
-    assert.equal(parsed?.ownerLabel, 'オーナー')
+    assert.equal(parsed?.ownerLabel, 'the owner')
     assert.deepEqual(parsed?.scripts, {})
   })
 })

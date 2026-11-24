@@ -36,7 +36,7 @@ function postComment(run: GhRun, repo: string, number: number, body: string): vo
 export function githubIssueThread(run: GhRun): IssueThread {
   return {
     comments: (item) => {
-      if (item.number === null) throw new Error('番号の無い項目のコメントは読めない')
+      if (item.number === null) throw new Error('cannot read the comments of an item without a number')
       return fetchIssueComments(item.repo, item.number, run)
     },
     openIssues: (repo) => listOpenIssues(run, repo),

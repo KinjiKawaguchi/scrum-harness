@@ -8,9 +8,9 @@ import { enabled, minutesAgo, stateWith } from './alerts-fixtures.ts'
 const owner = (key = 'E-STALL:app#100:t1'): Notice => ({
   key,
   kind: 'owner',
-  text: '- E-STALL app#100: オーナーに PushNotification を 1 通送る',
+  text: '- E-STALL app#100: send the owner one PushNotification',
   desktop: { title: 'scrum-harness', body: 'b' },
-  throttle: { key: 'epic:app#100', head: 'E-STALL app#100', detail: 'Epic app#100 を動かしている人がいない状態が 70 分続いています。', minutes: 24 * 60 },
+  throttle: { key: 'epic:app#100', head: 'E-STALL app#100', detail: 'Nobody has been moving Epic app#100 for 70 minutes.', minutes: 24 * 60 },
 })
 const plain: Notice = { key: 'E-STALL:x', kind: 'owner', text: '- x', desktop: { title: 't', body: 'b' } }
 const withPush = (minutes: number) => stateWith({ ownerPushedAt: { 'epic:app#100': minutesAgo(minutes) } })
@@ -23,7 +23,7 @@ describe('applyThrottle', () => {
     assert.equal(held?.desktop, undefined)
     assert.equal(
       held?.text,
-      '- E-STALL app#100: オーナーへは 14:00 に通知済みで、同じ対象は 24 時間に 1 回までなので、今回は送らない (Epic app#100 を動かしている人がいない状態が 70 分続いています。)',
+      '- E-STALL app#100: the owner was already notified at 14:00, and the same subject is sent at most once per 24 h, so it is not sent this time (Nobody has been moving Epic app#100 for 70 minutes.)',
     )
   })
 
@@ -51,8 +51,8 @@ describe('applyThrottle', () => {
 
   it('間隔は通知の印の minutes に従い、1 行の文にも出る (60 で割り切れなければ分)', () => {
     const every = (minutes: number): Notice => ({ ...owner(), throttle: { ...(owner().throttle as NonNullable<Notice['throttle']>), minutes } })
-    assert.match(applyThrottle([every(120)], withPush(10), enabled, NOW)[0]?.text ?? '', /2 時間に 1 回まで/)
-    assert.match(applyThrottle([every(90)], withPush(10), enabled, NOW)[0]?.text ?? '', /90 分に 1 回まで/)
+    assert.match(applyThrottle([every(120)], withPush(10), enabled, NOW)[0]?.text ?? '', /once per 2 h/)
+    assert.match(applyThrottle([every(90)], withPush(10), enabled, NOW)[0]?.text ?? '', /once per 90 min/)
     assert.equal(applyThrottle([every(90)], withPush(90), enabled, NOW)[0]?.kind, 'owner')
   })
 })

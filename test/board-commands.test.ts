@@ -9,33 +9,33 @@ const parse = (command: string) => parseBoardCommands(command, config)
 
 describe('parseBoardCommands', () => {
   it('set-status の番号と Status を読む', () => {
-    assert.deepEqual(parse('./set-status 123 作業中'), [
-      { kind: 'set-status', label: 'app#123', status: '作業中' },
+    assert.deepEqual(parse('./set-status 123 "In Progress"'), [
+      { kind: 'set-status', label: 'app#123', status: 'In Progress' },
     ])
   })
 
   it('英語の Status を日本語に揃える', () => {
-    assert.deepEqual(parse('./set-status 5 InProgress'), [{ kind: 'set-status', label: 'app#5', status: '作業中' }])
+    assert.deepEqual(parse('./set-status 5 InProgress'), [{ kind: 'set-status', label: 'app#5', status: 'In Progress' }])
   })
 
   it('&& でつないだ複数のコマンドを読む', () => {
-    const commands = parse('cd t && ./set-status 1 Done && ./set-assignee 1 なし; ./set-reason 2 外部待ち 2026-10-07')
+    const commands = parse('cd t && ./set-status 1 Done && ./set-assignee 1 None; ./set-reason 2 "External wait" 2026-10-07')
     assert.deepEqual(commands, [
-      { kind: 'set-status', label: 'app#1', status: '完了' },
+      { kind: 'set-status', label: 'app#1', status: 'Done' },
       { kind: 'set-assignee', label: 'app#1', assignee: null },
-      { kind: 'set-reason', label: 'app#2', reason: '外部待ち', since: '2026-10-07' },
+      { kind: 'set-reason', label: 'app#2', reason: 'External wait', since: '2026-10-07' },
     ])
   })
 
   it('引用符で囲んだ担当の名前を読む', () => {
-    assert.deepEqual(parse('set-assignee 9 "別のセッション"'), [
-      { kind: 'set-assignee', label: 'app#9', assignee: '別のセッション' },
+    assert.deepEqual(parse('set-assignee 9 "Another session"'), [
+      { kind: 'set-assignee', label: 'app#9', assignee: 'Another session' },
     ])
   })
 
   it('bulk-status の Status と対象を読む', () => {
-    assert.deepEqual(parse('bulk-status リリース待ち app#1 app#2'), [
-      { kind: 'bulk-status', labels: ['app#1', 'app#2'], status: 'リリース待ち' },
+    assert.deepEqual(parse('bulk-status Release app#1 app#2'), [
+      { kind: 'bulk-status', labels: ['app#1', 'app#2'], status: 'Release' },
     ])
   })
 
@@ -68,16 +68,16 @@ describe('parseBoardCommands', () => {
 describe('applyCommands', () => {
   it('Status・理由・担当を控えに反映する', () => {
     const before = snapshot([issue(1)])
-    const after = applyCommands(before, parse('set-status 1 作業中 && set-assignee 1 SWE1'), config, '2026-10-08')
-    assert.deepEqual([after.items[0]?.status, after.items[0]?.assignee], ['作業中', 'SWE1'])
-    assert.equal(before.items[0]?.status, 'バックログ')
+    const after = applyCommands(before, parse('set-status 1 "In Progress" && set-assignee 1 SWE1'), config, '2026-10-08')
+    assert.deepEqual([after.items[0]?.status, after.items[0]?.assignee], ['In Progress', 'SWE1'])
+    assert.equal(before.items[0]?.status, 'Backlog')
   })
 
   it('理由を付けると今日を止まり始めた日にし、なしにすると日を消す', () => {
-    const stopped = applyCommands(snapshot([issue(1)]), parse('set-reason 1 外部待ち'), config, '2026-10-08')
-    assert.deepEqual([stopped.items[0]?.reason, stopped.items[0]?.since], ['外部待ち', '2026-10-08'])
-    const resumed = applyCommands(stopped, parse('set-reason 1 なし'), config, '2026-10-08')
-    assert.deepEqual([resumed.items[0]?.reason, resumed.items[0]?.since], ['なし', null])
+    const stopped = applyCommands(snapshot([issue(1)]), parse('set-reason 1 "External wait"'), config, '2026-10-08')
+    assert.deepEqual([stopped.items[0]?.reason, stopped.items[0]?.since], ['External wait', '2026-10-08'])
+    const resumed = applyCommands(stopped, parse('set-reason 1 None'), config, '2026-10-08')
+    assert.deepEqual([resumed.items[0]?.reason, resumed.items[0]?.since], ['None', null])
   })
 
   it('閉じた issue とマージした PR の状態を変える', () => {
@@ -86,45 +86,45 @@ describe('applyCommands', () => {
   })
 
   it('ボードに無い issue の Status を変えると項目を足す', () => {
-    const after = applyCommands(snapshot([]), parse('set-status 7 バックログ'), config, '2026-10-08')
-    assert.deepEqual(after.items.map((item) => [item.number, item.status]), [[7, 'バックログ']])
+    const after = applyCommands(snapshot([]), parse('set-status 7 Backlog'), config, '2026-10-08')
+    assert.deepEqual(after.items.map((item) => [item.number, item.status]), [[7, 'Backlog']])
   })
 })
 
 describe('checkGuard', () => {
-  const full = snapshot(Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: '作業中', assignee: 'SWE1' })))
+  const full = snapshot(Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' })))
 
   it('上限に達しているのに作業中を増やすと拒否する', () => {
-    const reason = checkGuard(snapshot([...full.items, issue(50)]), parse('set-status 50 作業中'), config)
-    assert.match(reason ?? '', /作業中は 10 件で上限/)
+    const reason = checkGuard(snapshot([...full.items, issue(50)]), parse('set-status 50 "In Progress"'), config)
+    assert.match(reason ?? '', /10 items are In Progress, at the limit of 10/)
   })
 
   it('すでに作業中の issue を作業中にし直すのは許す', () => {
-    assert.equal(checkGuard(full, parse('set-status 3 作業中'), config), null)
+    assert.equal(checkGuard(full, parse('set-status 3 "In Progress"'), config), null)
   })
 
   it('PR に Status を付けようとすると拒否する', () => {
-    const reason = checkGuard(snapshot([pr(102)]), parse('set-status 102 作業中'), config)
-    assert.match(reason ?? '', /PR に Status を付けない/)
+    const reason = checkGuard(snapshot([pr(102)]), parse('set-status 102 "In Progress"'), config)
+    assert.match(reason ?? '', /A PR must not have a Status/)
   })
 
   it('SCRUM_GUARD=off があれば止めない', () => {
-    const command = 'SCRUM_GUARD=off set-status 50 作業中'
+    const command = 'SCRUM_GUARD=off set-status 50 "In Progress"'
     assert.equal(checkGuard(snapshot([...full.items, issue(50)]), parse(command), config, command), null)
   })
 })
 
 describe('referencedLabels と mergeContext', () => {
   it('本文の #番号 と リポジトリ名#番号 を拾う', () => {
-    const body = '#11 の続き。app-mobile#22 も。https://x/y#4 は無視、Closes #230'
+    const body = '#11 continues. Also app-mobile#22. Ignore https://x/y#4, Closes #230'
     assert.deepEqual(referencedLabels(body, 'example-org/app'), ['app#11', 'app-mobile#22', 'app#230'])
   })
 
   it('ボードにある issue の今の状態を並べる', () => {
-    const board = snapshot([issue(11, { status: '作業中', assignee: 'SWE1' })])
+    const board = snapshot([issue(11, { status: 'In Progress', assignee: 'SWE1' })])
     const text = mergeContext(board, 'app#220', ['app#11', 'app#999'], config) ?? ''
-    assert.match(text, /app#220 をマージした/)
-    assert.match(text, /app#11 Status=作業中 理由=なし 担当=SWE1/)
+    assert.match(text, /app#220 was merged/)
+    assert.match(text, /app#11 Status=In Progress reason=None assignee=SWE1/)
     assert.doesNotMatch(text, /app#999/)
   })
 
@@ -137,7 +137,7 @@ describe('スクリプトの設定', () => {
   const bare = { ...config, scripts: {} }
 
   it('スクリプトを設定していなければ、スクリプトの呼び出しを読まない', () => {
-    assert.deepEqual(parseBoardCommands('set-status 1 作業中 && merge-pr example-org/app 2', bare), [])
+    assert.deepEqual(parseBoardCommands('set-status 1 "In Progress" && merge-pr example-org/app 2', bare), [])
   })
 
   it('スクリプトを設定していなくても、gh のコマンドは読む', () => {
@@ -149,18 +149,18 @@ describe('スクリプトの設定', () => {
 
   it('値を空にする語を設定していなければ、担当はそのまま読む', () => {
     const noClear = { ...config, scripts: { setAssignee: 'set-assignee' } }
-    assert.deepEqual(parseBoardCommands('set-assignee 9 なし', noClear), [{ kind: 'set-assignee', label: 'app#9', assignee: 'なし' }])
+    assert.deepEqual(parseBoardCommands('set-assignee 9 None', noClear), [{ kind: 'set-assignee', label: 'app#9', assignee: 'None' }])
   })
 })
 
 describe('shellPatterns', () => {
   it('フックが node を起こすコマンドの型に、設定のスクリプト名を入れる', () => {
     const patterns = shellPatterns(config)
-    assert.match('set-status 1 作業中', new RegExp(patterns.post))
+    assert.match('set-status 1 "In Progress"', new RegExp(patterns.post))
     assert.match('gh pr merge 3', new RegExp(patterns.post))
     assert.doesNotMatch('git status', new RegExp(patterns.post))
-    assert.match('bulk-status 作業中 app#1', new RegExp(patterns.pre))
-    assert.doesNotMatch('set-reason 1 なし', new RegExp(patterns.pre))
+    assert.match('bulk-status "In Progress" app#1', new RegExp(patterns.pre))
+    assert.doesNotMatch('set-reason 1 None', new RegExp(patterns.pre))
   })
 
   it('スクリプト名の記号は型の中でそのまま扱う', () => {

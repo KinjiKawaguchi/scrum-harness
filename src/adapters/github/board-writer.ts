@@ -28,7 +28,7 @@ function fieldId(run: GhRun, config: Config, fieldName: string): string {
   const query = 'query($id:ID!, $name:String!){ node(id:$id){ ... on ProjectV2 { field(name:$name){ ... on ProjectV2FieldCommon{ id } } } } }'
   const out = run(['api', 'graphql', '-f', `query=${query}`, '-F', `id=${config.projectId}`, '-f', `name=${fieldName}`, '--jq', '.data.node.field.id'])
   const id = out.trim()
-  if (id === '' || id === 'null') throw new Error(`ボードに欄「${fieldName}」が無い`)
+  if (id === '' || id === 'null') throw new Error(`the board has no field "${fieldName}"`)
   return id
 }
 
@@ -49,7 +49,7 @@ export function applyMarks(run: GhRun, marks: readonly Mark[], config: Config): 
 }
 
 function numberOf(item: BoardItem): string {
-  if (item.number === null) throw new Error(`番号の無い項目には書けない: ${item.title}`)
+  if (item.number === null) throw new Error(`cannot write to an item without a number: ${item.title}`)
   return String(item.number)
 }
 
@@ -62,11 +62,11 @@ export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): Board
   return {
     canAssign: setStatus !== undefined && setAssignee !== undefined,
     assign: (item, member) => {
-      if (setAssignee === undefined) throw new Error('scripts.setAssignee が無い')
+      if (setAssignee === undefined) throw new Error('scripts.setAssignee is not configured')
       exec(setAssignee, [numberOf(item), member])
     },
     setStatus: (item, status) => {
-      if (setStatus === undefined) throw new Error('scripts.setStatus が無い')
+      if (setStatus === undefined) throw new Error('scripts.setStatus is not configured')
       exec(setStatus, [numberOf(item), status])
     },
     canSetReason: setReason !== undefined,

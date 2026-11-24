@@ -36,7 +36,7 @@ function branchStartsWith(name: string, number: number): boolean {
 /** gh の答えを、順に並べた安定した文字列にする。issue が無ければ投げる。number は、その issue の番号 (PR を絞るのに使う)。 */
 export function activityToken(output: string, number: number | null = null): string {
   const issue = (JSON.parse(output) as { data?: { repository?: { issue?: IssueActivity | null } | null } }).data?.repository?.issue
-  if (!issue) throw new Error('issue を読めない')
+  if (!issue) throw new Error('cannot read the issue')
   const branches = (issue.linkedBranches?.nodes ?? []).flatMap((node) => (node.ref ? [`${String(node.ref.name)}@${String(node.ref.target?.oid)}`] : []))
   const linkedNames = (issue.linkedBranches?.nodes ?? []).flatMap((node) => (node.ref && typeof node.ref.name === 'string' ? [node.ref.name] : []))
   const isOwn = (source: { readonly headRefName?: unknown; readonly title?: unknown }): boolean => {

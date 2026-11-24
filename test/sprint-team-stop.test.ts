@@ -21,7 +21,7 @@ import { config as base, historyOf, issue, snapshot } from './helpers.ts'
 
 const config: Config = {
   ...base,
-  sprint: { checkpoints: ['08:00', '13:00', '21:00'], utcOffset: '+09:00', pointsField: 'ストーリーポイント', overrunField: '超過', pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 } },
+  sprint: { checkpoints: ['08:00', '13:00', '21:00'], utcOffset: '+09:00', pointsField: 'Story points', overrunField: 'Overrun', pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 } },
 }
 const jst = (text: string) => new Date(`${text}+09:00`)
 const MINUTE = 60_000
@@ -54,9 +54,9 @@ describe('activityTimes', () => {
       eventLine('dispatched', new Date(700)),
       JSON.stringify({ at: new Date(5000).toISOString(), type: 'activity', role: 'member' }),
       eventLine('stop-blocked', new Date(4000)),
-      '壊れた行',
+      'broken line',
       JSON.stringify({ type: 'acked' }),
-      JSON.stringify({ at: '日付ではない', type: 'acked' }),
+      JSON.stringify({ at: 'not a date', type: 'acked' }),
       eventLine('acked', new Date(2000)),
       '',
     ].join('\n')
@@ -135,7 +135,7 @@ describe('assessItem と全セッションが止まっていた節目', () => {
   })
 
   it('理由で止まっていて除いた節目と重なる分は、除いた数に入れない', () => {
-    const blocked = doing({ reason: '外部待ち', since: '2026-10-30' })
+    const blocked = doing({ reason: 'External wait', since: '2026-10-30' })
     const one = assessItem(blocked, historyOf([], stopAt(C1, C4)), config, NOW)
     assert.deepEqual([one.effort, one.teamStopped], [1, 1])
   })
@@ -152,12 +152,12 @@ describe('S-POINTS-OVER の文', () => {
 
   it('全セッションが止まっていて除いた節目があれば、「除いた節目 n」を出す', () => {
     const [finding] = over(stopAt(C1))
-    assert.match(finding?.message ?? '', /3 節目かかっている \(\+1\)。止まっていた節目は除いた。全セッションが止まっていて除いた節目 1$/)
+    assert.match(finding?.message ?? '', /\(budget 2 checkpoints\) \(\+1\)\. Checkpoints with a block are excluded\. Checkpoints excluded because all sessions were stopped: 1$/)
   })
 
   it('除いた節目が無ければ、書かない', () => {
     const [finding] = over()
-    assert.doesNotMatch(finding?.message ?? '', /除いた節目/)
+    assert.doesNotMatch(finding?.message ?? '', /excluded because all sessions were stopped/)
   })
 })
 
@@ -176,34 +176,34 @@ describe('止まっていた節目を使う 5 つの経路は、どれも events
 
   it('scrum points の表 (formatPoints)', () => {
     const text = formatPoints(snapshot([doing()]), historyOf([], stopAt(C1, C2)), config, NOW, [])
-    assert.match(text, /\napp#1\t3\t2\t2 \(除いた節目 2\)\t0\t/)
-    assert.match(text, /止まっていた節目と、全セッションが止まっていた節目は除く/)
+    assert.match(text, /\napp#1\t3\t2\t2 \(excluded checkpoints 2\)\t0\t/)
+    assert.match(text, /Checkpoints with a block and checkpoints where all sessions were stopped are excluded/)
   })
 
   it('scrum points (pointsCommand が events.jsonl から読む)', () => {
     const p = setup()
     appendLine(p.events, eventLine('member-state', jst('2026-10-29T10:00:00')))
     writeJson(p.snapshot, snapshot([doing()]))
-    assert.match(pointsCommand(p, config), /\napp#1\t3\t2\t0 \(除いた節目 \d+\)\t0\t/)
+    assert.match(pointsCommand(p, config), /\napp#1\t3\t2\t0 \(excluded checkpoints \d+\)\t0\t/)
   })
 
   it('S-POINTS-OVER の指摘 (loadContext と lintAll が events.jsonl から読む)', () => {
     const p = setup()
     writeActivityWithGapAtC1(p)
     const found = lintAll(loadContext(p, config, NOW, fakePorts().sessions, snapshot([doing()]))).active.filter((one) => one.rule === 'S-POINTS-OVER')
-    assert.match(found[0]?.message ?? '', /除いた節目 1$/)
+    assert.match(found[0]?.message ?? '', /Checkpoints excluded because all sessions were stopped: 1$/)
   })
 
   it('受け入れ (scrum ack S-POINTS-OVER) は、指摘と同じ数えで、超過を出した節目を決める', () => {
     const p = setup()
     writeActivityWithGapAtC1(p)
     writeJson(p.snapshot, snapshot([doing()]))
-    const mark = '<!-- scrum:points-overrun decision=keep from=3 to=3 -->\nTechLead: 理由の 1 行'
+    const mark = '<!-- scrum:points-overrun decision=keep from=3 to=3 -->\nTechLead: one line of reasoning'
     const ack = (createdAt: Date) =>
-      ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: '振り返りで決める' }, config, NOW, { comments: () => [{ body: mark, createdAt: createdAt.toISOString() } satisfies IssueComment] })
+      ackCommand(p, ['S-POINTS-OVER', 'app#1'], { for: '1d', reason: 'decide in the review' }, config, NOW, { comments: () => [{ body: mark, createdAt: createdAt.toISOString() } satisfies IssueComment] })
     // 止まっていた C1 を除くと、超過を出した節目は C3 (08:00) でなく C4 (13:00)。C3 と C4 の間の印は使えない
-    assert.match(ack(new Date(C3.getTime() + 60 * MINUTE)), new RegExp(`超過を出した節目 \\(${C4.toISOString().replaceAll('.', '\\.')}\\) より後に付いた`))
-    assert.match(ack(new Date(C4.getTime() + 30 * MINUTE)), /^受け入れた: S-POINTS-OVER app#1/)
+    assert.match(ack(new Date(C3.getTime() + 60 * MINUTE)), new RegExp(`added after the checkpoint that showed the overrun \\(${C4.toISOString().replaceAll('.', '\\.')}\\)`))
+    assert.match(ack(new Date(C4.getTime() + 30 * MINUTE)), /^Acknowledged: S-POINTS-OVER app#1/)
   })
 
   it('済んだ issue の記録 (recordCompletions が events.jsonl から読む)', () => {

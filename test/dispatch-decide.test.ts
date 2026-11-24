@@ -15,8 +15,8 @@ const idle: MemberState = { name: 'SWE1', state: 'idle', since: minutesAgo(30) }
 const nudge = (minutes: number, member = 'SWE1'): DispatchRecord => ({ kind: 'nudge', at: minutesAgo(minutes), member, label: 'app#240', title: 'issue 240' })
 const dispatched = (minutes: number): DispatchRecord => ({ at: minutesAgo(minutes), member: 'SWE1', label: 'app#240', title: 'issue 240' })
 
-const doing = (number: number, overrides: Parameters<typeof issue>[1] = {}) => issue(number, { status: '作業中', assignee: 'SWE1', ...overrides })
-const next = (number: number, overrides: Parameters<typeof issue>[1] = {}) => issue(number, { status: '次にやる', ...overrides })
+const doing = (number: number, overrides: Parameters<typeof issue>[1] = {}) => issue(number, { status: 'In Progress', assignee: 'SWE1', ...overrides })
+const next = (number: number, overrides: Parameters<typeof issue>[1] = {}) => issue(number, { status: 'Next', ...overrides })
 
 describe('ownDoingIssue', () => {
   it('その人の作業中で、止まっていない issue を、番号の小さい順に 1 つ返す', () => {
@@ -24,7 +24,7 @@ describe('ownDoingIssue', () => {
   })
 
   it('止まっている、担当が別の人、閉じた、PR のものは返さない', () => {
-    const items = [doing(1, { reason: '判断待ち' }), doing(2, { assignee: 'SWE2' }), doing(3, { state: 'CLOSED' }), doing(4, { reason: null })]
+    const items = [doing(1, { reason: 'Needs decision' }), doing(2, { assignee: 'SWE2' }), doing(3, { state: 'CLOSED' }), doing(4, { reason: null })]
     assert.equal(ownDoingIssue(snapshot(items), 'SWE1', enabled), null)
   })
 })
@@ -36,7 +36,7 @@ describe('decideAction', () => {
   })
 
   it('作業中が止まっていれば (理由がなし以外)、次の issue を渡す', () => {
-    const action = decideAction(snapshot([doing(240, { reason: '外部待ち' }), next(11)]), idle, [], enabled, NOW)
+    const action = decideAction(snapshot([doing(240, { reason: 'External wait' }), next(11)]), idle, [], enabled, NOW)
     assert.deepEqual(action.kind === 'dispatch' ? [action.kind, action.item.number] : action.kind, ['dispatch', 11])
   })
 
@@ -46,7 +46,7 @@ describe('decideAction', () => {
   })
 
   it('作業中が上限に届いていても、自分の作業中があれば促す (上限は新しい issue を渡すときだけ)', () => {
-    const others = Array.from({ length: config.wipLimit }, (_, index) => issue(100 + index, { status: '作業中', assignee: 'SWE2' }))
+    const others = Array.from({ length: config.wipLimit }, (_, index) => issue(100 + index, { status: 'In Progress', assignee: 'SWE2' }))
     assert.equal(decideAction(snapshot([...others, doing(240)]), idle, [], enabled, NOW).kind, 'nudge')
     assert.deepEqual(decideAction(snapshot([...others, next(11)]), idle, [], enabled, NOW), { kind: 'none', reason: 'wip-limit' })
   })

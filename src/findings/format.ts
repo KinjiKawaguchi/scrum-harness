@@ -10,7 +10,7 @@ export function formatList(findings: readonly Finding[], limit: number): readonl
   const sorted = findings.toSorted(bySeverity)
   const shown = sorted.slice(0, limit).map(formatFinding)
   const rest = sorted.length - limit
-  return rest > 0 ? [...shown, `- ほか ${rest} 件 (${SCRUM_CLI} lint で全件)`] : shown
+  return rest > 0 ? [...shown, `- ${rest} more (${SCRUM_CLI} lint for all)`] : shown
 }
 
 function countBy(findings: readonly Finding[], pick: (finding: Finding) => string): ReadonlyMap<string, number> {
@@ -22,14 +22,14 @@ const SEVERITIES: readonly Severity[] = ['high', 'medium', 'low']
 /** セッションの始まりと圧縮の後に入れる要約。 */
 export function formatSummary(findings: readonly Finding[], ackedCount: number): string {
   const bySev = countBy(findings, (finding) => finding.severity)
-  const counts = SEVERITIES.map((sev) => `${SEVERITY_LABEL[sev]} ${bySev.get(sev) ?? 0} 件`).join('、')
-  const rules = [...countBy(findings, (finding) => finding.rule)].map(([rule, n]) => `${rule} ×${n}`).join('、')
+  const counts = SEVERITIES.map((sev) => `${SEVERITY_LABEL[sev]} ${bySev.get(sev) ?? 0}`).join(', ')
+  const rules = [...countBy(findings, (finding) => finding.rule)].map(([rule, n]) => `${rule} x${n}`).join(', ')
   const important = findings.filter((finding) => finding.severity !== 'low')
   return [
-    `scrum-harness: ボードと部下の稼働の点検 (${counts}、受け入れ済み ${ackedCount} 件)`,
-    rules === '' ? '指摘なし' : `規則ごと: ${rules}`,
+    `scrum-harness: board and member activity check (${counts}; ${ackedCount} acknowledged)`,
+    rules === '' ? 'No findings' : `By rule: ${rules}`,
     ...formatList(important, 12),
-    `使い方: ${SCRUM_CLI} lint (全件)、${SCRUM_CLI} team (部下の稼働)、${SCRUM_CLI} ack <規則> <対象> --for 2h --reason "<理由>" (意図した例外)。規則の説明は ${RULES_DOC}`,
+    `Usage: ${SCRUM_CLI} lint (all), ${SCRUM_CLI} team (member activity), ${SCRUM_CLI} ack <rule> <subject> --for 2h --reason "<reason>" (an intended exception). Rules are explained in ${RULES_DOC}`,
   ].join('\n')
 }
 
@@ -39,14 +39,14 @@ export function formatStatusline(findings: readonly Finding[]): string {
   const over = findings.filter((finding) => finding.rule === 'S-POINTS-OVER').length
   const high = board.filter((finding) => finding.severity === 'high').length
   const medium = board.filter((finding) => finding.severity === 'medium').length
-  if (high + medium + idle.length + over === 0) return '✓ ボード OK'
+  if (high + medium + idle.length + over === 0) return '✓ board OK'
   const people = idle.map((finding) => {
-    const mark = finding.rule === 'T-WAITING' ? '許可待ち ' : ''
-    return `${mark}${finding.subject} ${finding.minutes ?? '?'}分`
+    const mark = finding.rule === 'T-WAITING' ? 'waiting for approval ' : ''
+    return `${mark}${finding.subject} ${finding.minutes ?? '?'}m`
   })
   return [
-    `⚠ ボード 高${high} 中${medium}`,
-    ...(people.length === 0 ? [] : [`空き ${people.join(' ')}`]),
-    ...(over === 0 ? [] : [`超過 ${over}`]),
+    `⚠ board high ${high} medium ${medium}`,
+    ...(people.length === 0 ? [] : [`idle ${people.join(' ')}`]),
+    ...(over === 0 ? [] : [`overrun ${over}`]),
   ].join(' │ ')
 }

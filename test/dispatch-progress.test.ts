@@ -8,11 +8,11 @@ import { activityToken, githubProbe } from '../src/adapters/github/activity.ts'
 import { boardOnly, boardToken, cachedProbe, hasProgress, observe, readSeen, seenKey, tokenWith, writeSeen } from '../src/dispatch/progress.ts'
 import { issue } from './helpers.ts'
 
-const item = issue(240, { status: '作業中', assignee: 'SWE1', reason: 'なし', since: '2026-10-08' })
+const item = issue(240, { status: 'In Progress', assignee: 'SWE1', reason: 'None', since: '2026-10-08' })
 
 describe('boardToken と hasProgress', () => {
   it('Status、止まっている理由、担当、止まり始めた日を 1 つの印にする', () => {
-    assert.equal(boardToken(item), '作業中|なし|SWE1|2026-10-08')
+    assert.equal(boardToken(item), 'In Progress|None|SWE1|2026-10-08')
     assert.equal(boardToken(issue(1, { status: null, reason: null, assignee: null, since: null })), '|||')
   })
 
@@ -34,16 +34,16 @@ describe('boardToken と hasProgress', () => {
   })
 
   it('boardOnly は gh を使わず、tokenWith は gh の印を足す', () => {
-    assert.deepEqual(boardOnly(item), { board: '作業中|なし|SWE1|2026-10-08', github: null })
-    assert.deepEqual(tokenWith(() => 'g')(item), { board: '作業中|なし|SWE1|2026-10-08', github: 'g' })
+    assert.deepEqual(boardOnly(item), { board: 'In Progress|None|SWE1|2026-10-08', github: null })
+    assert.deepEqual(tokenWith(() => 'g')(item), { board: 'In Progress|None|SWE1|2026-10-08', github: 'g' })
     assert.deepEqual(tokenWith(() => null)(item).github, null)
   })
 
   it('tokenWith は、印の読み取りが投げても止まらず、コードの置き場の印を null にする', () => {
     const throwing = () => {
-      throw new Error('読めない')
+      throw new Error('cannot read')
     }
-    assert.deepEqual(tokenWith(throwing)(item), { board: '作業中|なし|SWE1|2026-10-08', github: null })
+    assert.deepEqual(tokenWith(throwing)(item), { board: 'In Progress|None|SWE1|2026-10-08', github: null })
   })
 })
 
@@ -75,7 +75,7 @@ describe('activityToken', () => {
       comments: { totalCount: 0 },
       linkedBranches: { nodes: [] },
       timelineItems: {
-        nodes: [pr(1, 'feat/240-ci'), pr(2, 'topic', 'fix: x (#240)'), pr(3, 'topic', 'fix: y (#241、#240)'), pr(4, 'feat/2400-ci'), pr(5, 'topic', '#240 を直す'), pr(6, 'topic', 'z (#2400)'), pr(7, 'feat/guard-240'), pr(8, 'fix/240abc')],
+        nodes: [pr(1, 'feat/240-ci'), pr(2, 'topic', 'fix: x (#240)'), pr(3, 'topic', 'fix: y (#241\u3001#240)'), pr(4, 'feat/2400-ci'), pr(5, 'topic', 'Fix #240'), pr(6, 'topic', 'z (#2400)'), pr(7, 'feat/guard-240'), pr(8, 'fix/240abc')],
       },
     })
     assert.deepEqual(JSON.parse(activityToken(a, 240)).prs, ['#1:OPEN@oid1', '#2:OPEN@oid2', '#3:OPEN@oid3'])
@@ -94,8 +94,8 @@ describe('activityToken', () => {
   })
 
   it('issue が読めなければ投げる', () => {
-    assert.throws(() => activityToken(answer(null)), /issue を読めない/)
-    assert.throws(() => activityToken('壊れた'))
+    assert.throws(() => activityToken(answer(null)), /cannot read the issue/)
+    assert.throws(() => activityToken('broken'))
   })
 })
 
@@ -141,7 +141,7 @@ describe('cachedProbe', () => {
     let calls = 0
     const probe = cachedProbe(() => {
       calls += 1
-      throw new Error('gh が失敗')
+      throw new Error('gh failed')
     }, 1000, () => 0)
     assert.deepEqual([probe(item), probe(item)], [null, null])
     assert.equal(calls, 1)
@@ -150,7 +150,7 @@ describe('cachedProbe', () => {
 
 describe('observe (見た印)', () => {
   const at = (minutes: number): Date => new Date(Date.UTC(2026, 10, 3, 15, minutes))
-  const token = (github: string | null, board = '作業中|なし|SWE1|') => ({ board, github })
+  const token = (github: string | null, board = 'In Progress|None|SWE1|') => ({ board, github })
 
   it('初めて見たときは、いまの時刻を書く', () => {
     assert.deepEqual(observe({}, 'SWE1', 'app#1', token('a'), at(0)), { 'SWE1|app#1': { token: token('a'), at: at(0).toISOString() } })
@@ -162,7 +162,7 @@ describe('observe (見た印)', () => {
     assert.equal(same['SWE1|app#1']?.at, at(0).toISOString())
     const progressed = observe(same, 'SWE1', 'app#1', token('b'), at(10))
     assert.deepEqual(progressed['SWE1|app#1'], { token: token('b'), at: at(10).toISOString() })
-    const boardChanged = observe(progressed, 'SWE1', 'app#1', token('b', '作業中|判断待ち|SWE1|'), at(15))
+    const boardChanged = observe(progressed, 'SWE1', 'app#1', token('b', 'In Progress|Needs decision|SWE1|'), at(15))
     assert.equal(boardChanged['SWE1|app#1']?.at, at(15).toISOString())
   })
 
@@ -200,7 +200,7 @@ describe('readSeen と writeSeen', () => {
     assert.deepEqual(readSeen(p), {})
     write({ ok: { token: { board: 'b', github: 'g' }, at: '2026-11-03T15:00:00.000Z' }, noToken: { at: '2026-11-03T15:00:00.000Z' }, badAt: { token: { board: 'b', github: null }, at: 'x' }, badGithub: { token: { board: 'b', github: 1 }, at: '2026-11-03T15:00:00.000Z' } })
     assert.deepEqual(Object.keys(readSeen(p)), ['ok'])
-    writeFileSync(p.dispatchSeen, '{ 壊れた')
+    writeFileSync(p.dispatchSeen, '{ broken')
     assert.deepEqual(readSeen(p), {})
   })
 })

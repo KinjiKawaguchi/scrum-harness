@@ -23,7 +23,7 @@ function node(number: number, overrides: Record<string, unknown> = {}) {
   return {
     id: `PVTI_${number}`,
     type: 'ISSUE',
-    status: { name: 'バックログ' },
+    status: { name: 'Backlog' },
     content: { number, title: `issue ${number}`, state: 'OPEN', author: { login: 'owner' }, repository: { nameWithOwner: 'example-org/app' } },
     ...overrides,
   }
@@ -52,21 +52,21 @@ describe('parseItemPages', () => {
   })
 
   it('slurp していない1ページ分のオブジェクトは、ページの配列でないので投げる', () => {
-    assert.throws(() => parseItemPages(JSON.stringify(page)), /ページの配列でない/)
+    assert.throws(() => parseItemPages(JSON.stringify(page)), /is not an array of pages/)
   })
 
   it('空の配列は投げる', () => {
-    assert.throws(() => parseItemPages('[]'), /ページの配列でない/)
+    assert.throws(() => parseItemPages('[]'), /is not an array of pages/)
   })
 
   it('node が null のページ (権限が無いとき) は、何ページ目かを添えて投げる', () => {
     const broken = { data: { node: null }, errors: [{ message: 'Could not resolve to a node' }] }
-    assert.throws(() => parseItemPages(JSON.stringify([pageOf([node(1)], 2), broken])), /2 ページ目に項目の一覧が無い/)
+    assert.throws(() => parseItemPages(JSON.stringify([pageOf([node(1)], 2), broken])), /Page 2 of the board fetch result has no list of items/)
   })
 
   it('総数より少ししか取れていない (ページが途中で切れた) 結果は、投げる', () => {
     const firstThree = Array.from({ length: 300 }, (_, i) => node(i + 1))
-    assert.throws(() => parseItemPages(JSON.stringify([pageOf(firstThree, 500)])), /500 件のうち 300 件しか取れていない/)
+    assert.throws(() => parseItemPages(JSON.stringify([pageOf(firstThree, 500)])), /Only 300 of 500 board items were fetched/)
   })
 
   it('取得中にボードから数件消えた程度の差なら、通す', () => {
@@ -80,12 +80,12 @@ describe('parseItemPages', () => {
   })
 
   it('項目が 0 件なら、控えを書き換えないよう投げる', () => {
-    assert.throws(() => parseItemPages(JSON.stringify([pageOf([])])), /0 件/)
+    assert.throws(() => parseItemPages(JSON.stringify([pageOf([])])), /The board has 0 items/)
   })
 
   it('issue と PR の半分を超える項目の中身が読めなければ、投げる', () => {
     const nodes = [...Array.from({ length: 4 }, (_, i) => node(i + 1)), ...Array.from({ length: 8 }, (_, i) => unreadable(i + 100))]
-    assert.throws(() => parseItemPages(JSON.stringify([pageOf(nodes)])), /8 件の中身が読めない/)
+    assert.throws(() => parseItemPages(JSON.stringify([pageOf(nodes)])), /The content of 8 of \d+ issue and PR items cannot be read/)
   })
 
   it('中身が読めない項目が半分以下なら、通す', () => {
@@ -153,7 +153,7 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
       assert.equal(refreshSnapshot(p, config, new Date('2026-10-23T00:00:00Z')), null)
     })
     assert.deepEqual(JSON.parse(readFileSync(p.snapshot, 'utf8')), previous)
-    assert.match(readFileSync(p.errors, 'utf8'), /refresh: ボードの項目が 0 件/)
+    assert.match(readFileSync(p.errors, 'utf8'), /refresh: The board has 0 items/)
   })
 
   it('総数より少ししか取れていない結果では、控えを書き換えず、errors.log に残す', () => {
@@ -163,7 +163,7 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
       assert.equal(refreshSnapshot(p, config, new Date('2026-10-23T00:00:00Z')), null)
     })
     assert.deepEqual(JSON.parse(readFileSync(p.snapshot, 'utf8')), previous)
-    assert.match(readFileSync(p.errors, 'utf8'), /500 件のうち 300 件しか取れていない/)
+    assert.match(readFileSync(p.errors, 'utf8'), /Only 300 of 500 board items were fetched/)
   })
 
   it('正しい取得結果では、控えを書き換える', () => {
@@ -192,10 +192,10 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
         () => {
           const fresh = refreshSnapshot(p, oneRepo, now)
           assert.deepEqual(fresh?.items.map((item) => item.number), [7, 8])
-          assert.equal(fresh?.items.find((item) => item.number === 8)?.status, '次にやる')
+          assert.equal(fresh?.items.find((item) => item.number === 8)?.status, 'Next')
           assert.deepEqual(offBoard(fresh), [])
         },
-        { issues, read: readResult([{ ...node(8, { status: { name: '次にやる' } }), project: { id: config.projectId } }]) },
+        { issues, read: readResult([{ ...node(8, { status: { name: 'Next' } }), project: { id: config.projectId } }]) },
       )
       assert.deepEqual(JSON.parse(readFileSync(p.snapshot, 'utf8')).items.map((item: { number: number }) => item.number), [7, 8])
     })
@@ -223,7 +223,7 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
         { issues, readFails: true },
       )
       assert.deepEqual(JSON.parse(readFileSync(p.snapshot, 'utf8')), previous)
-      assert.match(readFileSync(p.errors, 'utf8'), /refresh: gh が exit 1: read failed/)
+      assert.match(readFileSync(p.errors, 'utf8'), /refresh: gh exited with 1: read failed/)
     })
 
     it('一覧に欠けが無ければ、1 件ずつ読まない (読み取りが失敗する gh でも、控えを書ける)', () => {
@@ -261,8 +261,8 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
         () => {
           const fresh = refreshSnapshot(p, oneRepo, now)
           assert.deepEqual(fresh?.items.map((item) => [item.number, item.kind]), [[7, 'issue'], [9, 'pr']])
-          const reason = checkGuard(fresh ?? snapshot([]), parseBoardCommands('set-status 9 作業中', oneRepo), oneRepo)
-          assert.match(reason ?? '', /app#9 は PR/)
+          const reason = checkGuard(fresh ?? snapshot([]), parseBoardCommands('set-status 9 "In Progress"', oneRepo), oneRepo)
+          assert.match(reason ?? '', /app#9 is a PR/)
         },
         { issues, prs, read: prReadResult([prNode()]) },
       )
@@ -276,7 +276,7 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
           const fresh = refreshSnapshot(p, oneRepo, now)
           assert.deepEqual(findings(fresh, 'B-PR-STATUS').map((one) => one.subject), ['app#9'])
         },
-        { issues, prs, read: prReadResult([prNode({ status: { name: '作業中' } })]) },
+        { issues, prs, read: prReadResult([prNode({ status: { name: 'In Progress' } })]) },
       )
     })
 
@@ -323,7 +323,7 @@ describe('refreshSnapshot は、取得が壊れたとき前の控えを守る', 
         { issues, prsFail: true },
       )
       assert.deepEqual(JSON.parse(readFileSync(p.snapshot, 'utf8')), previous)
-      assert.match(readFileSync(p.errors, 'utf8'), /refresh: gh が exit 1: pr list failed/)
+      assert.match(readFileSync(p.errors, 'utf8'), /refresh: gh exited with 1: pr list failed/)
     })
 
     it('一覧にある PR は、読み取りが失敗する gh でも、読まずに控えを書ける', () => {

@@ -21,16 +21,16 @@ const refreshing = (fetchSnapshot: () => Snapshot) => fakePorts({ board: { ...fa
 describe('alertsCommand (scrum alerts)', () => {
   it('alerts が有効でなければ、何もせず、理由を返す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
-    assert.match(alertsCommand(p, config, NOW, fakePorts()), /alerts が有効でない/)
+    assert.match(alertsCommand(p, config, NOW, fakePorts()), /alerts is not enabled/)
   })
 
   it('有効なら、検知を 1 回進め、macOS の通知を、まだなら出し、動く人のいない Epic と、渡せる issue が無い部下の数を返す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
-    const board = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
+    const board = { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: NOW.toISOString() }
     saveSnapshot(p, board)
     const sent: string[] = []
     const notify = (_title: string, body: string) => sent.push(body)
-    assert.equal(alertsCommand(p, enabled, NOW, fakePorts({ notify })), '止まりの検知を進めた: 動く人のいない Epic 1 件、渡せる issue が無い部下 0 人')
+    assert.equal(alertsCommand(p, enabled, NOW, fakePorts({ notify })), 'Advanced the stall detection. Epics with nobody moving: 1; members with nothing to hand over: 0')
     assert.equal(sent.length, 0)
     alertsCommand(p, enabled, new Date(NOW.getTime() + 60 * 60_000), fakePorts({ notify }))
     assert.equal(sent.length, 1)
@@ -38,7 +38,7 @@ describe('alertsCommand (scrum alerts)', () => {
 })
 
 describe('alertsCommand の控えの取り直し', () => {
-  const stale = (p: ReturnType<typeof paths>) => saveSnapshot(p, { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() })
+  const stale = (p: ReturnType<typeof paths>) => saveSnapshot(p, { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() })
 
   it('控えが古ければ、検知の前に取り直す (launchd の夜は、ほかに取り直す人がいない)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
@@ -50,7 +50,7 @@ describe('alertsCommand の控えの取り直し', () => {
       NOW,
       refreshing(() => {
         order.push('refresh')
-        throw new Error('取り直しは試しただけ')
+        throw new Error('the retry was only attempted')
       }),
     )
     assert.deepEqual(order, ['refresh'])
@@ -66,7 +66,7 @@ describe('alertsCommand の控えの取り直し', () => {
       NOW,
       refreshing(() => {
         called = true
-        throw new Error('呼ばれない')
+        throw new Error('not called')
       }),
     )
     assert.equal(called, false)
@@ -75,9 +75,9 @@ describe('alertsCommand の控えの取り直し', () => {
   it('取り直した後の控えで、検知する (取り直しが控えを新しくすれば、その控えを使う)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
-    const refreshed = { ...snapshot([epic(), child(101, { status: '次にやる' })]), fetchedAt: NOW.toISOString() }
+    const refreshed = { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: NOW.toISOString() }
     const text = alertsCommand(p, enabled, NOW, refreshing(() => refreshed))
-    assert.match(text, /動く人のいない Epic 1 件/)
+    assert.match(text, /Epics with nobody moving: 1/)
   })
 
   it('本物の取り直しは、gh を呼ぶ前に、試した時刻を書く (gh が使えなくても、5 分ごとに叩き続けない)', () => {
@@ -154,11 +154,11 @@ describe('launchd/render.sh (雛形に、この Mac の値を入れる)', () => 
     const noGh = render(`${join(root, 'bin')}:${tools}`)
     assert.equal(noGh.status, 1)
     assert.equal(noGh.stdout, '')
-    assert.match(noGh.stderr, /gh が見つからない/)
+    assert.match(noGh.stderr, /gh not found/)
     const emptyDir = mkdtempSync(join(tmpdir(), 'scrum-render-empty-'))
     const noNode = render(`${emptyDir}:${tools}`)
     assert.equal(noNode.status, 1)
-    assert.match(noNode.stderr, /node が見つからない/)
+    assert.match(noNode.stderr, /node not found/)
   })
 
   it('置き換えた後に、plutil の検査を通る (macOS のときだけ)', { skip: process.platform !== 'darwin' }, () => {

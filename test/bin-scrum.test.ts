@@ -120,7 +120,7 @@ describe('bin/scrum の動きの記録 (activity)', () => {
     assert.equal(sandbox.lines().length, 1)
     // 次に書く時刻は、足した時刻の 10 分後 (9 分 〜 11 分の間に入る)
     const untilDue = statSync(sandbox.due).mtimeMs - Date.now()
-    assert.ok(untilDue > 9 * 60_000 && untilDue <= 10 * 60_000 + 2000, `次に書く時刻まで ${untilDue} ms`)
+    assert.ok(untilDue > 9 * 60_000 && untilDue <= 10 * 60_000 + 2000, `${untilDue} ms until the next write`)
     const inOneMinute = new Date(Date.now() + 60_000)
     utimesSync(sandbox.due, inOneMinute, inOneMinute)
     sandbox.call(['hook', 'PostToolUse'])

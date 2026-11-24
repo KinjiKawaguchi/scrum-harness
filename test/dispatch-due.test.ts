@@ -16,7 +16,7 @@ const ack = (overrides: Partial<Ack> = {}): Ack => ({
   rule: 'T-IDLE',
   subject: 'SWE1',
   until: minutesLater(30),
-  reason: 'オーナーの答え待ち',
+  reason: "Waiting for the owner's answer",
   at: minutesAgo(10),
   ...overrides,
 })
@@ -59,7 +59,7 @@ describe('dispatchDue', () => {
   })
 
   it('枠の受け入れは、枠の始まりの 15 分前までは渡すのを止めず、その後は止める', () => {
-    const slot = (minutes: number) => ack({ reason: '枠 16:00', slotAt: minutesLater(minutes) })
+    const slot = (minutes: number) => ack({ reason: 'slot 16:00', slotAt: minutesLater(minutes) })
     assert.deepEqual(dispatchDue(idle(30), [slot(16)], [], enabled, NOW), { isDue: true })
     assert.deepEqual(dispatchDue(idle(30), [slot(15)], [], enabled, NOW), { isDue: false, reason: 'accepted' })
     assert.deepEqual(dispatchDue(idle(30), [slot(-10)], [], enabled, NOW), { isDue: false, reason: 'accepted' })
@@ -77,20 +77,20 @@ describe('idleGate と促しの記録', () => {
 })
 
 describe('保存された T-IDLE の受け入れの検査', () => {
-  const old = (overrides: Partial<Ack> = {}) => ack({ at: minutesAgo(10), until: minutesLater(230), reason: '余力が少ない', ...overrides })
+  const old = (overrides: Partial<Ack> = {}) => ack({ at: minutesAgo(10), until: minutesLater(230), reason: 'low capacity', ...overrides })
 
   it('検査を入れる前に作られた受け入れ (長い期限、余力などの理由) は、渡すのを止めない', () => {
     assert.deepEqual(dispatchDue(idle(30), [old()], [], enabled, NOW), { isDue: true })
-    assert.deepEqual(dispatchDue(idle(30), [old({ reason: 'オーナーの答え待ち', until: minutesLater(230) })], [], enabled, NOW), { isDue: true })
+    assert.deepEqual(dispatchDue(idle(30), [old({ reason: "Waiting for the owner's answer", until: minutesLater(230) })], [], enabled, NOW), { isDue: true })
   })
 
   it('理由の後ろに文字があるものは、止めない。理由が完全一致で、期限が 1 時間以内のものは、止める', () => {
-    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: 'オーナーの答え待ち、余力が少ない' })], [], enabled, NOW), { isDue: true })
-    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: 'オーナーの答え待ち' })], [], enabled, NOW), { isDue: false, reason: 'accepted' })
+    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: "Waiting for the owner's answer, low capacity" })], [], enabled, NOW), { isDue: true })
+    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: "Waiting for the owner's answer" })], [], enabled, NOW), { isDue: false, reason: 'accepted' })
   })
 
   it('枠の理由でも、枠の始まり (slotAt) の無い古い形は、止めない', () => {
-    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: '枠 16:00' })], [], enabled, NOW), { isDue: true })
+    assert.deepEqual(dispatchDue(idle(30), [ack({ reason: 'slot 16:00' })], [], enabled, NOW), { isDue: true })
   })
 })
 
@@ -98,23 +98,23 @@ describe('isValidIdleAck', () => {
   const made = (overrides: Partial<Ack>): Ack => ack({ at: minutesAgo(0), until: minutesLater(60), ...overrides })
 
   it('「<オーナー>の答え待ち」の完全一致で、期限が 1 時間以内なら通る (ちょうど 1 時間も通る)', () => {
-    assert.equal(isValidIdleAck(made({ reason: 'オーナーの答え待ち' }), enabled), true)
-    assert.equal(isValidIdleAck(made({ reason: 'オーナーの答え待ち', until: minutesLater(61) }), enabled), false)
+    assert.equal(isValidIdleAck(made({ reason: "Waiting for the owner's answer" }), enabled), true)
+    assert.equal(isValidIdleAck(made({ reason: "Waiting for the owner's answer", until: minutesLater(61) }), enabled), false)
   })
 
   it('理由の前後に文字があるものは通らない', () => {
-    assert.equal(isValidIdleAck(made({ reason: 'オーナーの答え待ち、余力が少ない' }), enabled), false)
-    assert.equal(isValidIdleAck(made({ reason: '長い オーナーの答え待ち' }), enabled), false)
+    assert.equal(isValidIdleAck(made({ reason: "Waiting for the owner's answer, low capacity" }), enabled), false)
+    assert.equal(isValidIdleAck(made({ reason: "Long Waiting for the owner's answer" }), enabled), false)
   })
 
   it('「枠 HH:MM」は、枠の始まりが書いてあり、形が完全一致のとき通る', () => {
-    assert.equal(isValidIdleAck(made({ reason: '枠 16:00', slotAt: minutesLater(30) }), enabled), true)
-    assert.equal(isValidIdleAck(made({ reason: '枠 16:00', slotAt: undefined }), enabled), false)
-    assert.equal(isValidIdleAck(made({ reason: '枠 16:00 まで', slotAt: minutesLater(30) }), enabled), false)
+    assert.equal(isValidIdleAck(made({ reason: 'slot 16:00', slotAt: minutesLater(30) }), enabled), true)
+    assert.equal(isValidIdleAck(made({ reason: 'slot 16:00', slotAt: undefined }), enabled), false)
+    assert.equal(isValidIdleAck(made({ reason: 'slot 16:00 until', slotAt: minutesLater(30) }), enabled), false)
   })
 
   it('期限か作った時刻が読めないものは通らない。T-IDLE 以外の受け入れは見ない', () => {
-    assert.equal(isValidIdleAck(made({ reason: 'オーナーの答え待ち', at: 'x' }), enabled), false)
-    assert.equal(isValidIdleAck(made({ rule: 'B-WIP-OVER', reason: '何でも', until: minutesLater(5000) }), enabled), true)
+    assert.equal(isValidIdleAck(made({ reason: "Waiting for the owner's answer", at: 'x' }), enabled), false)
+    assert.equal(isValidIdleAck(made({ rule: 'B-WIP-OVER', reason: 'anything', until: minutesLater(5000) }), enabled), true)
   })
 })

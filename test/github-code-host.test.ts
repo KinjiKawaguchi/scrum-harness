@@ -11,14 +11,14 @@ function recordingWithin(): { readonly within: (ms: number) => GhRun; readonly t
   const within = (ms: number): GhRun => {
     timeouts.push(ms)
     return () => {
-      throw new Error('gh を呼べない')
+      throw new Error('cannot call gh')
     }
   }
   return { within, timeouts }
 }
 
 const failingRun: GhRun = () => {
-  throw new Error('時間を絞らない gh は使わない')
+  throw new Error('gh without a time limit is not used')
 }
 
 describe('githubCodeHost の組み立て', () => {
@@ -33,7 +33,7 @@ describe('githubCodeHost の組み立て', () => {
     const { within, timeouts } = recordingWithin()
     const withPrefix = { ...config, dispatch: { enabled: true, baseBranch: 'main', skipLabels: [], utcOffset: '+09:00', notes: [], linkedBranchPrefix: 'feat' } }
     const host = githubCodeHost(failingRun, withPrefix, within)
-    assert.throws(() => host.prepareBranch(issue(5)), /gh を呼べない/)
+    assert.throws(() => host.prepareBranch(issue(5)), /cannot call gh/)
     assert.ok(timeouts.includes(LINK_GH_TIMEOUT_MS))
   })
 })

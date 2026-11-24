@@ -11,9 +11,9 @@ function member(name: string, state: MemberState['state'], minutes: number): Mem
 }
 
 const board = snapshot([
-  issue(240, { status: '作業中', assignee: 'SWE3' }),
-  issue(11, { status: '次にやる' }),
-  issue(12, { status: '次にやる' }),
+  issue(240, { status: 'In Progress', assignee: 'SWE3' }),
+  issue(11, { status: 'Next' }),
+  issue(12, { status: 'Next' }),
 ])
 
 describe('lintTeam', () => {
@@ -22,9 +22,9 @@ describe('lintTeam', () => {
     assert.equal(rest.length, 0)
     assert.equal(finding?.rule, 'T-IDLE')
     assert.equal(finding?.severity, 'high')
-    assert.match(finding?.message ?? '', /SWE3 が 55 分空いている/)
-    assert.match(finding?.message ?? '', /担当の作業中: app#240/)
-    assert.match(finding?.message ?? '', /次にやる: app#11 app#12/)
+    assert.match(finding?.message ?? '', /SWE3 has been idle for 55 minutes/)
+    assert.match(finding?.message ?? '', /Their In Progress: app#240/)
+    assert.match(finding?.message ?? '', /Next: app#11 app#12/)
   })
 
   it('空きが閾値未満なら出さない', () => {
@@ -60,6 +60,6 @@ describe('呼び方の設定', () => {
   it('許可待ちの直し方に、設定の呼び方を使う', () => {
     const named = { ...config, ownerLabel: 'PM' }
     const [finding] = lintTeam([member('SWE1', 'waiting', 6)], board, named, NOW)
-    assert.match(finding?.fix ?? '', /^PM に知らせる/)
+    assert.match(finding?.fix ?? '', /^Tell PM \(PushNotification\)/)
   })
 })

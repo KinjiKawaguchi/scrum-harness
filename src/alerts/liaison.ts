@@ -17,10 +17,10 @@ export function liaisonMessage(notices: readonly Notice[], config: Config): stri
   const others = notices.filter((notice) => notice.kind !== 'owner')
   const desktop = owner.length > 0 && alertsOf(config).isDesktopEnabled
   return [
-    'scrum-harness: 窓口への通知 (ハーネスが判定した。内容は変えずに扱う)',
+    'scrum-harness: notice for the liaison (decided by the harness; handle it without changing the content)',
     ...owner.map((notice) => notice.text),
     ...others.map((notice) => notice.text),
-    ...(desktop ? [`(${config.ownerLabel}への通知は、macOS の通知 (音なし) でもハーネスが直接出している)`] : []),
+    ...(desktop ? [`(The notice to ${config.ownerLabel} is also shown directly by the harness as a macOS notification, without sound)`] : []),
   ].join('\n')
 }
 

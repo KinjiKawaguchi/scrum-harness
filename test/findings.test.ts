@@ -7,14 +7,14 @@ import { makeFinding, type Finding, type Severity } from '../src/findings/types.
 import { NOW } from './helpers.ts'
 
 function finding(rule: string, subject: string, severity: Severity = 'medium'): Finding {
-  return makeFinding({ rule, subject, severity, message: `${subject} の指摘`, fix: `fix ${subject}` })
+  return makeFinding({ rule, subject, severity, message: `${subject} finding`, fix: `fix ${subject}` })
 }
 
 const ack = (overrides: Partial<Ack> = {}): Ack => ({
   rule: 'T-IDLE',
   subject: 'SWE3',
   until: '2026-10-08T08:00:00.000Z',
-  reason: '今夜の作業待ち',
+  reason: 'Waiting for the night run',
   at: '2026-10-08T05:00:00.000Z',
   ...overrides,
 })
@@ -35,8 +35,8 @@ describe('acks', () => {
 
   it('同じ対象の受け入れを置き換え、切れたものを捨てる', () => {
     const expired = ack({ subject: 'SWE1', until: '2026-10-08T01:00:00.000Z' })
-    const next = addAck([ack(), expired], ack({ reason: '延長' }), NOW)
-    assert.deepEqual(next.map((one) => `${one.subject} ${one.reason}`), ['SWE3 延長'])
+    const next = addAck([ack(), expired], ack({ reason: 'Extended' }), NOW)
+    assert.deepEqual(next.map((one) => `${one.subject} ${one.reason}`), ['SWE3 Extended'])
   })
 
   it('期間の書き方を読む', () => {
@@ -76,28 +76,28 @@ describe('notify', () => {
 describe('format', () => {
   it('重さ・規則・直し方を1行にする', () => {
     const [line] = formatList([finding('B-CLOSED-NOT-DONE', 'app#7')], 5)
-    assert.equal(line, '- [中] B-CLOSED-NOT-DONE app#7 の指摘 → fix app#7')
+    assert.equal(line, '- [medium] B-CLOSED-NOT-DONE app#7 finding → fix app#7')
   })
 
   it('上限を超えた分は件数だけ書く', () => {
     const lines = formatList(['a', 'b', 'c'].map((s) => finding('R', s)), 2)
-    assert.match(lines.at(-1) ?? '', /^- ほか 1 件 \(.*scrum lint で全件\)$/)
+    assert.match(lines.at(-1) ?? '', /^- 1 more \(.*scrum lint for all\)$/)
   })
 
   it('要約に規則ごとの件数と受け入れ済みの件数を出す', () => {
     const text = formatSummary([finding('B-CLOSED-NOT-DONE', 'app#7'), finding('B-CLOSED-NOT-DONE', 'app#8')], 1)
-    assert.match(text, /中 2 件/)
-    assert.match(text, /B-CLOSED-NOT-DONE ×2/)
-    assert.match(text, /受け入れ済み 1 件/)
+    assert.match(text, /medium 2/)
+    assert.match(text, /B-CLOSED-NOT-DONE x2/)
+    assert.match(text, /1 acknowledged/)
   })
 
   it('statusline は高と中の件数と空いている部下を短く出す', () => {
-    const idle = makeFinding({ rule: 'T-IDLE', subject: 'SWE3', severity: 'high', message: 'SWE3 が 55 分空いている。…', minutes: 55 })
-    assert.equal(formatStatusline([idle, finding('B-X', 'app#1')]), '⚠ ボード 高0 中1 │ 空き SWE3 55分')
+    const idle = makeFinding({ rule: 'T-IDLE', subject: 'SWE3', severity: 'high', message: 'SWE3 has been idle for 55 minutes. …', minutes: 55 })
+    assert.equal(formatStatusline([idle, finding('B-X', 'app#1')]), '⚠ board high 0 medium 1 │ idle SWE3 55m')
   })
 
   it('指摘が無ければ statusline は OK を出す', () => {
-    assert.equal(formatStatusline([]), '✓ ボード OK')
+    assert.equal(formatStatusline([]), '✓ board OK')
   })
 })
 
@@ -110,7 +110,7 @@ describe('lintAll の控えの古さ', async () => {
     const old = { ...snapshot([]), fetchedAt: new Date(NOW.getTime() - 16 * 60_000).toISOString() }
     const { active } = lintAll({ ...base, snapshot: old })
     assert.deepEqual(active.map((f) => `${f.rule} ${f.severity}`), ['B-SNAPSHOT-STALE medium'])
-    assert.match(active[0]?.message ?? '', /16 分前/)
+    assert.match(active[0]?.message ?? '', /16 minutes ago/)
   })
 
   it('控えが新しければ出さない', () => {

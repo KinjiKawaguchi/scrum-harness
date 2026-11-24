@@ -57,7 +57,7 @@ describe('roleOf', () => {
   it('TechLead と部下の役は変わらない', () => {
     assert.equal(roleOf('TechLead', enabled), 'techlead')
     assert.equal(roleOf('SWE1', enabled), 'member')
-    assert.equal(roleOf('だれか', enabled), null)
+    assert.equal(roleOf('someone', enabled), null)
     assert.equal(roleOf('TechLead', { ...enabled, alerts: { ...alerts, liaison: 'TechLead' } }), 'techlead')
   })
 })
@@ -87,36 +87,36 @@ describe('itemsQuery', () => {
 
 describe('osascriptArgs', () => {
   it('本文と題は引数 (argv) で渡し、スクリプトの文字列には埋め込まない。音は指定しない', () => {
-    const body = 'Epic「"; do shell script "rm -rf ~"」\n-x'
-    const args = osascriptArgs('題 "q"', body)
+    const body = 'Epic "; do shell script "rm -rf ~"\n-x'
+    const args = osascriptArgs('Heading "q"', body)
     const separator = args.indexOf('--')
-    assert.deepEqual(args.slice(separator + 1), [body, '題 "q"'])
+    assert.deepEqual(args.slice(separator + 1), [body, 'Heading "q"'])
     const script = args.slice(0, separator).filter((arg) => arg !== '-e').join('\n')
     assert.equal(script.includes('rm -rf'), false)
-    assert.equal(script.includes('題'), false)
+    assert.equal(script.includes('Heading'), false)
     assert.match(script, /display notification \(item 1 of argv\) with title \(item 2 of argv\)/)
     assert.doesNotMatch(script, /sound/)
   })
 })
 
 describe('liaisonMessage', () => {
-  const owner: Notice = { key: 'k1', kind: 'owner', text: '- E-STALL app#100: オーナーに PushNotification を 1 通送る', desktop: { title: 't', body: 'b' } }
-  const line: Notice = { key: 'k2', kind: 'idle-line', text: '- SWE1 が 10 分空いた。受け入れ: なし。ハーネスの動き: まだ送っていない' }
+  const owner: Notice = { key: 'k1', kind: 'owner', text: '- E-STALL app#100: send the owner one PushNotification', desktop: { title: 't', body: 'b' } }
+  const line: Notice = { key: 'k2', kind: 'idle-line', text: '- SWE1 has been idle for 10 minutes. Acknowledgement: none. Harness action: nothing sent yet' }
 
   it('オーナーへの通知を先に、空きの 1 行を後に並べ、macOS の通知も出していると添える', () => {
     assert.equal(
       liaisonMessage([line, owner], enabled),
       [
-        'scrum-harness: 窓口への通知 (ハーネスが判定した。内容は変えずに扱う)',
+        'scrum-harness: notice for the liaison (decided by the harness; handle it without changing the content)',
         owner.text,
         line.text,
-        '(オーナーへの通知は、macOS の通知 (音なし) でもハーネスが直接出している)',
+        '(The notice to the owner is also shown directly by the harness as a macOS notification, without sound)',
       ].join('\n'),
     )
   })
 
   it('オーナーへは送らないと決めた通知 (info) も、オーナーへの通知の後に、窓口への文へ並べる', () => {
-    const info: Notice = { key: 'k3:held', kind: 'info', text: '- E-STALL app#100: オーナーへは 16:00 に通知済みで、今回は送らない' }
+    const info: Notice = { key: 'k3:held', kind: 'info', text: '- E-STALL app#100: the owner was already notified at 16:00, so it is not sent this time' }
     assert.deepEqual(liaisonMessage([info, line, owner], enabled).split('\n').slice(1, 4), [owner.text, info.text, line.text])
   })
 

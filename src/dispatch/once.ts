@@ -10,20 +10,20 @@ import { dispatchStep, type DispatchOutcome, type DispatchPorts } from './run.ts
 export type OnceResult = { readonly member: string; readonly outcome: DispatchOutcome | null; readonly reason: string }
 
 const GATE_REASON: Readonly<Record<string, string>> = {
-  disabled: 'dispatch.enabled が true でない',
-  'not-target': '渡す相手に入っていない',
-  'not-idle': '空きではない',
-  'too-short': '空きが idleMinutes に届いていない',
-  accepted: '有効な T-IDLE の受け入れがある',
+  disabled: 'dispatch.enabled is not true',
+  'not-target': 'not among the members handed work',
+  'not-idle': 'not idle',
+  'too-short': 'idle for less than idleMinutes',
+  accepted: 'a valid T-IDLE acknowledgement exists',
 }
 
 const ACTION_REASON: Readonly<Record<string, string>> = {
-  'nudge-wait': '促しの間隔の待ち (最後に送ってから idleMinutes 経っていない)',
-  'nudge-limit': '作業が進まないまま促しを上限まで送った (A-NUDGE-IGNORED で TechLead に出る)',
-  progressing: '作業が進んでいる (最後に印が変わってから idleMinutes たっていない)',
-  'wip-limit': '作業中が上限に届いている',
-  'no-candidate': '渡せる issue が無い (Q-EMPTY の対象)',
-  'already-dispatched': '渡した後に、まだ動いていない',
+  'nudge-wait': 'waiting out the nudge interval (idleMinutes have not passed since the last one)',
+  'nudge-limit': 'nudged up to the limit with no progress (shown to the TechLead as A-NUDGE-IGNORED)',
+  progressing: 'work is progressing (idleMinutes have not passed since the marker last changed)',
+  'wip-limit': 'In Progress is at the limit',
+  'no-candidate': 'no issue to hand over (subject to Q-EMPTY)',
+  'already-dispatched': 'has not moved since the last hand-over',
 }
 
 /**
@@ -40,19 +40,19 @@ export function dispatchOnce(p: Paths, config: Config, now: Date, ports: Dispatc
     if (outcome !== null) return { member, outcome, reason: '' }
     const ctx = loadContext(p, config, now, ports.sessions)
     const state = ctx.members.find((one) => one.name === member)
-    if (state === undefined) return { member, outcome: null, reason: 'セッションの稼働を読めない (チームの外の名前か、心拍が無い)' }
+    if (state === undefined) return { member, outcome: null, reason: 'cannot read the session activity (a name outside the team, or no heartbeat)' }
     const gate = idleGate(state, ctx.acks, config, now)
     if (!gate.isDue) return { member, outcome: null, reason: GATE_REASON[gate.reason] ?? gate.reason }
-    if (ctx.snapshot === null) return { member, outcome: null, reason: 'ボードの控えが無い' }
+    if (ctx.snapshot === null) return { member, outcome: null, reason: 'no board copy' }
     const action = decideAction(ctx.snapshot, state, ctx.dispatches ?? [], config, now, tokenWith(ports.code.activity), readSeen(p))
-    return { member, outcome: null, reason: action.kind === 'none' ? (ACTION_REASON[action.reason] ?? action.reason) : '書き込みの守り (作業中の上限) か、失敗の後の待ち (5 分) で止まった' }
+    return { member, outcome: null, reason: action.kind === 'none' ? (ACTION_REASON[action.reason] ?? action.reason) : 'stopped by the write guard (In Progress limit) or by the wait after a failure (5 minutes)' }
   })
 }
 
 /** 結果を、呼んだ人が読む形にする。送る文面には、送り先を付ける。 */
 export function formatOnce(results: readonly OnceResult[]): string {
   const sent = results.filter((result) => result.outcome !== null)
-  const lines = results.map((result) => (result.outcome === null ? `${result.member}: 送らない (${result.reason})` : `${result.member}: 送る (${result.outcome.record.kind === 'nudge' ? '促し' : '渡した'} ${result.outcome.record.label})`))
-  const messages = sent.flatMap((result) => ['', `--- ${result.member} のセッションに、次の文を SendMessage で送る ---`, result.outcome?.message ?? ''])
-  return [...lines, ...messages, ...(sent.length === 0 ? ['', '送る文は無い'] : [])].join('\n')
+  const lines = results.map((result) => (result.outcome === null ? `${result.member}: not sending (${result.reason})` : `${result.member}: sending (${result.outcome.record.kind === 'nudge' ? 'nudge' : 'handed over'} ${result.outcome.record.label})`))
+  const messages = sent.flatMap((result) => ['', `--- send this text to ${result.member}'s session with SendMessage ---`, result.outcome?.message ?? ''])
+  return [...lines, ...messages, ...(sent.length === 0 ? ['', 'nothing to send'] : [])].join('\n')
 }

@@ -16,7 +16,7 @@ export function clock(iso: string, offset: string): string {
 
 /** 分を、60 で割り切れれば時間、そうでなければ分で書く。 */
 export function spanText(minutes: number): string {
-  return minutes % 60 === 0 ? `${minutes / 60} 時間` : `${minutes} 分`
+  return minutes % 60 === 0 ? `${minutes / 60} h` : `${minutes} min`
 }
 
 /** 長い題は通知に収まらないので切る。 */
@@ -40,13 +40,13 @@ export function ownerNotice(input: {
   readonly config: Config
 }): Notice {
   const { key, head, push, waitingLabels, line, throttle, config } = input
-  const waiting = waitingLabels.length === 0 ? '' : ` 待っているのは ${waitingLabels.join('、')} です。`
+  const waiting = waitingLabels.length === 0 ? '' : ` Waiting on: ${waitingLabels.join(', ')}.`
   const addQuestion =
-    waitingLabels.length === 0 ? [] : [`  ${config.ownerLabel}の答え待ちだけで止まっている。待っている問いの文を 1 行添える (対象: ${waitingLabels.join('、')})`]
+    waitingLabels.length === 0 ? [] : [`  Blocked only on ${config.ownerLabel}'s answer. Add one line with the pending question (subjects: ${waitingLabels.join(', ')})`]
   return {
     key,
     kind: 'owner',
-    text: [`- ${head}: ${config.ownerLabel}に PushNotification を 1 通送る (音は鳴らさない。本文は変えない)`, `  「${push}${waiting}」`, ...addQuestion].join('\n'),
+    text: [`- ${head}: send ${config.ownerLabel} one PushNotification (no sound; do not change the text)`, `  "${push}${waiting}"`, ...addQuestion].join('\n'),
     desktop: { title: NOTICE_TITLE, body: `${push}${waiting}` },
     owner: { line, waiting: waitingLabels },
     ...(throttle === undefined ? {} : { throttle: { ...throttle, head, detail: `${push}${waiting}` } }),

@@ -74,11 +74,11 @@ function findingLines(events: readonly MetricsEvent[]): readonly string[] {
   return rules.map((rule) => {
     const minutes = closed.filter((e) => e.rule === rule).map((e) => e.minutes)
     const mean = Math.round(minutes.reduce((a, b) => a + b, 0) / minutes.length)
-    return `- ${rule}: 直した ${minutes.length} 件、平均 ${mean} 分、最長 ${Math.max(...minutes)} 分`
+    return `- ${rule}: fixed ${minutes.length}, mean ${mean} min, longest ${Math.max(...minutes)} min`
   })
 }
 
-const STATE_LABEL: Readonly<Record<string, string>> = { idle: '空き', busy: '作業', waiting: '許可待ち', unknown: '不明' }
+const STATE_LABEL: Readonly<Record<string, string>> = { idle: 'idle', busy: 'busy', waiting: 'waiting for approval', unknown: 'unknown' }
 
 function memberLines(events: readonly MetricsEvent[]): readonly string[] {
   const changes = events.flatMap((e) => (e.type === 'member-state' ? [e] : []))
@@ -87,8 +87,8 @@ function memberLines(events: readonly MetricsEvent[]): readonly string[] {
   return names.map((name) => {
     const parts = ['idle', 'busy', 'waiting']
       .filter((state) => totals.has(`${name}\t${state}`))
-      .map((state) => `${STATE_LABEL[state]} ${totals.get(`${name}\t${state}`)} 分`)
-    return `- ${name}: ${parts.join('、')}`
+      .map((state) => `${STATE_LABEL[state]} ${totals.get(`${name}\t${state}`)} min`)
+    return `- ${name}: ${parts.join(', ')}`
   })
 }
 
@@ -96,18 +96,18 @@ function memberLines(events: readonly MetricsEvent[]): readonly string[] {
 export function formatReport(events: readonly MetricsEvent[], since: Date): string {
   const inRange = events.filter((e) => Date.parse(e.at) >= since.getTime())
   const count = (type: MetricsEvent['type']) => inRange.filter((e) => e.type === type).length
-  const acks = inRange.flatMap((e) => (e.type === 'acked' ? [`- ${e.rule} ${e.subject} (${e.until} まで): ${e.reason}`] : []))
+  const acks = inRange.flatMap((e) => (e.type === 'acked' ? [`- ${e.rule} ${e.subject} (until ${e.until}): ${e.reason}`] : []))
   return [
-    `scrum-harness の記録 (${since.toISOString()} 以降)`,
-    '## 指摘が残っていた時間 (直したもの)',
+    `scrum-harness record (since ${since.toISOString()})`,
+    '## How long findings stayed open (the ones fixed)',
     ...findingLines(inRange),
-    '## 部下の稼働 (状態が変わった時点で数えた分)',
+    '## Member activity (counted when the state changed)',
     ...memberLines(inRange),
-    '## TechLead への働きかけ',
-    `- ターンの終わりを止めた: ${count('stop-blocked')} 回`,
-    `- 待機中に起こした: ${count('woke')} 回`,
-    `- 新しく出た指摘: ${count('finding-opened')} 件`,
-    '## 受け入れた例外',
-    ...(acks.length > 0 ? acks : ['- なし']),
+    '## Nudges to the TechLead',
+    `- Turn endings blocked: ${count('stop-blocked')}`,
+    `- Watch wake-ups: ${count('woke')}`,
+    `- New findings: ${count('finding-opened')}`,
+    '## Acknowledged exceptions',
+    ...(acks.length > 0 ? acks : ['- none']),
   ].join('\n')
 }

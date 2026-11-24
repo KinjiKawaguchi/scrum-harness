@@ -8,7 +8,7 @@ export const IDLE_ACK_MAX_MS = 60 * 60_000
 /** 「枠」の受け入れは、枠の始まりのこの時間前までは、自動で渡すのを止めない。 */
 export const SLOT_LEAD_MS = 15 * 60_000
 
-const SLOT = /^枠 ([01]\d|2[0-3]):([0-5]\d)$/
+const SLOT = /^slot ([01]\d|2[0-3]):([0-5]\d)$/
 
 export type IdleAckCheck = { readonly ok: true; readonly slotAt: string | null } | { readonly ok: false; readonly message: string }
 
@@ -43,7 +43,7 @@ export function isValidIdleAck(ack: Ack, config: Config): boolean {
   if (ack.rule !== 'T-IDLE') return true
   const length = Date.parse(ack.until) - Date.parse(ack.at)
   if (!(length <= IDLE_ACK_MAX_MS)) return false
-  if (ack.reason === `${config.ownerLabel}の答え待ち`) return true
+  if (ack.reason === `Waiting for ${config.ownerLabel}'s answer`) return true
   return SLOT.test(ack.reason) && ack.slotAt !== undefined
 }
 
@@ -53,16 +53,16 @@ export function isValidIdleAck(ack: Ack, config: Config): boolean {
  */
 export function checkIdleAck(input: { readonly reason: string; readonly durationMs: number; readonly now: Date; readonly config: Config }): IdleAckCheck {
   const { reason, durationMs, now, config } = input
-  const answerWait = `${config.ownerLabel}の答え待ち`
-  if (durationMs > IDLE_ACK_MAX_MS) return { ok: false, message: 'T-IDLE の受け入れは最長 1 時間 (--for 1h まで)' }
+  const answerWait = `Waiting for ${config.ownerLabel}'s answer`
+  if (durationMs > IDLE_ACK_MAX_MS) return { ok: false, message: 'A T-IDLE acknowledgement lasts at most 1 hour (up to --for 1h)' }
   if (reason === answerWait) return { ok: true, slotAt: null }
   const slot = SLOT.exec(reason)
   if (slot !== null) {
     const at = slotInstant(now, Number(slot[1]), Number(slot[2]), dispatchOf(config).utcOffset)
     const lead = at.getTime() - now.getTime()
-    if (lead > IDLE_ACK_MAX_MS + SLOT_LEAD_MS) return { ok: false, message: '枠は 1 時間 15 分以内の時刻にする (枠の 15 分前から、自動で渡すのを止める)' }
+    if (lead > IDLE_ACK_MAX_MS + SLOT_LEAD_MS) return { ok: false, message: 'A slot must start within 1 hour 15 minutes (automatic hand-over stops 15 minutes before the slot)' }
     return { ok: true, slotAt: at.toISOString() }
   }
-  const hint = /コンテキスト|余力/.test(reason) ? 'コンテキストの余力は理由にできない。' : ''
-  return { ok: false, message: `${hint}T-IDLE の受け入れの理由は「${answerWait}」か「枠 HH:MM」から選ぶ` }
+  const hint = /context|capacity/i.test(reason) ? 'Spare context capacity cannot be a reason. ' : ''
+  return { ok: false, message: `${hint}The reason of a T-IDLE acknowledgement must be "${answerWait}" or "slot HH:MM"` }
 }

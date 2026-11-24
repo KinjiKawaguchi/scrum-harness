@@ -125,7 +125,7 @@ function describeError(error: unknown): string {
   const { status, stderr } = error as Error & { readonly status?: unknown; readonly stderr?: unknown }
   const text = typeof stderr === 'string' ? stderr : stderr instanceof Buffer ? stderr.toString('utf8') : ''
   if (text.trim() === '') return error.message
-  return `gh が exit ${typeof status === 'number' ? status : '?'}: ${text.trim().replace(/\s+/g, ' ')}`
+  return `gh exited with ${typeof status === 'number' ? status : '?'}: ${text.trim().replace(/\s+/g, ' ')}`
 }
 
 export function logError(p: Paths, where: string, error: unknown): void {

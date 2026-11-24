@@ -4,13 +4,13 @@ export type PrEntry = { readonly number: number; readonly title: string }
 export const MARKER_START = '<!-- scrum-harness:prs -->'
 export const MARKER_END = '<!-- /scrum-harness:prs -->'
 
-const LABEL = '進行中の PR (自動)'
+const LABEL = 'PRs in progress (automatic)'
 const TITLE_LIMIT = 60
 
 /** 題の中の `(#N)` (や `(#N、#M)`) の括弧ごとと、残りの `#N` と `@` を除く。issue への言及や、メンションの通知を、足さないため。 */
 function cleanTitle(title: string): string {
   return title
-    .replace(/\s*\(\s*#\d+(?:\s*[,、]\s*#\d+)*\s*\)/g, '')
+    .replace(/\s*\(\s*#\d+(?:\s*[,\u3001]\s*#\d+)*\s*\)/g, '')
     .replace(/#(\d+)/g, '$1')
     .replace(/@/g, '')
     .replace(/[\r\n]+/g, ' ')

@@ -21,10 +21,10 @@ function isText(value: unknown): value is string {
 /** 問い合わせの答えから、リポジトリと issue の ID、紐づいたブランチ、ベースの先頭を取り出す。読めなければ投げる。 */
 export function parseLookup(output: string): Lookup {
   const repository = (JSON.parse(output) as { data?: { repository?: Record<string, any> | null } }).data?.repository
-  if (!repository) throw new Error('リポジトリを読めない')
-  if (!isText(repository.id)) throw new Error('リポジトリの ID を読めない')
-  if (!repository.issue || !isText(repository.issue.id)) throw new Error('issue が無い')
-  if (!repository.ref || !isText(repository.ref.target?.oid)) throw new Error('ベースのブランチが無い')
+  if (!repository) throw new Error('cannot read the repository')
+  if (!isText(repository.id)) throw new Error('cannot read the repository ID')
+  if (!repository.issue || !isText(repository.issue.id)) throw new Error('the issue does not exist')
+  if (!repository.ref || !isText(repository.ref.target?.oid)) throw new Error('the base branch does not exist')
   const nodes: readonly { ref?: { name?: unknown } | null }[] = repository.issue.linkedBranches?.nodes ?? []
   const linked = nodes.flatMap((node) => (isText(node.ref?.name) ? [node.ref.name] : []))
   return { repositoryId: repository.id, issueId: repository.issue.id, linked, oid: repository.ref.target.oid }

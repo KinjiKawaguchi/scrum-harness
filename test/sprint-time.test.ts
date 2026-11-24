@@ -7,8 +7,8 @@ import type { SprintConfig } from '../src/config.ts'
 const sprint: SprintConfig = {
   checkpoints: ['08:00', '13:00', '21:00'],
   utcOffset: '+09:00',
-  pointsField: 'ストーリーポイント',
-  overrunField: '超過',
+  pointsField: 'Story points',
+  overrunField: 'Overrun',
   pointBudgets: { '1': 1, '2': 1, '3': 2, '5': 3, '8': 5 },
 }
 
@@ -34,15 +34,15 @@ describe('節目の時刻', () => {
 
 describe('作業中の期間', () => {
   const events = [
-    { at: '2026-10-22T22:39:31Z', status: '次にやる' },
-    { at: '2026-10-22T23:02:25Z', status: '作業中' },
-    { at: '2026-10-24T01:58:51Z', status: 'バックログ' },
-    { at: '2026-10-29T00:36:02Z', status: '作業中' },
+    { at: '2026-10-22T22:39:31Z', status: 'Next' },
+    { at: '2026-10-22T23:02:25Z', status: 'In Progress' },
+    { at: '2026-10-24T01:58:51Z', status: 'Backlog' },
+    { at: '2026-10-29T00:36:02Z', status: 'In Progress' },
   ]
 
   it('作業中に入ってから出るまでを、出入りの回数だけ並べ、今も作業中なら今で閉じる', () => {
     const now = new Date('2026-10-30T01:00:00Z')
-    assert.deepEqual(doingIntervals(events, '作業中', now), [
+    assert.deepEqual(doingIntervals(events, 'In Progress', now), [
       { start: Date.parse('2026-10-22T23:02:25Z'), end: Date.parse('2026-10-24T01:58:51Z') },
       { start: Date.parse('2026-10-29T00:36:02Z'), end: now.getTime() },
     ])
@@ -50,7 +50,7 @@ describe('作業中の期間', () => {
 
   it('時刻の順に並べ直してから数える', () => {
     const now = new Date('2026-10-30T01:00:00Z')
-    assert.deepEqual(doingIntervals(events.toReversed(), '作業中', now), doingIntervals(events, '作業中', now))
+    assert.deepEqual(doingIntervals(events.toReversed(), 'In Progress', now), doingIntervals(events, 'In Progress', now))
   })
 })
 

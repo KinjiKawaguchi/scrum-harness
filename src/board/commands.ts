@@ -77,12 +77,12 @@ export function checkGuard(snapshot: Snapshot, commands: readonly BoardCommand[]
   const targets = statusTargets(commands)
   const prTarget = targets.find((target) => byLabel.get(target.label)?.kind === 'pr')
   if (prTarget !== undefined) {
-    return `${prTarget.label} は PR。PR に Status を付けない。issue の番号か確かめる`
+    return `${prTarget.label} is a PR. A PR must not have a Status. Check the issue number`
   }
   const current = countDoing(snapshot, config)
   const added = new Set(targets.filter((t) => t.status === config.statuses.doing && !isDoingIssue(byLabel.get(t.label), config)).map((t) => t.label)).size
   if (added === 0 || current + added <= config.wipLimit) return null
-  return `作業中は ${current} 件で上限 ${config.wipLimit}。新しく着手する前に、止まっているものから見直してバックログに戻す。意図して超えるなら SCRUM_GUARD=off を付けて理由を記録に残す`
+  return `${current} items are In Progress, at the limit of ${config.wipLimit}. Before starting another, review the blocked ones and move them back to Backlog. To exceed the limit on purpose, add SCRUM_GUARD=off and record the reason`
 }
 
 export function mergeContext(snapshot: Snapshot, prLabel: string, refs: readonly string[], config: Config): string | null {
@@ -90,11 +90,11 @@ export function mergeContext(snapshot: Snapshot, prLabel: string, refs: readonly
   if (issues.length === 0) return null
   const lines = issues.map(
     (item) =>
-      `- ${label(item)} Status=${item.status ?? '空'} 理由=${item.reason ?? '空'} 担当=${item.assignee ?? 'なし'} (${item.state === 'CLOSED' ? '閉じている' : '開いている'})`,
+      `- ${label(item)} Status=${item.status ?? 'empty'} reason=${item.reason ?? 'empty'} assignee=${item.assignee ?? 'none'} (${item.state === 'CLOSED' ? 'closed' : 'open'})`,
   )
   return [
-    `${prLabel} をマージした。本文が触れているボードの issue:`,
+    `${prLabel} was merged. Board issues its body mentions:`,
     ...lines,
-    `作業の PR で残りがリリースだけなら ${config.statuses.release}、閉じたら ${config.statuses.done}。担当が手を離したら担当も直す。`,
+    `If the PR leaves only the release, set ${config.statuses.release}; once closed, ${config.statuses.done}. If the assignee lets go, update the assignee too.`,
   ].join('\n')
 }

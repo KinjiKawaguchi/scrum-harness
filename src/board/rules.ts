@@ -45,28 +45,28 @@ const ITEM_RULES: readonly ItemRule[] = [
     rule: 'B-DOING-NO-ASSIGNEE',
     severity: 'high',
     applies: (item, config) => isOpenIssue(item) && item.status === config.statuses.doing && item.assignee === null,
-    message: (item) => `${label(item)} は作業中なのに担当が無い`,
-    fix: (item, config) => fixWith(config, item, 'setAssignee', '<担当>', '担当を付けるか、決められないならバックログに戻す'),
+    message: (item) => `${label(item)} is In Progress but has no assignee`,
+    fix: (item, config) => fixWith(config, item, 'setAssignee', '<assignee>', 'Assign it, or move it back to Backlog if you cannot decide'),
   },
   {
     rule: 'B-CLOSED-NOT-DONE',
     severity: 'medium',
     applies: (item, config) => item.kind === 'issue' && item.state === 'CLOSED' && item.status !== config.statuses.done,
-    message: (item) => `${label(item)} は閉じているのに Status が ${item.status ?? '空'}`,
-    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.done, `Status を ${config.statuses.done} にする`),
+    message: (item) => `${label(item)} is closed but its Status is ${item.status ?? 'empty'}`,
+    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.done, `Set Status to ${config.statuses.done}`),
   },
   {
     rule: 'B-OPEN-DONE',
     severity: 'medium',
     applies: (item, config) => isOpenIssue(item) && item.status === config.statuses.done,
-    message: (item) => `${label(item)} は開いているのに完了`,
-    fix: () => '閉じるか、作業中かバックログに戻す',
+    message: (item) => `${label(item)} is open but Done`,
+    fix: () => 'Close it, or move it back to In Progress or Backlog',
   },
   {
     rule: 'B-PR-STATUS',
     severity: 'medium',
     applies: (item) => item.kind === 'pr' && item.status !== null,
-    message: (item) => `PR ${label(item)} に Status (${item.status}) が付いている。PR には Status を付けない`,
+    message: (item) => `PR ${label(item)} has a Status (${item.status}). A PR must not have a Status`,
     fix: (item, config) =>
       `gh project item-edit --project-id ${config.projectId} --id ${item.itemId} --field-id ${config.statusFieldId} --clear`,
   },
@@ -74,15 +74,15 @@ const ITEM_RULES: readonly ItemRule[] = [
     rule: 'B-NO-STATUS',
     severity: 'medium',
     applies: (item) => isOpenIssue(item) && item.status === null,
-    message: (item) => `${label(item)} に Status が無い`,
-    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.backlog, `Status を ${config.statuses.backlog} にする`),
+    message: (item) => `${label(item)} has no Status`,
+    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.backlog, `Set Status to ${config.statuses.backlog}`),
   },
   {
     rule: 'B-NEXT-BLOCKED',
     severity: 'medium',
     applies: (item, config) => isOpenIssue(item) && item.status === config.statuses.next && isStopped(item, config),
-    message: (item) => `${label(item)} は止まっている (${item.reason}) のに次にやる`,
-    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.backlog, `Status を ${config.statuses.backlog} にする`),
+    message: (item) => `${label(item)} is in Next but blocked (${item.reason})`,
+    fix: (item, config) => fixWith(config, item, 'setStatus', config.statuses.backlog, `Set Status to ${config.statuses.backlog}`),
   },
   {
     rule: 'B-JUDGE-OWNER',
@@ -90,29 +90,29 @@ const ITEM_RULES: readonly ItemRule[] = [
     applies: (item, config) =>
       isOpenIssue(item) && item.reason === config.reasonJudge && item.owner !== config.ownerUser,
     message: (item, config) =>
-      `${label(item)} は${config.reasonJudge}なのに Owner が ${item.owner ?? '空'} (${config.ownerLabel} のビューに出ない)`,
-    fix: (_item, config) => `Owner を ${config.ownerUser} にする`,
+      `${label(item)} is blocked on "${config.reasonJudge}" but its Owner is ${item.owner ?? 'empty'} (it does not show in ${config.ownerLabel}'s view)`,
+    fix: (_item, config) => `Set Owner to ${config.ownerUser}`,
   },
   {
     rule: 'B-SINCE-MISSING',
     severity: 'medium',
     applies: (item, config) => isOpenIssue(item) && isStopped(item, config) && item.since === null,
-    message: (item) => `${label(item)} は止まっている (${item.reason}) のに止まり始めた日が無い`,
-    fix: (item, config) => fixWith(config, item, 'setReason', `${item.reason} <YYYY-MM-DD>`, '止まり始めた日を入れる'),
+    message: (item) => `${label(item)} is blocked (${item.reason}) but has no blocked-since date`,
+    fix: (item, config) => fixWith(config, item, 'setReason', `${item.reason} <YYYY-MM-DD>`, 'Set the date the block began'),
   },
   {
     rule: 'B-REASON-MISSING',
     severity: 'low',
     applies: (item) => isOpenIssue(item) && item.reason === null,
-    message: (item) => `${label(item)} に止まっている理由が無い`,
-    fix: (item, config) => fixWith(config, item, 'setReason', config.reasonNone, `止まっている理由を ${config.reasonNone} にする`),
+    message: (item) => `${label(item)} has no blocked reason`,
+    fix: (item, config) => fixWith(config, item, 'setReason', config.reasonNone, `Set the blocked reason to ${config.reasonNone}`),
   },
   {
     rule: 'B-SINCE-STRAY',
     severity: 'low',
     applies: (item, config) => isOpenIssue(item) && item.reason === config.reasonNone && item.since !== null,
-    message: (item) => `${label(item)} は止まっていないのに止まり始めた日 (${item.since}) が残っている`,
-    fix: (item, config) => fixWith(config, item, 'setReason', config.reasonNone, '止まり始めた日を消す'),
+    message: (item) => `${label(item)} is not blocked but still has a blocked-since date (${item.since})`,
+    fix: (item, config) => fixWith(config, item, 'setReason', config.reasonNone, 'Clear the blocked-since date'),
   },
   {
     rule: 'B-BLOCK-STALE',
@@ -122,8 +122,8 @@ const ITEM_RULES: readonly ItemRule[] = [
       isStopped(item, config) &&
       item.since !== null &&
       daysSince(item.since, now) > config.staleBlockDays,
-    message: (item) => `${label(item)} は ${item.since} から止まっている (${item.reason})。見直す`,
-    fix: () => '待つ先を確かめ、見込みが無ければバックログに戻す',
+    message: (item) => `${label(item)} has been blocked since ${item.since} (${item.reason}). Review it`,
+    fix: () => 'Check what it waits for, and move it back to Backlog if there is no prospect',
   },
 ]
 
@@ -147,8 +147,8 @@ function lintWip(items: readonly BoardItem[], config: Config): readonly Finding[
       rule: 'B-WIP-OVER',
       subject: 'board',
       severity: 'high',
-      message: `作業中が ${doing.length} 件で上限 ${config.wipLimit} を超えている: ${doing.map(label).join(' ')}`,
-      fix: '止まっているものから見直し、見込みが無いものをバックログに戻す',
+      message: `${doing.length} items are In Progress, over the limit of ${config.wipLimit}: ${doing.map(label).join(' ')}`,
+      fix: 'Start with the blocked ones, and move those without a prospect back to Backlog',
     }),
   ]
 }
@@ -163,8 +163,8 @@ function lintOffBoard(snapshot: Snapshot, config: Config): readonly Finding[] {
         rule: 'B-OFF-BOARD',
         subject: label(open),
         severity: 'medium',
-        message: `${label(open)} は開いているのにボードに無い`,
-        fix: fixWith(config, open, 'setStatus', config.statuses.backlog, `ボードに足し、Status を ${config.statuses.backlog} にする`),
+        message: `${label(open)} is open but not on the board`,
+        fix: fixWith(config, open, 'setStatus', config.statuses.backlog, `Add it to the board and set Status to ${config.statuses.backlog}`),
       }),
     )
 }
@@ -176,8 +176,8 @@ function unreadableFinding(count: number): Finding {
     rule: 'B-UNREADABLE',
     subject: 'board',
     severity: 'medium',
-    message: `ボードの ${count} 項目で issue・PR の中身 (番号) が読めない。取得の不具合か権限の疑い。ボードに無い issue (B-OFF-BOARD) の判定を止めている`,
-    fix: `${SCRUM_CLI} refresh で取り直す。続くなら ~/.claude/scrum/log/ の fetch-failed-* と errors.log を見る`,
+    message: `The content (number) of issues and PRs cannot be read for ${count} board items. A fetch problem or missing permission is suspected. The check for issues missing from the board (B-OFF-BOARD) is paused`,
+    fix: `Refresh with ${SCRUM_CLI} refresh. If it continues, see fetch-failed-* and errors.log in ~/.claude/scrum/log/`,
   })
 }
 

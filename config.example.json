@@ -6,21 +6,21 @@
   "defaultRepo": "your-org/your-repo",
   "fields": {
     "status": "Status",
-    "reason": "止まっている理由",
-    "since": "止まり始めた日",
+    "reason": "Blocked reason",
+    "since": "Blocked since",
     "owner": "Owner",
-    "assignee": "担当"
+    "assignee": "Assigned to"
   },
   "statusFieldId": "PVTSSF_xxxxxxxxxxxxxxxxxxxx",
   "statuses": {
-    "backlog": "バックログ",
-    "next": "次にやる",
-    "doing": "作業中",
-    "release": "リリース待ち",
-    "done": "完了"
+    "backlog": "Backlog",
+    "next": "Next",
+    "doing": "In Progress",
+    "release": "Release",
+    "done": "Done"
   },
-  "reasonNone": "なし",
-  "reasonJudge": "判断待ち",
+  "reasonNone": "None",
+  "reasonJudge": "Needs decision",
   "ownerUser": "@your-github-login",
   "excludeAuthors": [],
   "techlead": "TechLead",
@@ -28,14 +28,14 @@
     "SWE1",
     "SWE2"
   ],
-  "ownerLabel": "オーナー",
+  "ownerLabel": "the owner",
   "scripts": {
     "setStatus": "set-status",
     "setReason": "set-reason",
     "setAssignee": "set-assignee",
     "bulkStatus": "bulk-status",
     "mergePr": "merge-pr",
-    "clearValue": "なし"
+    "clearValue": "None"
   },
   "wipLimit": 10,
   "staleBlockDays": 7,
@@ -48,7 +48,7 @@
     "enabled": false,
     "baseBranch": "main",
     "skipLabels": [],
-    "orderField": "順",
+    "orderField": "Order",
     "utcOffset": "+09:00",
     "members": ["SWE1", "SWE2"],
     "scriptDir": "~/path/to/board-scripts",
@@ -87,8 +87,8 @@
       "21:00"
     ],
     "utcOffset": "+09:00",
-    "pointsField": "ストーリーポイント",
-    "overrunField": "超過",
+    "pointsField": "Story points",
+    "overrunField": "Overrun",
     "pointBudgets": {
       "1": 1,
       "2": 1,

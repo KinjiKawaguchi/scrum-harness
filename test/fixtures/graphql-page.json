@@ -12,10 +12,10 @@
             "type": "ISSUE",
             "isArchived": false,
             "status": {
-              "name": "作業中"
+              "name": "In Progress"
             },
             "reason": {
-              "name": "前の作業待ち"
+              "name": "Waiting on earlier work"
             },
             "since": {
               "date": "2026-10-01"
@@ -45,10 +45,10 @@
             "type": "PULL_REQUEST",
             "isArchived": false,
             "status": {
-              "name": "作業中"
+              "name": "In Progress"
             },
             "reason": {
-              "name": "なし"
+              "name": "None"
             },
             "since": null,
             "owner": null,
@@ -67,7 +67,7 @@
             "type": "ISSUE",
             "isArchived": false,
             "status": {
-              "name": "バックログ"
+              "name": "Backlog"
             },
             "reason": null,
             "since": null,

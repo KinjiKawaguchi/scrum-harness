@@ -33,7 +33,7 @@ export function techleadSessionStart(deps: HookDeps): string {
   const { active, acked } = lintNow(deps)
   const important = active.filter((finding) => finding.severity !== 'low')
   writeJson(deps.p.notified, remember([], active, important))
-  const missing = loadSnapshot(deps.p) === null ? `\n(ボードの控えがまだ無い。取得中。数十秒後に ${SCRUM_CLI} lint で確かめられる)` : ''
+  const missing = loadSnapshot(deps.p) === null ? `\n(The board copy does not exist yet; it is being fetched. In a few tens of seconds, check with ${SCRUM_CLI} lint)` : ''
   return formatSummary(active, acked.length) + missing
 }
 
@@ -44,7 +44,7 @@ export function techleadDiff(deps: HookDeps): string {
   const fresh = unseen(active, readJson<readonly string[]>(deps.p.notified, []), 'medium')
   if (fresh.length === 0) return ''
   markNotified(deps, active, fresh)
-  return ['scrum-harness: 新しい指摘', ...formatList(fresh, INJECT_LIMIT)].join('\n')
+  return ['scrum-harness: new findings', ...formatList(fresh, INJECT_LIMIT)].join('\n')
 }
 
 function touchedLabels(commands: readonly BoardCommand[]): ReadonlySet<string> {
@@ -80,7 +80,7 @@ export function techleadAfterBash(deps: HookDeps, command: string): string {
   const related = active.filter((finding) => touched.has(finding.subject) || finding.rule === 'B-WIP-OVER')
   const notes = mergeNotes(deps, commands)
   markNotified(deps, active, related)
-  const relatedText = related.length > 0 ? ['scrum-harness: 今触った issue の指摘', ...formatList(related, INJECT_LIMIT)] : []
+  const relatedText = related.length > 0 ? ['scrum-harness: findings for the issue you just touched', ...formatList(related, INJECT_LIMIT)] : []
   const rest = techleadDiff(deps)
   return [...relatedText, ...notes, ...(rest === '' ? [] : [rest])].join('\n')
 }
@@ -96,7 +96,7 @@ export function techleadStop(deps: HookDeps, isStopHookActive: boolean): string 
   markNotified(deps, active, high)
   recordEvent(deps, 'stop-blocked', { keys: decision.keys })
   return [
-    'scrum-harness: 終える前に、次の高い指摘を片付けるか、意図したものなら受け入れを記録する (同じ組み合わせでは二度止めない)',
+    'scrum-harness: before you finish, deal with the next high findings, or record an acknowledgement if intended (the same combination does not stop you twice)',
     ...formatList(high, 10),
   ].join('\n')
 }

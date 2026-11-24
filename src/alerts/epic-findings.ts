@@ -7,18 +7,18 @@ import { minutesSince, ownerNotice, shortTitle } from './text.ts'
 import type { AlertEvaluation } from './types.ts'
 
 function doingDetail(view: EpicView): string {
-  if (view.doing.length === 0) return '作業中の子なし'
-  const shown = view.doing.slice(0, 3).map((child) => `${label(child)} 担当 ${child.assignee ?? 'なし'} 理由 ${child.reason ?? '-'}`)
-  return `作業中の子: ${shown.join('、')}${view.doing.length > 3 ? ` ほか ${view.doing.length - 3} 件` : ''}`
+  if (view.doing.length === 0) return 'no children In Progress'
+  const shown = view.doing.slice(0, 3).map((child) => `${label(child)} assignee ${child.assignee ?? 'none'} reason ${child.reason ?? '-'}`)
+  return `children In Progress: ${shown.join(', ')}${view.doing.length > 3 ? ` and ${view.doing.length - 3} more` : ''}`
 }
 
 /** まとめた通知の 1 行に書く、動く人がいない理由。オーナーの答え待ちだけ、作業中の子の理由、作業中の子なし (子の状態の数)、のどれか。 */
 function stallReason(view: EpicView, config: Config): string {
   const waiting = ownerWaitLabels(view, config)
-  if (waiting.length > 0) return `${config.ownerLabel}の答え待ち (${waiting.join('、')})`
-  if (view.doing.length > 0) return `作業中の子 ${view.doing.length} 件が、${[...new Set(view.doing.map((child) => child.reason ?? '-'))].join('、')} で止まっている`
+  if (waiting.length > 0) return `waiting for ${config.ownerLabel}'s answer (${waiting.join(', ')})`
+  if (view.doing.length > 0) return `In Progress children are blocked (${view.doing.length}): ${[...new Set(view.doing.map((child) => child.reason ?? '-'))].join(', ')}`
   const count = (status: string) => view.openChildren.filter((child) => child.status === status).length
-  return `作業中の子なし (${config.statuses.next} ${count(config.statuses.next)} 件、${config.statuses.backlog} ${count(config.statuses.backlog)} 件)`
+  return `no children In Progress (${config.statuses.next} ${count(config.statuses.next)}, ${config.statuses.backlog} ${count(config.statuses.backlog)})`
 }
 
 /** 作業中の子がすべて、オーナーの判断待ちなら、その子の一覧。そうでなければ (作業中の子が無いときも) 空。 */
@@ -28,7 +28,7 @@ function ownerWaitLabels(view: EpicView, config: Config): readonly string[] {
 
 /** 「app#100「題」」の形。題が無いときは、続く助詞との間に空白を置く。 */
 function titled(view: EpicView): string {
-  return view.title === null ? `${view.epic} ` : `${view.epic}「${shortTitle(view.title)}」`
+  return view.title === null ? view.epic : `${view.epic} "${shortTitle(view.title)}"`
 }
 
 /**
@@ -56,20 +56,20 @@ export function evaluateEpicStalls(
         keySuffix: first,
         severity: 'high',
         minutes,
-        message: `Epic ${titled(view)}を動かしている人がいない状態が ${minutes} 分続いている (開いた子 ${view.openChildren.length} 件。${doingDetail(view)})`,
+        message: `Nobody has been moving Epic ${titled(view)} for ${minutes} minutes (open children: ${view.openChildren.length}. ${doingDetail(view)})`,
         fix:
           waiting.length > 0
-            ? `${config.ownerLabel}の答え待ちだけで止まっている。待っている問いを添えて、${config.ownerLabel}に伝わる (窓口の PushNotification)`
-            : '担当を動かす (SendMessage)。作業中の子が無ければ、次にやるの子を誰かに渡す',
+            ? `Blocked only on ${config.ownerLabel}'s answer. ${config.ownerLabel} is told with the pending question attached (liaison PushNotification)`
+            : 'Get the assignee moving (SendMessage). If no child is In Progress, hand a child from Next to someone',
       })
     }),
     owner: items.map(({ view, first, minutes }) =>
       ownerNotice({
         key: `E-STALL:${view.epic}:${first}`,
         head: `E-STALL ${view.epic}`,
-        push: `Epic ${titled(view)}を動かしている人がいない状態が ${minutes} 分続いています。`,
+        push: `Nobody has been moving Epic ${titled(view)} for ${minutes} minutes.`,
         waitingLabels: ownerWaitLabels(view, config),
-        line: `${titled(view)}を動かす人がいない ${minutes} 分 (${stallReason(view, config)})`,
+        line: `nobody is moving ${titled(view)} for ${minutes} minutes (${stallReason(view, config)})`,
         throttle: { key: `epic:${view.epic}`, minutes: limits.epicPushMinutes },
         config,
       }),

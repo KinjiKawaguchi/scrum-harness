@@ -25,10 +25,10 @@ export function parseOverrunMark(body: string): OverrunMark | null {
 
 /** 印の中身が、決めと合っているか。合っていなければ、その理由。 */
 function markProblem(mark: OverrunMark, boardPoints: number | null): string | null {
-  if (mark.decision === 'keep' && mark.from !== mark.to) return `keep は見積もりのままなので、from と to は同じにする (from=${mark.from} to=${mark.to})`
-  if (mark.decision === 'reestimate' && mark.from === mark.to) return `reestimate は見積もりを変えるので、from と to を変える (from=${mark.from} to=${mark.to})`
+  if (mark.decision === 'keep' && mark.from !== mark.to) return `keep leaves the estimate as it is, so from and to must be the same (from=${mark.from} to=${mark.to})`
+  if (mark.decision === 'reestimate' && mark.from === mark.to) return `reestimate changes the estimate, so from and to must differ (from=${mark.from} to=${mark.to})`
   if (mark.decision === 'reestimate' && boardPoints !== mark.to) {
-    return `印の to=${mark.to} と、ボードのポイント (${boardPoints ?? 'なし'}) が違う。先にボードのポイントを直す`
+    return `The mark's to=${mark.to} differs from the points on the board (${boardPoints ?? 'none'}). Fix the board points first`
   }
   return null
 }
@@ -53,9 +53,9 @@ export function overrunBasis(comments: readonly IssueComment[], overSince: strin
     return { ok: true, basis: `decision=${mark.decision} from=${mark.from} to=${mark.to}${comment.url === undefined ? '' : ` (${comment.url})`}` }
   }
   const problem = after[0] === undefined ? null : markProblem(after[0].mark, boardPoints)
-  const detail = problem === null ? `超過を出した節目 (${overSince}) より後に付いた、超過の扱いの印が、その issue のコメントに無い` : `印はあるが、${problem}`
+  const detail = problem === null ? `the issue has no mark for handling the overrun, added after the checkpoint that showed the overrun (${overSince})` : `there is a mark, but ${problem}`
   return {
     ok: false,
-    message: `S-POINTS-OVER は、見積もりを直す、分ける、手を足す、見積もりのままにすると決めた記録 (issue のコメントの 1 行目の印) が付くまで、受け入れられない: ${detail}。印は <!-- scrum:points-overrun decision=<${OVERRUN_DECISIONS.join('|')}> from=<前のポイント> to=<後のポイント> -->`,
+    message: `An S-POINTS-OVER acknowledgement is not accepted until a record is added (a mark on the first line of an issue comment) that says whether the estimate is revised, the issue is split, hands are added, or the estimate is kept: ${detail}. The mark is <!-- scrum:points-overrun decision=<${OVERRUN_DECISIONS.join('|')}> from=<previous points> to=<new points> -->`,
   }
 }

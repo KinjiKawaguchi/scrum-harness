@@ -21,8 +21,8 @@ describe('normalizeNodes', () => {
       title: items[0]?.title,
       state: 'OPEN',
       author: 'owner',
-      status: '作業中',
-      reason: '前の作業待ち',
+      status: 'In Progress',
+      reason: 'Waiting on earlier work',
       since: '2026-10-01',
       owner: null,
       assignee: 'SWE4',
@@ -33,7 +33,7 @@ describe('normalizeNodes', () => {
 
   it('PR と下書きの種類を見分ける', () => {
     assert.deepEqual(items.map((item) => item.kind), ['issue', 'pr', 'issue', 'draft'])
-    assert.equal(items[1]?.status, '作業中')
+    assert.equal(items[1]?.status, 'In Progress')
     assert.equal(items[3]?.number, null)
   })
 
@@ -129,13 +129,13 @@ describe('logError', async () => {
     })
     logError(p, 'refresh', error)
     const line = readFileSync(p.errors, 'utf8')
-    assert.match(line, /refresh: gh が exit 1: gh: Something went wrong while executing your query\./)
+    assert.match(line, /refresh: gh exited with 1: gh: Something went wrong while executing your query\./)
     assert.doesNotMatch(line, /xxxx/)
   })
 
   it('ほかのエラーは文をそのまま残す', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-log-')))
-    logError(p, 'watch', new Error('こわれた'))
-    assert.match(readFileSync(p.errors, 'utf8'), /watch: こわれた/)
+    logError(p, 'watch', new Error('broke'))
+    assert.match(readFileSync(p.errors, 'utf8'), /watch: broke/)
   })
 })

@@ -10,7 +10,7 @@ import { config, issue, NOW, snapshot } from './helpers.ts'
 
 function ctx(techleadState: MemberState['state']): LintContext {
   return {
-    snapshot: snapshot([issue(1, { status: '作業中' }), issue(2, { reason: null })]),
+    snapshot: snapshot([issue(1, { status: 'In Progress' }), issue(2, { reason: null })]),
     members: [{ name: 'TechLead', state: techleadState, since: NOW.toISOString() }],
     acks: [],
     config,
@@ -79,9 +79,9 @@ describe('formatReport', () => {
 
   it('期間の中の指摘の滞留、部下の空き、止めた回数をまとめる', () => {
     const text = formatReport(events, new Date('2026-10-08T00:00:00.000Z'))
-    assert.match(text, /B-X: 直した 2 件、平均 60 分、最長 90 分/)
-    assert.match(text, /SWE1: 空き 40 分/)
-    assert.match(text, /ターンの終わりを止めた: 1 回/)
+    assert.match(text, /B-X: fixed 2, mean 60 min, longest 90 min/)
+    assert.match(text, /SWE1: idle 40 min/)
+    assert.match(text, /Turn endings blocked: 1/)
   })
 })
 

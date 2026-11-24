@@ -16,7 +16,7 @@ export type Finding = {
 
 export const SEVERITY_RANK: Readonly<Record<Severity, number>> = { high: 0, medium: 1, low: 2 }
 
-export const SEVERITY_LABEL: Readonly<Record<Severity, string>> = { high: '高', medium: '中', low: '低' }
+export const SEVERITY_LABEL: Readonly<Record<Severity, string>> = { high: 'high', medium: 'medium', low: 'low' }
 
 export function makeFinding(input: Omit<Finding, 'key'> & { readonly keySuffix?: string }): Finding {
   const { keySuffix, ...rest } = input
