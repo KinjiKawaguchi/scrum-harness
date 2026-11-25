@@ -6,7 +6,7 @@ export type AlertState = {
   readonly epics: Readonly<Record<string, string>>
   /** A member with no issue to hand over and the time it was first seen */
   readonly empty: Readonly<Record<string, string>>
-  /** Fingerprints of notifications for which a macOS notification was shown */
+  /** Fingerprints of notifications for which a desktop notification was shown */
   readonly desktopSent: readonly string[]
   /** Fingerprints of notifications sent to the liaison */
   readonly liaisonSent: readonly string[]
@@ -18,7 +18,7 @@ export const EMPTY_ALERT_STATE: AlertState = { epics: {}, empty: {}, desktopSent
 
 /**
  * Notifications to the liaison and the owner. key is a fingerprint that tells whether it is the same notification, and once shown, the same key is not shown again.
- * owner comes with a PushNotification and a macOS notification to the owner. idle-line (a free member) and info (a notification decided not to be
+ * owner comes with a PushNotification and a desktop notification to the owner. idle-line (a free member) and info (a notification decided not to be
  * sent to the owner) are one line only for the liaison to read.
  */
 export type Notice = {
@@ -26,7 +26,7 @@ export type Notice = {
   readonly kind: 'idle-line' | 'owner' | 'info'
   /** The body sent to the liaison (includes the text sent to the owner as is) */
   readonly text: string
-  /** The macOS notification (silent). If absent, none is shown */
+  /** The desktop notification (silent). If absent, none is shown */
   readonly desktop?: { readonly title: string; readonly body: string }
   /** A mark for limiting notifications to the owner about the same target (Epic, member) to once per minutes. detail is what the liaison is made to read when it is not sent */
   readonly throttle?: { readonly key: string; readonly head: string; readonly detail: string; readonly minutes: number }

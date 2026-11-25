@@ -7,8 +7,8 @@ import { alertStep } from './run.ts'
 import { readAlertState } from './state.ts'
 
 /**
- * `scrum alerts`: advances stall detection by one round (same as one loop of the watch process. If the board copy is stale it is re-fetched, and a macOS notification is shown if not yet shown).
- * The watch process's lifetime (50 minutes) is shorter than the E-STALL limit (60 minutes), and on nights when everyone is quiet the watch stops, so launchd runs this every 5 minutes. No LLM is involved.
+ * `scrum alerts`: advances stall detection by one round (same as one loop of the watch process. If the board copy is stale it is re-fetched, and a desktop notification is shown if not yet shown).
+ * The watch process's lifetime (50 minutes) is shorter than the E-STALL limit (60 minutes), and on nights when everyone is quiet the watch stops, so a scheduler (scrum schedule) runs this every 5 minutes. No LLM is involved.
  * It does not build the text sent to the liaison (the liaison's watch process builds it).
  */
 export function alertsCommand(p: Paths, config: Config, now: Date, ports: Pick<Ports, 'board' | 'notify' | 'sessions'>): string {

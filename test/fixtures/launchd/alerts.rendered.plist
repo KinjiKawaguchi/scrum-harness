@@ -6,15 +6,15 @@
 	<string>local.scrum-harness.alerts</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>{{SCRUM_DIR}}/bin/scrum</string>
+		<string>/opt/scrum-harness/bin/scrum</string>
 		<string>alerts</string>
 	</array>
 	<key>WorkingDirectory</key>
-	<string>{{SCRUM_DIR}}</string>
+	<string>/opt/scrum-harness</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>{{PATH}}</string>
+		<string>/usr/local/bin:/usr/bin:/bin</string>
 	</dict>
 	<key>StartInterval</key>
 	<integer>300</integer>
@@ -29,8 +29,8 @@
 	<key>LowPriorityIO</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>{{HOME}}/.claude/scrum/log/alerts-launchd.log</string>
+	<string>/home/alice/.claude/scrum/log/alerts-launchd.log</string>
 	<key>StandardErrorPath</key>
-	<string>{{HOME}}/.claude/scrum/log/alerts-launchd.log</string>
+	<string>/home/alice/.claude/scrum/log/alerts-launchd.log</string>
 </dict>
 </plist>

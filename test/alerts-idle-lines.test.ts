@@ -20,7 +20,7 @@ const input = (members: readonly MemberState[], overrides: Partial<AlertInput> =
 })
 
 describe('idleLines', () => {
-  it('when a member has been idle for idleMinutes, creates one line for the liaison; attaches no macOS notification', () => {
+  it('when a member has been idle for idleMinutes, creates one line for the liaison; attaches no desktop notification', () => {
     const [line, ...rest] = idleLines(input([idle('SWE1', 10)]))
     assert.equal(rest.length, 0)
     assert.equal(line?.kind, 'idle-line')

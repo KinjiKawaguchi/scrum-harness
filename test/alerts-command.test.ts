@@ -1,10 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { alertsCommand } from '../src/alerts/command.ts'
 import { saveSnapshot } from '../src/board/snapshot.ts'
 import { gh } from '../src/adapters/github/gh.ts'
@@ -24,7 +22,7 @@ describe('alertsCommand (scrum alerts)', () => {
     assert.match(alertsCommand(p, config, NOW, fakePorts()), /alerts is not enabled/)
   })
 
-  it('when enabled, advances detection once, sends the macOS notification if not yet sent, and returns the number of Epics nobody is working on and of members with no issue to hand over', () => {
+  it('when enabled, advances detection once, sends the desktop notification if not yet sent, and returns the number of Epics nobody is working on and of members with no issue to hand over', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-cmd-')))
     const board = { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: NOW.toISOString() }
     saveSnapshot(p, board)
@@ -40,7 +38,7 @@ describe('alertsCommand (scrum alerts)', () => {
 describe('alertsCommand board copy refresh', () => {
   const stale = (p: ReturnType<typeof paths>) => saveSnapshot(p, { ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() })
 
-  it('refreshes a stale board copy before detection (on a launchd night nobody else refreshes it)', () => {
+  it('refreshes a stale board copy before detection (on a night when only the scheduled run refreshes it)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-alerts-refresh-')))
     stale(p)
     const order: string[] = []
@@ -91,83 +89,5 @@ describe('alertsCommand board copy refresh', () => {
       process.env.PATH = savedPath
     }
     assert.equal(readFileSync(p.refreshAttempt, 'utf8').includes(NOW.toISOString()), true)
-  })
-})
-
-describe('launchd template', () => {
-  const plist = readFileSync(fileURLToPath(new URL('../launchd/scrum-alerts.plist', import.meta.url)), 'utf8')
-
-  it('runs bin/scrum alerts every 5 minutes and not right after being loaded', () => {
-    assert.match(plist, /<key>StartInterval<\/key>\s*<integer>300<\/integer>/)
-    assert.match(plist, /<key>RunAtLoad<\/key>\s*<false\/>/)
-    assert.match(plist, /<string>\{\{SCRUM_DIR\}\}\/bin\/scrum<\/string>\s*<string>alerts<\/string>/)
-  })
-
-  it('holds no hardcoded path other than the placeholders ({{HOME}}, {{SCRUM_DIR}}, {{PATH}}); the locations of node and gh are read at install time', () => {
-    assert.doesNotMatch(plist.replaceAll('{{HOME}}', '').replaceAll('{{SCRUM_DIR}}', '').replaceAll('{{PATH}}', ''), /\/Users\/|\/opt\/homebrew|\/usr\/local/)
-    assert.match(plist, /<key>PATH<\/key>\s*<string>\{\{PATH\}\}<\/string>/)
-  })
-})
-
-describe('launchd/render.sh (fills the template with the values of this Mac)', () => {
-  const script = fileURLToPath(new URL('../launchd/render.sh', import.meta.url))
-  const fakeTool = (dir: string, name: string) => {
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, name), '#!/bin/sh\nexit 0\n')
-    chmodSync(join(dir, name), 0o755)
-  }
-  const render = (pathValue: string) => spawnSync('/bin/bash', [script], { encoding: 'utf8', env: { PATH: pathValue, HOME: '/home/user' } })
-  /** A directory holding only the system tools render.sh needs, so "node or gh is missing" does not depend on what the host has in /usr/bin. */
-  const systemTools = () => {
-    const dir = mkdtempSync(join(tmpdir(), 'scrum-render-tools-'))
-    for (const name of ['dirname', 'sed', 'env']) {
-      const found = spawnSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).stdout.trim()
-      symlinkSync(found, join(dir, name))
-    }
-    return dir
-  }
-
-  it('leaves no {{ behind and puts the directories of node and gh into PATH (even when node and gh live in different places)', () => {
-    const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
-    fakeTool(join(root, 'nodebin'), 'node')
-    fakeTool(join(root, 'ghbin'), 'gh')
-    const result = render(`${join(root, 'nodebin')}:${join(root, 'ghbin')}:/usr/bin:/bin`)
-    assert.equal(result.status, 0, result.stderr)
-    assert.doesNotMatch(result.stdout, /\{\{/)
-    assert.match(result.stdout, new RegExp(`<key>PATH</key>\\s*<string>${join(root, 'nodebin')}:${join(root, 'ghbin')}:/usr/bin:/bin</string>`))
-    assert.match(result.stdout, /<string>\/home\/user\/\.claude\/scrum\/log\/alerts-launchd\.log<\/string>/)
-    assert.match(result.stdout, /<string>[^<]*\/bin\/scrum<\/string>\s*<string>alerts<\/string>/)
-  })
-
-  it('merges node and gh into one entry when they are in the same place', () => {
-    const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
-    fakeTool(join(root, 'bin'), 'node')
-    fakeTool(join(root, 'bin'), 'gh')
-    const result = render(`${join(root, 'bin')}:/usr/bin:/bin`)
-    assert.match(result.stdout, new RegExp(`<string>${join(root, 'bin')}:/usr/bin:/bin</string>`))
-  })
-
-  it('prints nothing and stops with the reason when node or gh cannot be found', () => {
-    const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
-    fakeTool(join(root, 'bin'), 'node')
-    const tools = systemTools()
-    const noGh = render(`${join(root, 'bin')}:${tools}`)
-    assert.equal(noGh.status, 1)
-    assert.equal(noGh.stdout, '')
-    assert.match(noGh.stderr, /gh not found/)
-    const emptyDir = mkdtempSync(join(tmpdir(), 'scrum-render-empty-'))
-    const noNode = render(`${emptyDir}:${tools}`)
-    assert.equal(noNode.status, 1)
-    assert.match(noNode.stderr, /node not found/)
-  })
-
-  it('passes the plutil check after substitution (macOS only)', { skip: process.platform !== 'darwin' }, () => {
-    const root = mkdtempSync(join(tmpdir(), 'scrum-render-'))
-    fakeTool(join(root, 'bin'), 'node')
-    fakeTool(join(root, 'bin'), 'gh')
-    const file = join(root, 'test.plist')
-    writeFileSync(file, render(`${join(root, 'bin')}:/usr/bin:/bin`).stdout)
-    const result = spawnSync('plutil', ['-lint', file], { encoding: 'utf8' })
-    assert.equal(result.status, 0, result.stdout + result.stderr)
   })
 })

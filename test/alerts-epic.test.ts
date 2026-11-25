@@ -152,7 +152,7 @@ describe('evaluateEpicStalls', () => {
     assert.match(result.findings[0]?.fix ?? '', /Get the assignee moving/)
   })
 
-  it('the notification key equals the finding key and carries a macOS notification; the title is cut at 40 characters', () => {
+  it('the notification key equals the finding key and carries a desktop notification; the title is cut at 40 characters', () => {
     const long = views([epic({ title: 'x'.repeat(50) }), child(101, { status: 'Next' })])
     const result = evaluateEpicStalls(long, { 'app#100': minutesAgo(61) }, enabled, NOW)
     assert.equal(result.owner[0]?.key, result.findings[0]?.key)

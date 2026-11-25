@@ -24,7 +24,7 @@ function prune(keys: readonly string[], current: readonly Notice[]): readonly st
 }
 
 /**
- * Among notifications to the owner, combines those not yet shown as a macOS notification into one and shows it. Even on failure, the same notification is not tried again repeatedly.
+ * Among notifications to the owner, combines those not yet shown as a desktop notification into one and shows it. Even on failure, the same notification is not tried again repeatedly.
  * Returns the fingerprints of the notifications shown (attempted).
  */
 function sendDesktop(p: Paths, owner: readonly Notice[], sent: readonly string[], notify: Notifier, config: Config, now: Date): readonly string[] {
@@ -53,7 +53,7 @@ function nextState(advanced: AlertState, notices: readonly Notice[], sent: Sent)
 
 /**
  * One round of stall detection. It may be called from any watch process (TechLead, member, liaison).
- * Advances the time first seen, and shows the notification to the owner as a macOS notification if it has not been shown.
+ * Advances the time first seen, and shows the notification to the owner as a desktop notification if it has not been shown.
  * Only in the liaison's watch process, returns the notifications not yet sent to the liaison. If the lock cannot be taken, does nothing.
  */
 export function alertStep(p: Paths, config: Config, now: Date, options: AlertOptions): readonly Notice[] {

@@ -25,7 +25,7 @@ function held(notice: Notice, lastAt: string, config: Config): Notice {
 
 /**
  * Limits notifications to the owner about the same target (Epic) to once per epicPushMinutes. A notification with a new fingerprint after the last notification
- * is replaced by one line only for the liaison to read (no macOS notification is shown either). A notification with an already shown fingerprint is left as is.
+ * is replaced by one line only for the liaison to read (no desktop notification is shown either). A notification with an already shown fingerprint is left as is.
  * If the same state continues after the interval has passed, the new notification at that time goes out to the owner.
  */
 export function applyThrottle(notices: readonly Notice[], state: AlertState, config: Config, now: Date): readonly Notice[] {

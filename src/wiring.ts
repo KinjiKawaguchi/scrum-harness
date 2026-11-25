@@ -1,15 +1,30 @@
+import { join } from 'node:path'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
+import { linuxNotifier } from './adapters/linux/notify.ts'
+import { systemdScheduler } from './adapters/linux/systemd.ts'
+import { launchdScheduler } from './adapters/macos/launchd.ts'
 import { macosNotify } from './adapters/macos/notify.ts'
-import type { Config } from './config.ts'
-import type { Ports } from './ports/index.ts'
+import { stateDir, type Config } from './config.ts'
+import type { Notifier, Ports, Scheduler } from './ports/index.ts'
+
+/** Notifies on macOS with a desktop notification. Everywhere else, with `notify-send` or a line in the state directory's log. */
+export function buildNotifier(platform: NodeJS.Platform = process.platform, dir: string = stateDir()): Notifier {
+  return platform === 'darwin' ? macosNotify : linuxNotifier(join(dir, 'log', 'notifications.log'))
+}
+
+/** The scheduler of this platform: launchd on macOS, systemd user units on Linux. Null elsewhere. */
+export function buildScheduler(platform: NodeJS.Platform = process.platform): Scheduler | null {
+  if (platform === 'darwin') return launchdScheduler()
+  if (platform === 'linux') return systemdScheduler()
+  return null
+}
 
 /**
  * Builds, from the config, the ports handed to the core. The core code does not import adapters and receives only what is built here.
- * The board and code are GitHub, sessions and transcripts are Claude Code, and notifications are macOS.
+ * The board and code are GitHub, sessions and transcripts are Claude Code, and notifications depend on the platform.
  */
 export function buildPorts(config: Config): Ports {
-  return { ...githubPorts(config), sessions: claudeCodeSessions(), transcripts: claudeCodeTranscripts(), notify: macosNotify }
+  return { ...githubPorts(config), sessions: claudeCodeSessions(), transcripts: claudeCodeTranscripts(), notify: buildNotifier() }
 }
-

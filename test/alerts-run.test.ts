@@ -50,7 +50,7 @@ describe('alertStep', () => {
     assert.equal(existsSync(p.alertsState), false)
   })
 
-  it('writes the first-seen time and emits the macOS notification only once, on the run that reaches 60 minutes', () => {
+  it('writes the first-seen time and emits the desktop notification only once, on the run that reaches 60 minutes', () => {
     step(NOW)
     assert.deepEqual(readAlertState(p).epics, { 'app#100': NOW.toISOString() })
     step(minutesLater(59))
@@ -64,14 +64,14 @@ describe('alertStep', () => {
     assert.equal(sent.length, 1)
   })
 
-  it('does not emit the macOS notification when isDesktopEnabled is false', () => {
+  it('does not emit the desktop notification when isDesktopEnabled is false', () => {
     const quiet = { ...enabled, alerts: { ...enabled.alerts!, isDesktopEnabled: false } }
     step(NOW, false, quiet)
     step(minutesLater(61), false, quiet)
     assert.equal(sent.length, 0)
   })
 
-  it('when the macOS notification fails, records the error and does not retry for the same notification', () => {
+  it('when the desktop notification fails, records the error and does not retry for the same notification', () => {
     let attempts = 0
     const failing = () => {
       attempts += 1
@@ -94,7 +94,7 @@ describe('alertStep', () => {
     assert.match(readFileSync(p.events, 'utf8'), /"type":"alert-liaison","key":"E-STALL:app#100:/)
   })
 
-  it('when the TechLead acknowledges E-STALL, emits neither the owner notification nor the macOS notification (the idle line still appears)', () => {
+  it('when the TechLead acknowledges E-STALL, emits neither the owner notification nor the desktop notification (the idle line still appears)', () => {
     const ack: Ack = { rule: 'E-STALL', subject: 'app#100', until: minutesLater(120).toISOString(), reason: 'Intended wait', at: NOW.toISOString() }
     writeJson(p.acks, [ack])
     step(NOW)
@@ -140,7 +140,7 @@ describe('alertStep', () => {
     assert.deepEqual(Object.keys(readAlertState(p).ownerPushedAt), ['epic:app#100'])
   })
 
-  it("the interval is per Epic; it does not hold back another Epic's notification, and two Epics found in the same evaluation are merged into one macOS notification", () => {
+  it("the interval is per Epic; it does not hold back another Epic's notification, and two Epics found in the same evaluation are merged into one desktop notification", () => {
     const two = snapshot([epic(), child(101, { status: 'Next' }), issue(200, { title: 'Epic 200' }), child(201, { status: 'Next', epic: 'app#200' })])
     saveSnapshot(p, two)
     step(NOW)
@@ -170,7 +170,7 @@ describe('alertStep', () => {
     assert.equal(sent.length, 1)
   })
 
-  it('does not remember the notification time while nothing is emitted (neither a macOS notification nor a liaison watch exists)', () => {
+  it('does not remember the notification time while nothing is emitted (neither a desktop notification nor a liaison watch exists)', () => {
     const quiet = { ...enabled, alerts: { ...enabled.alerts!, isDesktopEnabled: false } }
     step(NOW, false, quiet)
     step(minutesLater(60), false, quiet)
@@ -179,7 +179,7 @@ describe('alertStep', () => {
     assert.deepEqual(Object.keys(readAlertState(p).ownerPushedAt), ['epic:app#100'])
   })
 
-  it('for a member with no issue to hand over, emits the owner macOS notification at 30 minutes; until then only the finding for the TechLead', () => {
+  it('for a member with no issue to hand over, emits the owner desktop notification at 30 minutes; until then only the finding for the TechLead', () => {
     saveSnapshot(p, snapshot([]))
     step(NOW)
     assert.deepEqual(readAlertState(p).empty, { 'SWE1:no-candidate': NOW.toISOString() })

@@ -20,7 +20,7 @@ export function liaisonMessage(notices: readonly Notice[], config: Config): stri
     'scrum-harness: notice for the liaison (decided by the harness; handle it without changing the content)',
     ...owner.map((notice) => notice.text),
     ...others.map((notice) => notice.text),
-    ...(desktop ? [`(The notice to ${config.ownerLabel} is also shown directly by the harness as a macOS notification, without sound)`] : []),
+    ...(desktop ? [`(The notice to ${config.ownerLabel} is also shown directly by the harness as a desktop notification, without sound)`] : []),
   ].join('\n')
 }
 
