@@ -4,7 +4,7 @@ Conventions for everyone (people and agents) working in this repository.
 
 ## Language
 
-English is the official language of this repository: code, comments, doc comments, test names, CLI output, error messages, docs, commit messages, issues, and pull requests. Write all new text in English. Japanese text that remains in existing files is being translated; see the translation issue (#3).
+English is the official language of this repository: code, comments, doc comments, test names, CLI output, error messages, docs, commit messages, issues, and pull requests. Write all new text in English. CI fails on Japanese text in any tracked file (`pnpm run check:english`). In a test that needs non-ASCII input, write it as a `\u` escape; a file that must hold such text goes on `scripts/english-allowlist.txt`.
 
 ## Public repository hygiene
 
@@ -27,4 +27,4 @@ External systems are reached through ports and adapters. Dependencies point from
 - Branch from `origin/main` (`feat/...`, `fix/...`, `refactor/...`, `docs/...`, `chore/...`) and open a pull request to `main`.
 - Commit messages and pull request titles follow Conventional Commits and say why the change is needed.
 - Pull request body: **Why**, **What**, and **How** only when the implementation needs explaining. End with `Closes #N` on its own line when the pull request completes an issue.
-- Before opening a pull request: `pnpm run typecheck` and `pnpm test`.
+- Before opening a pull request: `pnpm run typecheck`, `pnpm test`, and `pnpm run check:english`.
