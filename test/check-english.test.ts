@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url'
 
 const SCRIPT = fileURLToPath(new URL('../scripts/check-english.sh', import.meta.url))
 // Written as escapes so that this file stays free of Japanese text.
-const HIRAGANA = 'こんにちは'
-const KATAKANA = 'テスト'
-const HAN = '日本語'
+const HIRAGANA = '\u3053\u3093\u306b\u3061\u306f'
+const KATAKANA = '\u30c6\u30b9\u30c8'
+const HAN = '\u65e5\u672c\u8a9e'
 
 let repo: string
 
