@@ -8,7 +8,8 @@ import { aggregateMembers } from '../team/state.ts'
 import { runtimeOf } from './config.ts'
 import { decide } from './decide.ts'
 import { isRuntimeError, parseRuntimeRequest } from './request.ts'
-import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeRequest, type RuntimeResponse } from './types.ts'
+import { tokenUsage } from './token-usage.ts'
+import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeInput, type RuntimeResponse } from './types.ts'
 import { teamViewProblem } from './validate.ts'
 import { buildTeamView } from './view.ts'
 
@@ -16,19 +17,21 @@ export type RuntimeDeps = {
   readonly p: Paths
   readonly config: Config
   readonly now: Date
-  readonly ports: Pick<Ports, 'board' | 'writer' | 'issues' | 'sessions'>
+  readonly ports: Pick<Ports, 'board' | 'writer' | 'issues' | 'sessions' | 'transcripts'>
   /** Starts a board refresh in the background, so a call never waits for the board. */
   readonly spawnRefresh: () => void
+  /** Starts reading the agents' transcripts in the background, for the same reason. */
+  readonly spawnUsageIndex: () => void
 }
 
-const OPS = ['describe', 'view', 'decide']
+const OPS = ['describe', 'view', 'decide', 'tokenUsage']
 const fail = (status: number, message: string): { readonly error: RuntimeError } => ({ error: { status, message } })
 
-function labelOf(request: RuntimeRequest, config: Config): string {
+function labelOf(request: RuntimeInput, config: Config): string {
   return runtimeOf(config).label ?? request.team
 }
 
-function view(request: RuntimeRequest, deps: RuntimeDeps): RuntimeResponse<unknown> {
+function view(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown> {
   const { p, config, now, ports } = deps
   const snapshot = loadSnapshot(p)
   if (isRefreshDue(p, config, now)) deps.spawnRefresh()
@@ -40,12 +43,13 @@ function view(request: RuntimeRequest, deps: RuntimeDeps): RuntimeResponse<unkno
   return problem === null ? { result: teamView } : fail(503, `the team view is not valid: ${problem}`)
 }
 
-function handle(request: RuntimeRequest, deps: RuntimeDeps): RuntimeResponse<unknown> {
+function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown> {
   if (request.op === 'describe') {
     const description: Describe = { runtimes: [RUNTIME_VERSION], ops: OPS, label: labelOf(request, deps.config) }
     return { result: description }
   }
   if (request.op === 'view') return view(request, deps)
+  if (request.op === 'tokenUsage') return tokenUsage(request, deps)
   const error = decide(deps, request.decision)
   return error === null ? { result: {} } : { error }
 }

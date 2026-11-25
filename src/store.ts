@@ -16,6 +16,10 @@ export function paths(dir: string = stateDir()) {
     shellPatterns: join(dir, 'cache', 'shell-patterns'),
     /** The time a re-fetch was last attempted. Even if failures continue, it is attempted once per refreshSeconds */
     refreshAttempt: join(dir, 'cache', 'refresh-attempt.json'),
+    /** What reading the agents' transcripts left behind (see usage/index-store.ts). Delete it to count again from scratch */
+    usageIndex: join(dir, 'cache', 'usage-index.json'),
+    /** A lock held while the transcripts are read, so that two readers do not count the same lines */
+    usageLock: join(dir, 'cache', 'usage-index.lock'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),

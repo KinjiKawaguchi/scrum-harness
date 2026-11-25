@@ -14,15 +14,15 @@ import { fakePorts } from './fake-ports.ts'
 import { NOW } from './helpers.ts'
 
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
-const deps = (): RuntimeDeps => ({ p: paths(mkdtempSync(join(tmpdir(), 'scrum-runtime-cmd-'))), config, now: NOW, ports: fakePorts(), spawnRefresh: () => undefined })
+const deps = (): RuntimeDeps => ({ p: paths(mkdtempSync(join(tmpdir(), 'scrum-runtime-cmd-'))), config, now: NOW, ports: fakePorts(), spawnRefresh: () => undefined, spawnUsageIndex: () => undefined })
 const call = (op: string, extra: object = {}) => JSON.stringify({ runtime: 'agency-runtime/1', org: 'acme', team: 'app', op, ...extra })
 const parse = (stdout: string) => JSON.parse(stdout) as { result?: any; error?: { status: number; message: string } }
 
 describe('agency-runtime/1 describe', () => {
-  it('reports the version, the operations, and the team label; usage is not offered', () => {
+  it('reports the version, the operations (tokenUsage included), and the team label', () => {
     const output = runRuntime(call('describe'), deps())
     assert.equal(output.exitCode, 0)
-    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide'], label: 'app' } })
+    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage'], label: 'app' } })
   })
 
   it('is one JSON line on stdout', () => {

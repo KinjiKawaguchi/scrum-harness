@@ -52,7 +52,7 @@ The main settings in the configuration (`config.json`):
 | `links` | Lists open PRs in the body of the issue each one points to, between the markers (`<!-- scrum-harness:prs -->` and `<!-- /scrum-harness:prs -->`) (optional; it runs only when `enabled` is true). `intervalMinutes`, `maxEditsPerRun`, `skipAuthors`, `skipBranchPrefixes`. See "Linking PRs and issues" in docs/rules.md |
 | `alerts` | Stall detection and notifying the owner (optional; it runs only when `enabled` is true). `liaison` (the liaison session's name), `epicStallMinutes`, `emptyEscalateMinutes`, `isDesktopEnabled`, `parkedLabels` (labels that mark a parked Epic), `epicPushMinutes` (how often the owner is notified about the same Epic), `emptyPushMinutes` (how often the owner is notified about the same member with nothing to hand over). See "Detecting stalls and notifying the owner" in docs/rules.md |
 | `dispatch` | Hands the next work to an idle member (optional; it runs only when `enabled` is true). `baseBranch`, `skipLabels`, `orderField`, `members`, `scriptDir`, `linkedBranchPrefix` (creates a branch linked to the issue when handing over), `notes`. See "Handing the next work to idle members" in docs/rules.md |
-| `runtime` | The team's display name and the names of the board's blocked reasons, for `scrum runtime` (optional). See docs/agency-runtime.md |
+| `runtime` | The team's display name, the time zone of the usage report, and the names of the board's blocked reasons, for `scrum runtime` (optional). See docs/agency-runtime.md |
 
 To use sprint checkpoints and story points (optional), add two Number fields to the board (story points and overrun) and write `sprint` in the configuration:
 
@@ -89,7 +89,8 @@ SCRUM_LINE=$(echo "$input" | <clone directory>/bin/scrum statusline 2>/dev/null)
 | `scrum link-prs [--dry-run]` | Lists open PRs in the body of the issue each one points to, between the markers (`<!-- scrum-harness:prs -->` and `<!-- /scrum-harness:prs -->`) (the watch runs it too when links.enabled). `--dry-run` rewrites nothing and shows only the plan, the reasons for skipping, and broken markers. See "Linking PRs and issues" in docs/rules.md |
 | `scrum checkpoint` | Records the last checkpoint that is not recorded yet, now |
 | `scrum request <add\|list\|show\|reply\|close>` | Requests to the owner (questions and proposals). An answer reaches the TechLead as R-ANSWERED (see "Requests to the owner" in docs/rules.md) |
-| `scrum runtime` | Called by an Agency node (agency-runtime/1). Reads one JSON request on stdin, and returns the team's state (TeamView) or applies an answer to a request. See [docs/agency-runtime.md](docs/agency-runtime.md) |
+| `scrum runtime` | Called by an Agency node (agency-runtime/1). Reads one JSON request on stdin, and returns the team's state (TeamView), applies an answer to a request, or reports token use by day and person. See [docs/agency-runtime.md](docs/agency-runtime.md) |
+| `scrum usage-index` | Reads what the agents' transcripts gained since the last run into the usage index. `scrum runtime` starts it in the background when the index is stale; run it by hand to build the index before the first call |
 
 State is kept in `~/.claude/scrum/` (change it with `SCRUM_STATE_DIR`). Errors go to `~/.claude/scrum/log/errors.log`.
 
@@ -104,8 +105,8 @@ The source holds no values of a specific board or team. Values live only in the 
 
 Connections to external systems are split into ports and adapters. Dependencies point only from adapters to the core.
 
-- `src/ports/`: the types of what the core needs from the outside (reading and writing the board, reading actions, issues, PRs and branches, sessions, notifications).
-- `src/adapters/<system>/`: the implementations of the ports. `github/` (gh and the configured scripts), `claude-code/` (`~/.claude/sessions`), `macos/` (osascript).
+- `src/ports/`: the types of what the core needs from the outside (reading and writing the board, reading actions, issues, PRs and branches, sessions, transcripts, notifications).
+- `src/adapters/<system>/`: the implementations of the ports. `github/` (gh and the configured scripts), `claude-code/` (`~/.claude/sessions` and the transcripts under `~/.claude/projects`), `macos/` (osascript).
 - `src/wiring.ts`: builds the adapters from the configuration and hands them to the core as ports. The feature folders of the core (`board/`, `team/`, `sprint/`, and so on) do not import adapters.
 - Tests pass the fake ports of `test/fake-ports.ts`, so they never reach an external system.
 

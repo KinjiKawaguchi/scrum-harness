@@ -12,13 +12,14 @@ The node runs `scrum runtime` with no further arguments and `SCRUM_STATE_DIR` se
 → {"error":{"status":503,"message":"..."}}                exit code 1
 ```
 
-The op (`describe`, `view`, or `decide`) is in the request. Fields the harness does not know are ignored.
+The op (`describe`, `view`, `decide`, or the optional `tokenUsage`) is in the request. Fields the harness does not know are ignored.
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide"],"label":"<team label>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage"],"label":"<team label>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
+| `tokenUsage` | a TokenUsage (below) |
 
 Errors use the specification's statuses: 400 for malformed input (not JSON, wrong runtime version, unknown op, an id that is not an id, a decision without text or a choice), 404 for a target that does not exist or is not waiting for a decision, and 503 when the harness cannot act now (not configured, no board read yet, a script or `gh` failed). The node does not retry 400 and 404.
 
@@ -67,6 +68,24 @@ The node calls `decide` only after it has verified the decision.
 
   The comment comes first, so a failure in between is retried without losing the answer. `judge` needs `scripts.setReason`; without it the answer is 503. An id that is not a pending decision is 404.
 
+## `tokenUsage`: token use by day and person
+
+`{"runtime":"agency-runtime/1","org":"acme","team":"app","op":"tokenUsage","days":14}` (`days` is a whole number from 1 to 90) returns
+
+```
+{"result":{"org":"acme","team":"app","days":14,"generatedAt":"<time>",
+  "byDay":[{"date":"2026-11-24","costUsd":{"TechLead":1.25,"SWE1":3.1}}],
+  "byPerson":[{"person":"SWE1","costUsd":9.8,"tokens":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0}}]}}
+```
+
+- `byDay` has one entry for each of the last `days` calendar days, oldest first and today last. A day with no usage has an empty `costUsd`. The days are cut in the time zone of `runtime.utcOffset`, else `sprint.utcOffset`, else UTC.
+- `byPerson` lists the people with usage in that window, most expensive first. `cacheWrite` adds the 5-minute and the 1-hour cache writes.
+- People are the lead and the members, named as in the TeamView. The liaison and sessions outside the team are not counted.
+- Costs are an estimate: the tokens priced as if billed by the API (USD, rounded to cents), not a subscription bill. The one price table is `src/usage/pricing.ts`.
+- 404 means no session of the team has recorded usage. 503 means the first read of the transcripts has not finished.
+
+The numbers come from the agents' Claude Code transcripts, read through the `TranscriptSource` port (`src/ports/usage.ts`; the adapter is `src/adapters/claude-code/`). Reading the first time can take minutes, so the call never waits for it: when the index (`<state dir>/cache/usage-index.json`) is missing or older than 5 minutes, `tokenUsage` starts `scrum usage-index` in the background and answers from what the index holds. The index remembers how far each transcript was read, counts every response once, and only the projects that hold a session of the team are read. To count again from scratch, delete the index.
+
 ## Configuration
 
 An optional `runtime` section:
@@ -74,11 +93,12 @@ An optional `runtime` section:
 ```json
 "runtime": {
   "label": "App",
+  "utcOffset": "+09:00",
   "blockedReasons": { "external": "External", "waitingOnPrevious": "Waiting on previous", "timeOrEquipment": "Time or equipment" }
 }
 ```
 
-`label` is the team's display name (default: the team id the node sends). `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
+`label` is the team's display name (default: the team id the node sends). `utcOffset` is the time zone `tokenUsage` cuts days in. `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
 
 ## Keeping in step with Agency
 

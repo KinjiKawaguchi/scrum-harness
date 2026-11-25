@@ -14,6 +14,12 @@ export function spawnRefresh(): void {
   child.unref()
 }
 
+/** Starts reading the agents' transcripts in a separate process that does not make the caller wait. */
+export function spawnUsageIndex(): void {
+  const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'usage-index'], { detached: true, stdio: 'ignore' })
+  child.unref()
+}
+
 /** Starts the checkpoint recording in a separate process that does not make the hook wait. */
 export function spawnCheckpoint(): void {
   const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'checkpoint'], { detached: true, stdio: 'ignore' })
