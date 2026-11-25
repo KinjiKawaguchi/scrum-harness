@@ -1,0 +1,2 @@
+# Files allowed to contain Japanese text, one path per line. Keep this empty if you can:
+# a test can write the text as a \u escape instead.

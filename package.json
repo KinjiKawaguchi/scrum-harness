@@ -11,7 +11,8 @@
   "scripts": {
     "test": "node --no-warnings --test \"test/**/*.test.ts\"",
     "typecheck": "tsc -p .",
-    "check:agency": "scripts/agency-contract.sh check"
+    "check:agency": "scripts/agency-contract.sh check",
+    "check:english": "scripts/check-english.sh"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
