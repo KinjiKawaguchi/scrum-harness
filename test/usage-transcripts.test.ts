@@ -98,7 +98,7 @@ describe('scanning a transcript file', () => {
 
   it('reads multi-byte text without losing the position', () => {
     const path = join(dir(), 'a.jsonl')
-    writeTranscript(path, [JSON.stringify({ type: 'user', text: 'こんにちは' }), assistantLine({ requestId: 'req_1' })])
+    writeTranscript(path, [JSON.stringify({ type: 'user', text: 'caf\u00e9 \u20ac' }), assistantLine({ requestId: 'req_1' })])
     assert.equal(scanFile(path, 0).endOffset, statSync(path).size)
   })
 })
