@@ -27,6 +27,7 @@ const deps = (overrides: Partial<RuntimeDeps> = {}): RuntimeDeps => ({
   spawnRefresh: () => {
     refreshes += 1
   },
+  spawnUsageIndex: () => undefined,
   ...overrides,
 })
 

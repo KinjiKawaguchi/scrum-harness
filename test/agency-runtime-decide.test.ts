@@ -42,7 +42,7 @@ function ports(overrides: { canSetReason?: boolean; addComment?: Ports['issues']
 }
 
 const run = (input: string, deps: Partial<RuntimeDeps> = {}) => {
-  const output = runRuntime(input, { p, config, now: NOW, ports: ports(), spawnRefresh: () => undefined, ...deps })
+  const output = runRuntime(input, { p, config, now: NOW, ports: ports(), spawnRefresh: () => undefined, spawnUsageIndex: () => undefined, ...deps })
   return { exitCode: output.exitCode, response: JSON.parse(output.stdout) as { result?: unknown; error?: { status: number; message: string } } }
 }
 

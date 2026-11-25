@@ -74,6 +74,7 @@
   },
   "runtime": {
     "label": "App",
+    "utcOffset": "+09:00",
     "blockedReasons": {
       "external": "External",
       "waitingOnPrevious": "Waiting on previous",

@@ -29,3 +29,26 @@ export type { WorkItem } from './bindings/WorkItem.js'
 export type { WorkStatus } from './bindings/WorkStatus.js'
 
 export const RUNTIME_VERSION = 'agency-runtime/1'
+
+import type { RuntimeRequest } from './bindings/RuntimeRequest.js'
+
+/**
+ * The optional op `tokenUsage` (agency#22). Agency has not generated bindings for it yet, so the shapes are written here from the
+ * contract the node enforces. When the generated bindings gain it, replace these with the re-exports and run `scripts/agency-contract.sh update`.
+ */
+export const MAX_USAGE_DAYS = 90
+
+export type TokenUsageRequest = { readonly runtime: string; readonly org: string; readonly team: string; readonly op: 'tokenUsage'; readonly days: number }
+
+export type TokenUsage = {
+  readonly org: string
+  readonly team: string
+  readonly days: number
+  readonly generatedAt: string
+  /** Oldest first, one entry per calendar day (in the runtime's time zone), today last. Cost in USD by person name. */
+  readonly byDay: readonly { readonly date: string; readonly costUsd: Readonly<Record<string, number>> }[]
+  readonly byPerson: readonly { readonly person: string; readonly costUsd: number; readonly tokens: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number } }[]
+}
+
+/** What the runtime accepts: the request the generated bindings define, and the optional ops written above. */
+export type RuntimeInput = RuntimeRequest | TokenUsageRequest

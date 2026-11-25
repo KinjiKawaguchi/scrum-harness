@@ -1,4 +1,4 @@
-import { RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeRequest } from './types.ts'
+import { MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 /** GitHub rejects comment bodies above 65536 characters; stay well below so the added header fits. */
@@ -22,7 +22,7 @@ function parseDecision(raw: unknown): RuntimeDecision | RuntimeError {
 }
 
 /** Reads the one JSON request the node writes to stdin. Anything that does not fit is a 400. */
-export function parseRuntimeRequest(input: string): RuntimeRequest | RuntimeError {
+export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError {
   let raw: unknown
   try {
     raw = JSON.parse(input)
@@ -35,7 +35,12 @@ export function parseRuntimeRequest(input: string): RuntimeRequest | RuntimeErro
   if (typeof raw.team !== 'string' || !ID.test(raw.team)) return malformed('team must be an id')
   const base = { runtime: RUNTIME_VERSION, org: raw.org, team: raw.team }
   if (raw.op === 'describe' || raw.op === 'view') return { ...base, op: raw.op }
-  if (raw.op !== 'decide') return malformed('op must be "describe", "view", or "decide"')
+  if (raw.op === 'tokenUsage') {
+    const days = raw.days
+    const isDays = typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= MAX_USAGE_DAYS
+    return isDays ? { ...base, op: 'tokenUsage', days } : malformed(`days must be a whole number from 1 to ${MAX_USAGE_DAYS}`)
+  }
+  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", or "tokenUsage"')
   const decision = parseDecision(raw.decision)
   return 'status' in decision ? decision : { ...base, op: 'decide', decision }
 }

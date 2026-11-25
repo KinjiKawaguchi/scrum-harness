@@ -17,7 +17,8 @@ import { configPath, dispatchOf, loadConfig, type Config } from './config.ts'
 import { dispatchOnce, formatOnce } from './dispatch/once.ts'
 import { handleHook } from './hooks/handlers.ts'
 import { linkPullRequests, type LinkPlan } from './links/run.ts'
-import { hookDeps, parseInput, readStdin, spawnRefresh } from './runtime.ts'
+import { hookDeps, parseInput, readStdin, spawnRefresh, spawnUsageIndex } from './runtime.ts'
+import { runUsageIndex } from './usage/run.ts'
 import { logError, paths, type Paths } from './store.ts'
 import { resolveIdentity } from './team/identity.ts'
 import type { Ports } from './ports/index.ts'
@@ -40,6 +41,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum dispatch --once [<name>...] for idle members, pick the next work once, write it to the board, and print the text to send (for members already idle right after enabling dispatch)
   scrum checkpoint                  record the last checkpoint not yet recorded (the watch also records it)
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
+  scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
   scrum statusline                  short display for the statusline (the statusline JSON on stdin)
   scrum install | uninstall         add or remove the hooks in ~/.claude/settings.json
   scrum hook <Event> | watch        called from Claude Code hooks`
@@ -88,7 +90,7 @@ async function runWatchCommand(p: Paths): Promise<number> {
 
 /** agency-runtime/1: one JSON request on stdin, one JSON response on stdout, exit 0 for a result and 1 for an error. */
 async function runRuntimeCommand(p: Paths, config: Config | null, ports: Ports | null): Promise<number> {
-  const deps = config === null || ports === null ? null : { p, config, now: new Date(), ports, spawnRefresh }
+  const deps = config === null || ports === null ? null : { p, config, now: new Date(), ports, spawnRefresh, spawnUsageIndex }
   const output = runRuntime(await readStdin(), deps)
   process.stdout.write(output.stdout)
   return output.exitCode
@@ -148,6 +150,11 @@ async function main(argv: readonly string[]): Promise<number> {
         const now = new Date()
         if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now, ports.board)
         return formatOnce(dispatchOnce(p, c, now, ports, positional))
+      })
+    case 'usage-index':
+      return needConfig((c, ports) => {
+        const done = runUsageIndex(p, c, ports.transcripts, new Date())
+        return done === null ? 'Another process is reading the transcripts' : `Read ${done.files} transcripts; the index has ${done.rows} rows`
       })
     case 'checkpoint':
       return needConfig((c, ports) => checkpointCommand(p, c, ports))
