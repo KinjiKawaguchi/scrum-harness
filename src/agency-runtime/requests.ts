@@ -1,7 +1,7 @@
 import { label } from '../board/rules.ts'
 import type { BoardItem } from '../board/types.ts'
 import type { Config } from '../config.ts'
-import { isOpen } from '../requests/model.ts'
+import { authorOf, isOpen } from '../requests/model.ts'
 import type { OwnerRequest } from '../requests/types.ts'
 import { blockedReasonOf, blockedSince } from './work.ts'
 import type { Request } from './types.ts'
@@ -34,7 +34,7 @@ export function storedRequestOf(request: OwnerRequest): Request {
     options: request.options.map((option) => ({ key: option.key, text: option.text, isRecommended: option.isRecommended === true, ...(option.detail === undefined ? {} : { detail: option.detail }) })),
     ...(request.messages.length === 0
       ? {}
-      : { thread: request.messages.map((message) => ({ from: message.from, text: message.text, ...(message.choice === undefined ? {} : { choice: message.choice }), at: new Date(message.at).toISOString() })) }),
+      : { thread: request.messages.map((message) => ({ from: authorOf(message), text: message.text, ...(message.choice === undefined ? {} : { choice: message.choice }), at: new Date(message.at).toISOString() })) }),
     answerWith: { kind: 'answer', target: request.id },
   }
 }

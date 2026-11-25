@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import type { Flags } from '../cli-commands.ts'
 import type { Paths } from '../store.ts'
-import { close, isOpen, newRequestId, parseNewRequest, reply, LIMITS } from './model.ts'
+import { authorOf, close, isOpen, isReservedName, newRequestId, parseNewRequest, reply, LIMITS } from './model.ts'
 import { readRequest, readRequests, writeRequest } from './store.ts'
 import type { OwnerRequest } from './types.ts'
 
@@ -21,14 +21,18 @@ function line(request: OwnerRequest): string {
 
 function show(request: OwnerRequest): string {
   const options = request.options.map((one) => `  ${one.key}: ${one.text}${one.isRecommended === true ? ' (recommended)' : ''}`)
-  const messages = request.messages.map((one) => `  [${one.at}] ${one.from}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${one.text}`)
+  const messages = request.messages.map((one) => `  [${one.at}] ${authorOf(one)}${one.by === undefined ? '' : ` (decided by ${one.by})`}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${one.text}`)
   const parts = [line(request), request.context, ...(options.length > 0 ? ['Options:', ...options] : []), ...(messages.length > 0 ? ['Thread:', ...messages] : []), request.closeNote === undefined ? '' : `Closing note: ${request.closeNote}`]
   return parts.filter((part) => part !== '').join('\n')
 }
 
-function nameFlag(flags: Flags): string | null {
+const RESERVED_MESSAGE = '--from names the team session that acts; owner, board, and unverified are not session names, and the owner speaks only through a decision'
+
+/** The session name from --from, or null when it is missing or too long, or 'reserved' when it is a name that stands for a person or the board. */
+function nameFlag(flags: Flags): string | 'reserved' | null {
   const from = flags.from
-  return typeof from === 'string' && from.trim() !== '' && from.length <= LIMITS.name ? from.trim() : null
+  if (typeof from !== 'string' || from.trim() === '' || from.length > LIMITS.name) return null
+  return isReservedName(from) ? 'reserved' : from.trim()
 }
 
 /** Reads the proposal's body from a file. A file that is too large or cannot be read is refused. */
@@ -50,6 +54,7 @@ function freshId(p: Paths, now: Date): string {
 function addRequest(p: Paths, flags: Flags, stdin: string, now: Date): string {
   const from = nameFlag(flags)
   if (from === null) return 'pass --from <name>, the name of the session that files it'
+  if (from === 'reserved') return RESERVED_MESSAGE
   let raw: unknown
   try {
     raw = JSON.parse(stdin)
@@ -91,6 +96,7 @@ export function requestCommand(p: Paths, positional: readonly string[], flags: F
       return updateRequest(p, id, (request) => {
         const from = nameFlag(flags)
         const text = typeof flags.text === 'string' ? flags.text.trim() : ''
+        if (from === 'reserved') return RESERVED_MESSAGE
         if (from === null || text === '' || text.length > LIMITS.text) return `pass --from <name> and --text "<text of up to ${LIMITS.text} characters>"`
         return reply(request, from, text, now)
       })
