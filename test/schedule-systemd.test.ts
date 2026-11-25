@@ -80,6 +80,14 @@ describe('installing under systemd', () => {
     assert.match(message, /enable-linger/)
   })
 
+  it('writes the units under XDG_CONFIG_HOME when one is given, and not under the home folder', () => {
+    const setup = setupIn()
+    const xdg = join(setup.home, 'custom-config')
+    systemdScheduler(recordingRun().run, xdg).install(JOB, setup)
+    assert.equal(existsSync(join(xdg, 'systemd', 'user', 'scrum-harness-alerts.timer')), true)
+    assert.equal(existsSync(join(setup.home, '.config')), false)
+  })
+
   it('stops with systemctl\'s own message when it fails', () => {
     assert.throws(() => systemdScheduler(recordingRun(['enable']).run, undefined).install(JOB, setupIn()), /systemctl --user enable .* failed: failed on purpose/)
   })

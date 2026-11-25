@@ -3,6 +3,7 @@ import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
 import { linuxNotifier } from './adapters/linux/notify.ts'
+import { realRun } from './adapters/run.ts'
 import { systemdScheduler } from './adapters/linux/systemd.ts'
 import { launchdScheduler } from './adapters/macos/launchd.ts'
 import { macosNotify } from './adapters/macos/notify.ts'
@@ -17,7 +18,7 @@ export function buildNotifier(platform: NodeJS.Platform = process.platform, dir:
 /** The scheduler of this platform: launchd on macOS, systemd user units on Linux. Null elsewhere. */
 export function buildScheduler(platform: NodeJS.Platform = process.platform): Scheduler | null {
   if (platform === 'darwin') return launchdScheduler()
-  if (platform === 'linux') return systemdScheduler()
+  if (platform === 'linux') return systemdScheduler(realRun, process.env.XDG_CONFIG_HOME)
   return null
 }
 

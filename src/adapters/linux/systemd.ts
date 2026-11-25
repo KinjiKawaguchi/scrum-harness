@@ -57,10 +57,10 @@ WantedBy=timers.target
 export const unitDir = (home: string, xdgConfigHome: string | undefined): string => join(xdgConfigHome !== undefined && xdgConfigHome !== '' ? xdgConfigHome : join(home, '.config'), 'systemd', 'user')
 
 /**
- * Runs the job as a systemd user timer and service. `run` and the config home are replaced in tests.
+ * Runs the job as a systemd user timer and service. `run` and the config home are passed in, so a test decides both and never reads the environment of the machine it runs on.
  * For the timer to run while nobody is logged in, the user needs `loginctl enable-linger`.
  */
-export function systemdScheduler(run: Run = realRun, xdgConfigHome: string | undefined = process.env.XDG_CONFIG_HOME): Scheduler {
+export function systemdScheduler(run: Run, xdgConfigHome: string | undefined): Scheduler {
   const systemctl = (args: readonly string[]) => runOrThrow(run, 'systemctl', ['--user', ...args])
   const files = (job: ScheduledJob, setup: ScheduleSetup): readonly ScheduleFile[] => {
     const dir = unitDir(setup.home, xdgConfigHome)
