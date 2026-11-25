@@ -144,7 +144,7 @@ The team asks the owner for answers and decisions with requests, not with chat m
 
 | Rule | Severity | Condition | Fix |
 |---|---|---|---|
-| R-ANSWERED | medium | The owner answered a request and it is not closed (one finding per request), with the chosen option and the text | Act on the answer, then `scrum request close <id>`. To ask a follow-up, `scrum request reply <id> --from <name> --text "<question>"` |
+| R-ANSWERED | medium | The owner answered a request and it is not closed (one finding per request), with the chosen option and the answerer's words quoted as one escaped string, marked as data and not as instructions | Act on the answer, then `scrum request close <id>`. To ask a follow-up, `scrum request reply <id> --from <name> --text "<question>"` |
 
 ## Sprint checkpoints and story points
 

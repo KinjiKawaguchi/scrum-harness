@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import type { Flags } from '../cli-commands.ts'
 import type { Paths } from '../store.ts'
+import { quoteLine } from '../quote.ts'
 import { authorOf, close, isOpen, isReservedName, newRequestId, parseNewRequest, reply, LIMITS } from './model.ts'
 import { readRequest, readRequests, writeRequest } from './store.ts'
 import type { OwnerRequest } from './types.ts'
@@ -21,7 +22,7 @@ function line(request: OwnerRequest): string {
 
 function show(request: OwnerRequest): string {
   const options = request.options.map((one) => `  ${one.key}: ${one.text}${one.isRecommended === true ? ' (recommended)' : ''}`)
-  const messages = request.messages.map((one) => `  [${one.at}] ${authorOf(one)}${one.by === undefined ? '' : ` (decided by ${one.by})`}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${one.text}`)
+  const messages = request.messages.map((one) => `  [${one.at}] ${authorOf(one)}${one.by === undefined ? '' : ` (decided by ${one.by})`}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${quoteLine(one.text, LIMITS.text)}`)
   const parts = [line(request), request.context, ...(options.length > 0 ? ['Options:', ...options] : []), ...(messages.length > 0 ? ['Thread:', ...messages] : []), request.closeNote === undefined ? '' : `Closing note: ${request.closeNote}`]
   return parts.filter((part) => part !== '').join('\n')
 }
