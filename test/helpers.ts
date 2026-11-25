@@ -6,7 +6,7 @@ import { NEVER_STOPPED, type TeamStop } from '../src/sprint/team-stop.ts'
 
 export const REPO = 'example-org/app'
 
-/** 手間を数えるときの過去の記録。何も渡さなければ、どの節目も除かない。 */
+/** Past records used when counting effort. If none are given, no checkpoint is excluded. */
 export const historyOf = (records: readonly CheckpointRecord[] = [], teamStop: TeamStop = NEVER_STOPPED): CountingHistory => ({ ...EMPTY_HISTORY, records, teamStop })
 
 export function issue(number: number, overrides: Partial<BoardItem> = {}): BoardItem {

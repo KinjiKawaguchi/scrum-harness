@@ -17,7 +17,7 @@ import { child, enabled, epic } from './alerts-fixtures.ts'
 const options = { maxMs: 300, intervalMs: 10 }
 let p: Paths
 
-/** 現在の時刻で取った控え (取り直しに gh を呼ばせない)。 */
+/** A board copy taken at the current time (so the re-fetch does not call gh). */
 const freshBoard = () => ({ ...snapshot([epic(), child(101, { status: 'Next' })]), fetchedAt: new Date().toISOString() })
 const idleFor20Minutes = (name: string) =>
   writeHeartbeat(p, { sessionId: `session-${name}`, name, pid: null }, 'idle', new Date(Date.now() - 20 * 60_000))
@@ -29,23 +29,23 @@ beforeEach(() => {
 })
 
 describe('watchFor', () => {
-  it('窓口は、alerts が有効なとき、窓口に送る文を返す', async () => {
+  it('the liaison returns the message for the liaison when alerts is enabled', async () => {
     const message = await watchFor(p, enabled, 'Liaison', options, fakePorts())
     assert.match(message ?? '', /^scrum-harness: notice for the liaison/)
     assert.match(message ?? '', /- SWE2 has been idle for 20 minutes/)
   })
 
-  it('窓口は、alerts が無効なら何も待たない', async () => {
+  it('the liaison waits for nothing when alerts is disabled', async () => {
     assert.equal(await watchFor(p, { ...enabled, alerts: undefined }, 'Liaison', options, fakePorts()), null)
     assert.equal(await watchFor(p, { ...enabled, alerts: { ...enabled.alerts!, enabled: false } }, 'Liaison', options, fakePorts()), null)
   })
 
-  it('TechLead の待機も、止まりの検知を進める', async () => {
+  it('a TechLead watch also advances stall detection', async () => {
     await watchFor(p, enabled, 'TechLead', options, fakePorts())
     assert.deepEqual(Object.keys(readAlertState(p).epics), ['app#100'])
   })
 
-  it('チームの外の名前は何も待たない。部下は dispatch が無効か、渡す相手でなければ何も待たない', async () => {
+  it('a name outside the team waits for nothing; a member waits for nothing when dispatch is disabled or the member is not a hand-over target', async () => {
     assert.equal(await watchFor(p, enabled, 'someone', options, fakePorts()), null)
     assert.equal(await watchFor(p, { ...enabled, dispatch: undefined }, 'SWE2', options, fakePorts()), null)
     const only = { ...enabled, dispatch: { ...enabled.dispatch!, members: ['SWE1'] } }
@@ -53,8 +53,8 @@ describe('watchFor', () => {
   })
 })
 
-describe('部下の待機', () => {
-  it('次の仕事を渡す待機も、止まりの検知を進める', async () => {
+describe('member watch', () => {
+  it('a watch that hands over the next work also advances stall detection', async () => {
     const exec: Exec = () => undefined
     const message = await runMemberWatch(p, enabled, 'SWE2', options, dispatchPorts(enabled, exec))
     assert.match(message ?? '', /handed the next work to SWE2/)

@@ -7,7 +7,7 @@ import { config, issue, NOW } from './helpers.ts'
 
 export const alerts: AlertsConfig = { enabled: true, liaison: 'Liaison', epicStallMinutes: 60, emptyEscalateMinutes: 30, isDesktopEnabled: true, parkedLabels: ['epic:parked'], epicPushMinutes: 24 * 60, emptyPushMinutes: 60 }
 
-/** alerts と dispatch の両方が有効な設定。 */
+/** A config with both alerts and dispatch enabled. */
 export const enabled: Config = {
   ...config,
   alerts,
@@ -20,7 +20,7 @@ export const minutesLater = (minutes: number, from: Date = NOW): Date => new Dat
 export const busy = (name: string, minutes = 5): MemberState => ({ name, state: 'busy', since: minutesAgo(minutes) })
 export const idle = (name: string, minutes = 20): MemberState => ({ name, state: 'idle', since: minutesAgo(minutes) })
 
-/** Epic app#100 (ボードの外の親でも成り立つが、題を出すためボードに置く) と、その子。 */
+/** Epic app#100 (it works as a parent outside the board too, but sits on the board so that its title can be shown) and its children. */
 export const epic = (overrides: Partial<BoardItem> = {}): BoardItem => issue(100, { title: 'Epic 100', ...overrides })
 export const child = (number: number, overrides: Partial<BoardItem> = {}): BoardItem => issue(number, { epic: 'app#100', ...overrides })
 

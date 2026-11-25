@@ -20,7 +20,7 @@ const input = (members: readonly MemberState[], overrides: Partial<AlertInput> =
 })
 
 describe('idleLines', () => {
-  it('部下が idleMinutes 空いたら、窓口への 1 行を作る。macOS の通知は付けない', () => {
+  it('when a member has been idle for idleMinutes, creates one line for the liaison; attaches no macOS notification', () => {
     const [line, ...rest] = idleLines(input([idle('SWE1', 10)]))
     assert.equal(rest.length, 0)
     assert.equal(line?.kind, 'idle-line')
@@ -29,23 +29,23 @@ describe('idleLines', () => {
     assert.equal(line?.key, `idle-line:SWE1:${minutesAgo(10)}`)
   })
 
-  it('idleMinutes に満たない空き、動いている人、部下でない人 (TechLead) は出さない', () => {
+  it('does not emit for an idle time under idleMinutes, a person who is moving, or a person who is not a member (the TechLead)', () => {
     assert.deepEqual(idleLines(input([idle('SWE1', 9), busy('SWE2'), idle('TechLead', 30)])), [])
   })
 
-  it('受け入れがあっても出し、受け入れの理由と終わりの時刻 (JST) を書く', () => {
+  it("emits even with an acknowledgement, and writes the acknowledgement's reason and its end time (JST)", () => {
     const ack: Ack = { rule: 'T-IDLE', subject: 'SWE1', until: minutesLater(30).toISOString(), reason: "Waiting for the owner's answer", at: minutesAgo(5) }
     const [line] = idleLines(input([idle('SWE1', 15)], { acks: [ack] }))
     assert.match(line?.text ?? '', /Acknowledgement: Waiting for the owner's answer \(until 15:30\)/)
   })
 
-  it('期限が切れた受け入れと、他の人の受け入れは、受け入れなしと書く', () => {
+  it("an expired acknowledgement and another person's acknowledgement are written as no acknowledgement", () => {
     const old: Ack = { rule: 'T-IDLE', subject: 'SWE1', until: minutesAgo(1), reason: "Waiting for the owner's answer", at: minutesAgo(50) }
     const other: Ack = { ...old, subject: 'SWE2', until: minutesLater(30).toISOString() }
     assert.match(idleLines(input([idle('SWE1', 15)], { acks: [old, other] }))[0]?.text ?? '', /Acknowledgement: none/)
   })
 
-  it('空きの間に渡した issue と促しは、最後のものを時刻つきで書く。空きの前のものは書かない', () => {
+  it('writes the last hand-over and nudge made during the idle period with their time; does not write those from before the idle period', () => {
     const before: DispatchRecord = { at: minutesAgo(30), member: 'SWE1', label: 'app#5', title: 'x' }
     const given: DispatchRecord = { at: minutesAgo(8), member: 'SWE1', label: 'app#11', title: 'y' }
     const nudge: DispatchRecord = { kind: 'nudge', at: minutesAgo(2), member: 'SWE1', label: 'app#12', title: 'z' }
@@ -55,12 +55,12 @@ describe('idleLines', () => {
     assert.match(idleLines(input(members, { dispatches: [before, given, nudge] }))[0]?.text ?? '', /nudged app#12 \(14:58\)/)
   })
 
-  it('渡せる issue が無いと検知した部下は、そう書く', () => {
+  it('a member detected as having no issue to hand over is written as such', () => {
     const line = idleLines(input([idle('SWE1', 15)], { alerts: stateWith({ empty: { 'SWE1:no-candidate': minutesAgo(5) } }) }))[0]
     assert.match(line?.text ?? '', /Harness action: no issue to hand over$/)
   })
 
-  it('空きの区間が変われば、指紋も変わる (空き直した人にまた出す)', () => {
+  it('the fingerprint changes when the idle period changes (it is emitted again for someone who became idle again)', () => {
     assert.notEqual(idleLines(input([idle('SWE1', 15)]))[0]?.key, idleLines(input([idle('SWE1', 12)]))[0]?.key)
   })
 })

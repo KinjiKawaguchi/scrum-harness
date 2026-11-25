@@ -10,31 +10,31 @@ const AFTER = '2026-10-30T09:00:00+09:00'
 const BEFORE = '2026-10-30T07:00:00+09:00'
 
 describe('parseOverrunMark', () => {
-  it('1 行目の印から、決めと前後のポイントを読む。4 つの決めすべて', () => {
+  it('reads the decision and the before and after points from the marker on line 1; all 4 decisions', () => {
     assert.deepEqual(parseOverrunMark(mark('reestimate', 3, 5)), { decision: 'reestimate', from: 3, to: 5 })
     assert.deepEqual(parseOverrunMark(mark('split', 3, 3)), { decision: 'split', from: 3, to: 3 })
     assert.deepEqual(parseOverrunMark(mark('add-hands', 2, 2)), { decision: 'add-hands', from: 2, to: 2 })
     assert.deepEqual(parseOverrunMark(mark('keep', 2, 2)), { decision: 'keep', from: 2, to: 2 })
   })
 
-  it('印の後ろに、人が読む文が続いてもよい (CRLF でも)', () => {
+  it('human-readable text may follow the marker (even with CRLF)', () => {
     assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\nTechLead: waiting out the overrun`), { decision: 'keep', from: 2, to: 2 })
     assert.deepEqual(parseOverrunMark(`${mark('keep', 2, 2)}\r\nText`), { decision: 'keep', from: 2, to: 2 })
   })
 
-  it('1 行目でなければ、印として読まない (文の途中や、2 行目の印)', () => {
+  it('does not read it as a marker unless it is on line 1 (in the middle of a sentence, or a marker on line 2)', () => {
     assert.equal(parseOverrunMark(`Text\n${mark('keep', 2, 2)}`), null)
     assert.equal(parseOverrunMark(`Text ${mark('keep', 2, 2)}`), null)
   })
 
-  it('印の行の末尾に文字があるものと、先頭に空行があるものは、印として読まない', () => {
+  it('does not read as a marker a line with trailing characters after the marker, or a body with a blank line before it', () => {
     assert.equal(parseOverrunMark(`${mark('keep', 2, 2)} appended`), null)
     assert.equal(parseOverrunMark(`${mark('keep', 2, 2)}-->`), null)
     assert.equal(parseOverrunMark(`\n${mark('keep', 2, 2)}`), null)
     assert.equal(parseOverrunMark(`\n\n${mark('keep', 2, 2)}\nText`), null)
   })
 
-  it('決めが 4 つのどれでもない、欄が欠けた、数が整数でない印は、null', () => {
+  it('null for a marker whose decision is none of the 4, with a missing field, or with a non-integer number', () => {
     assert.equal(parseOverrunMark(mark('ignore', 2, 2)), null)
     assert.equal(parseOverrunMark('<!-- scrum:points-overrun decision=keep from=2 -->'), null)
     assert.equal(parseOverrunMark('<!-- scrum:points-overrun decision=keep from=2.5 to=2.5 -->'), null)
@@ -44,40 +44,40 @@ describe('parseOverrunMark', () => {
 })
 
 describe('overrunBasis', () => {
-  it('超過を出した節目より後の、正しい印があれば、その印を根拠にする (コメントの URL も残す)', () => {
+  it('when a valid marker later than the checkpoint that reported the overrun exists, takes it as the basis (keeps the comment URL too)', () => {
     const result = overrunBasis([comment(mark('reestimate', 3, 5), AFTER, 'https://example.invalid/c/1')], OVER_SINCE, 5)
     assert.deepEqual(result, { ok: true, basis: 'decision=reestimate from=3 to=5 (https://example.invalid/c/1)' })
   })
 
-  it('超過を出した節目より前の印は、使わない (前の見直しで、いまの超過を消さない)', () => {
+  it('does not use a marker earlier than the checkpoint that reported the overrun (an earlier review does not clear the current overrun)', () => {
     const result = overrunBasis([comment(mark('keep', 2, 2), BEFORE)], OVER_SINCE, 2)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /the issue has no mark for handling the overrun/)
   })
 
-  it('節目とちょうど同じ時刻の印も、使わない (「より後」)', () => {
+  it('does not use a marker at exactly the same time as the checkpoint (it must be later)', () => {
     assert.equal(overrunBasis([comment(mark('keep', 2, 2), OVER_SINCE)], OVER_SINCE, 2).ok, false)
   })
 
-  it('印の無いコメントだけなら、受け入れない。メッセージに、印の書き方を出す', () => {
+  it('does not accept comments that have no marker; shows how to write the marker in the message', () => {
     const result = overrunBasis([comment('Revised the estimate', AFTER)], OVER_SINCE, 5)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /<!-- scrum:points-overrun decision=<reestimate\|split\|add-hands\|keep>/)
   })
 
-  it('keep は、from と to が同じでなければ、受け入れない', () => {
+  it('does not accept keep unless from and to are equal', () => {
     const result = overrunBasis([comment(mark('keep', 2, 3), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /keep leaves the estimate as it is/)
   })
 
-  it('reestimate は、from と to が違わなければ、受け入れない', () => {
+  it('does not accept reestimate unless from and to differ', () => {
     const result = overrunBasis([comment(mark('reestimate', 3, 3), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /reestimate changes the estimate/)
   })
 
-  it('reestimate は、to がボードのポイントと同じでなければ、受け入れない (印だけで、ボードを直していない)', () => {
+  it("does not accept reestimate unless to equals the board's points (a marker alone, with the board not fixed)", () => {
     const result = overrunBasis([comment(mark('reestimate', 3, 5), AFTER)], OVER_SINCE, 3)
     assert.equal(result.ok, false)
     assert.match(result.ok ? '' : result.message, /to=5 differs from the points on the board \(3\)/)
@@ -87,12 +87,12 @@ describe('overrunBasis', () => {
     assert.equal(overrunBasis([comment(mark('reestimate', 3, 5), AFTER)], OVER_SINCE, 5).ok, true)
   })
 
-  it('split と add-hands は、from と to の関係を問わない (ボードのポイントも問わない)', () => {
+  it("split and add-hands do not care about the relation between from and to (nor about the board's points)", () => {
     assert.equal(overrunBasis([comment(mark('split', 3, 3), AFTER)], OVER_SINCE, 8).ok, true)
     assert.equal(overrunBasis([comment(mark('add-hands', 3, 5), AFTER)], OVER_SINCE, 3).ok, true)
   })
 
-  it('正しくない新しい印と、正しい古い印があれば、正しい印を使う。新しいほうが正しければ、新しいほうを使う', () => {
+  it('when there is an invalid newer marker and a valid older one, uses the valid one; when the newer one is valid, uses the newer one', () => {
     const older = comment(mark('keep', 2, 2), '2026-10-30T09:00:00+09:00', 'old')
     const newer = comment(mark('keep', 2, 3), '2026-10-30T10:00:00+09:00', 'new')
     const useOlder = overrunBasis([older, newer], OVER_SINCE, 2)
@@ -106,7 +106,7 @@ describe('overrunBasis', () => {
 })
 
 describe('fetchIssueComments', () => {
-  it('gh issue view の JSON から、本文と時刻と URL を取り出し、欠けたコメントは飛ばす', () => {
+  it('extracts the body, time, and URL from the JSON of gh issue view, and skips a comment with missing parts', () => {
     const calls: (readonly string[])[] = []
     const run = (args: readonly string[]) => {
       calls.push(args)
@@ -119,7 +119,7 @@ describe('fetchIssueComments', () => {
     assert.deepEqual(calls[0], ['issue', 'view', '7', '-R', 'example-org/app', '--json', 'comments'])
   })
 
-  it('comments が無い結果は、空にする', () => {
+  it('a result without comments becomes empty', () => {
     assert.deepEqual(fetchIssueComments('example-org/app', 7, () => '{}'), [])
   })
 })

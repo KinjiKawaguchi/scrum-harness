@@ -32,7 +32,7 @@ beforeEach(() => {
 })
 
 describe('dispatchOnce', () => {
-  it('すでに空いている部下に、1 回だけ、渡す。ボードの書き換えは待機と同じ道で、文面を返す', () => {
+  it('hands over exactly once to a member who is already idle; the board rewrite goes the same way as a watch, and the message is returned', () => {
     state('SWE1', 'idle', 30)
     const [result] = dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['SWE1'])
     assert.equal(result?.member, 'SWE1')
@@ -40,7 +40,7 @@ describe('dispatchOnce', () => {
     assert.deepEqual(calls, [['set-assignee', ['11', 'SWE1']], ['set-status', ['11', 'In Progress']]])
   })
 
-  it('名前を渡さなければ、渡す相手 (dispatch.members) の全員を見て、同じ issue を 2 人に渡さない', () => {
+  it('when no name is given, looks at everyone in the hand-over targets (dispatch.members) and does not give the same issue to 2 people', () => {
     state('SWE1', 'idle', 30)
     state('SWE2', 'idle', 30)
     const results = dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), [])
@@ -48,7 +48,7 @@ describe('dispatchOnce', () => {
     assert.deepEqual(results.map((result) => result.outcome?.record.label), ['app#11', 'app#12'])
   })
 
-  it('空きでない人、空きが短い人、受け入れがある人には渡さず、理由を返す', () => {
+  it('does not hand over to a person who is not idle, whose idle time is short, or who has an acknowledgement, and returns the reason', () => {
     state('SWE1', 'busy', 30)
     state('SWE2', 'idle', 5)
     const results = dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), [])
@@ -59,13 +59,13 @@ describe('dispatchOnce', () => {
     assert.deepEqual(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['SWE1']).map((result) => result.reason), ['a valid T-IDLE acknowledgement exists'])
   })
 
-  it('空いているが、渡せるものが無い人は、その理由を返す', () => {
+  it('returns the reason for a person who is idle but has nothing to hand over', () => {
     saveSnapshot(p, snapshot([]))
     state('SWE1', 'idle', 30)
     assert.deepEqual(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['SWE1']).map((result) => result.reason), ['no issue to hand over (subject to Q-EMPTY)'])
   })
 
-  it('作業が進んでいる人 (前に見た印から変わった) は、促さず、その理由を返す', () => {
+  it('does not nudge a person whose work is progressing (the marker differs from the one seen before), and returns the reason', () => {
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     state('SWE1', 'idle', 30)
     assert.notEqual(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, () => 'a'), ['SWE1'])[0]?.outcome, null)
@@ -75,21 +75,21 @@ describe('dispatchOnce', () => {
     assert.deepEqual([second?.outcome, second?.reason], [null, 'work is progressing (idleMinutes have not passed since the marker last changed)'])
   })
 
-  it('dispatch が有効でなければ、何も渡さず、理由を返す', () => {
+  it('hands over nothing and returns the reason when dispatch is not enabled', () => {
     state('SWE1', 'idle', 30)
     const [result] = dispatchOnce(p, { ...enabled, dispatch: { ...enabled.dispatch, enabled: false } }, NOW, dispatchPorts({ ...enabled, dispatch: { ...enabled.dispatch, enabled: false } }, exec, noGithub), ['SWE1'])
     assert.deepEqual([result?.outcome, result?.reason], [null, 'dispatch.enabled is not true'])
     assert.deepEqual(calls, [])
   })
 
-  it('心拍の無い名前は、読めない理由を返す', () => {
+  it('returns the reason that a name without a heartbeat cannot be read', () => {
     const [result] = dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['someone'])
     assert.match(result?.reason ?? '', /cannot read the session activity/)
   })
 })
 
 describe('formatOnce', () => {
-  it('送る人ごとに、送り先と文面を並べる。送らない人は理由を 1 行で出す', () => {
+  it('for each person to send to, lists the destination and the message; a person not sent to gets their reason on one line', () => {
     state('SWE1', 'idle', 30)
     state('SWE2', 'busy', 30)
     const text = formatOnce(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), []))
@@ -98,7 +98,7 @@ describe('formatOnce', () => {
     assert.doesNotMatch(text, /send this text to SWE2's session/)
   })
 
-  it('1 人にも送らなければ、送る文は無いと書く', () => {
+  it('when nobody is sent anything, writes that there is no message to send', () => {
     state('SWE1', 'busy', 30)
     assert.match(formatOnce(dispatchOnce(p, enabled, NOW, dispatchPorts(enabled, exec, noGithub), ['SWE1'])), /nothing to send$/)
   })

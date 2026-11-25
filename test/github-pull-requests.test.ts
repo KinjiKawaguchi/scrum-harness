@@ -20,7 +20,7 @@ function withFakeGh(script: string, run: () => void): void {
 }
 
 describe('fetchPrBody', () => {
-  it('PR の本文を、指したリポジトリ (-R) の番号で読む。defaultRepo や設定の repos に引き直さない', () => {
+  it("reads the PR body by the number in the repository that was pointed at (-R); does not remap to defaultRepo or the config's repos", () => {
     const logFile = join(mkdtempSync(join(tmpdir(), 'scrum-gh-log-')), 'args.txt')
     withFakeGh(`#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > '${logFile}'\necho 'first line of the body'\n`, () => {
       assert.equal(fetchPrBody(gh, 'tool#3', 'other-owner/tool'), 'first line of the body\n')
@@ -28,7 +28,7 @@ describe('fetchPrBody', () => {
     assert.deepEqual(readFileSync(logFile, 'utf8').trim().split('\n'), ['pr', 'view', '3', '-R', 'other-owner/tool', '--json', 'body', '--jq', '.body'])
   })
 
-  it('gh が失敗したら null (マージの案内を出さないだけ)', () => {
+  it('null when gh fails (the merge guidance is simply not shown)', () => {
     withFakeGh('#!/bin/sh\nexit 1\n', () => {
       assert.equal(fetchPrBody(gh, 'tool#3', 'other-owner/tool'), null)
     })

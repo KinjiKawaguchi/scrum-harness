@@ -12,7 +12,7 @@ describe('normalizeNodes', () => {
   const page = JSON.parse(readFileSync(new URL('./fixtures/graphql-page.json', import.meta.url), 'utf8'))
   const items = normalizeNodes(page.data.node.items.nodes)
 
-  it('issue の項目と内容を平らにする', () => {
+  it('flattens the items and content of an issue', () => {
     assert.deepEqual(items[0], {
       itemId: items[0]?.itemId,
       kind: 'issue',
@@ -31,13 +31,13 @@ describe('normalizeNodes', () => {
     })
   })
 
-  it('PR と下書きの種類を見分ける', () => {
+  it('tells PRs and drafts apart', () => {
     assert.deepEqual(items.map((item) => item.kind), ['issue', 'pr', 'issue', 'draft'])
     assert.equal(items[1]?.status, 'In Progress')
     assert.equal(items[3]?.number, null)
   })
 
-  it('値の無い項目は null にする', () => {
+  it('turns items without a value into null', () => {
     assert.deepEqual([items[2]?.reason, items[2]?.assignee], [null, null])
   })
 })
@@ -46,18 +46,18 @@ describe('nextHeartbeat', () => {
   const base = { sessionId: 's', name: 'SWE1', state: 'busy' as const, since: '2026-10-08T05:00:00.000Z', updatedAt: '2026-10-08T05:00:00.000Z', isAlive: true, nameSince: null }
   const at = (iso: string) => new Date(iso)
 
-  it('状態が変わると since を今にする', () => {
+  it('when the state changes, sets since to now', () => {
     const next = nextHeartbeat(base, 's', 'SWE1', 'idle', at('2026-10-08T05:10:00.000Z'))
     assert.equal(next?.since, '2026-10-08T05:10:00.000Z')
   })
 
-  it('同じ状態なら since を保ち、30秒以内の作業中は書かない', () => {
+  it('when the state is the same, keeps since; does not write In Progress within 30 seconds', () => {
     assert.equal(nextHeartbeat(base, 's', 'SWE1', 'busy', at('2026-10-08T05:00:20.000Z')), null)
     const later = nextHeartbeat(base, 's', 'SWE1', 'busy', at('2026-10-08T05:01:00.000Z'))
     assert.deepEqual([later?.since, later?.updatedAt], ['2026-10-08T05:00:00.000Z', '2026-10-08T05:01:00.000Z'])
   })
 
-  it('初めての心拍は今を since にする', () => {
+  it('the first heartbeat sets since to now', () => {
     const first = nextHeartbeat(null, 's', 'SWE1', 'idle', at('2026-10-08T05:00:00.000Z'))
     assert.equal(first?.since, '2026-10-08T05:00:00.000Z')
   })
@@ -69,11 +69,11 @@ describe('findSessionName', () => {
     { pid: 2, sessionId: 'bbb' },
   ]
 
-  it('session_id からセッションの名前を引く', () => {
+  it('looks up the session name from session_id', () => {
     assert.equal(findSessionName(records, 'aaa'), 'SWE1')
   })
 
-  it('名前が無いか見つからなければ null', () => {
+  it('null when there is no name or it is not found', () => {
     assert.equal(findSessionName(records, 'bbb'), null)
     assert.equal(findSessionName(records, 'zzz'), null)
   })
@@ -82,16 +82,16 @@ describe('findSessionName', () => {
 describe('store', () => {
   const dir = mkdtempSync(join(tmpdir(), 'scrum-store-'))
 
-  it('JSON を書いて読み戻す', () => {
+  it('writes JSON and reads it back', () => {
     writeJson(join(dir, 'a', 'b.json'), { x: 1 })
     assert.deepEqual(readJson(join(dir, 'a', 'b.json'), null), { x: 1 })
   })
 
-  it('読めないときは既定値を返す', () => {
+  it('returns the default when it cannot be read', () => {
     assert.deepEqual(readJson(join(dir, 'missing.json'), []), [])
   })
 
-  it('生きているプロセスの錠は取れず、死んだプロセスの錠は取り直せる', () => {
+  it('cannot take the lock of a live process, and can retake the lock of a dead process', () => {
     const lock = join(dir, 'watch.lock')
     writeFileSync(lock, String(process.ppid))
     assert.equal(tryLock(lock), false)
@@ -102,7 +102,7 @@ describe('store', () => {
 })
 
 describe('resolveIdentity', () => {
-  it('session_id から名前と pid を引き、チームの内外を控えに書く', async () => {
+  it('looks up the name and pid from session_id and writes whether the session is inside or outside the team into the copy', async () => {
     const { resolveIdentity } = await import('../src/team/identity.ts')
     const { config } = await import('./helpers.ts')
     const sessions = mkdtempSync(join(tmpdir(), 'scrum-sessions-'))
@@ -121,7 +121,7 @@ describe('resolveIdentity', () => {
 describe('logError', async () => {
   const { logError } = await import('../src/store.ts')
 
-  it('gh の失敗は、問い合わせの文ではなく、終了コードと stderr を残す', () => {
+  it('for a gh failure, keeps the exit code and stderr, not the query text', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-log-')))
     const error = Object.assign(new Error(`Command failed: gh api graphql -f query=${'x'.repeat(2000)}`), {
       status: 1,
@@ -133,7 +133,7 @@ describe('logError', async () => {
     assert.doesNotMatch(line, /xxxx/)
   })
 
-  it('ほかのエラーは文をそのまま残す', () => {
+  it('keeps the message as is for other errors', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-log-')))
     logError(p, 'watch', new Error('broke'))
     assert.match(readFileSync(p.errors, 'utf8'), /watch: broke/)

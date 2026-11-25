@@ -34,7 +34,7 @@ beforeEach(() => {
 })
 
 describe('dispatchStep', () => {
-  it('空きが続いている部下に、選んだ issue を渡し、担当と Status を書き、記録と控えを直し、文面を返す', () => {
+  it('hands the chosen issue to a member who has stayed idle, writes the assignee and Status, updates the record and the board copy, and returns the message', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next', title: 'Next job' }), issue(12, { status: 'Next' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
@@ -49,14 +49,14 @@ describe('dispatchStep', () => {
     assert.match(readFileSync(p.events, 'utf8'), /"type":"dispatched"/)
   })
 
-  it('担当がすでにその人なら、担当は書き直さない', () => {
+  it('does not rewrite the assignee when it is already that person', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next', assignee: 'SWE1' })]))
     dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
     assert.deepEqual(calls, [['set-status', ['11', 'In Progress']]])
   })
 
-  it('渡した後、その人が動かないままなら、重ねて渡さない', () => {
+  it('does not hand over again when the person is still not moving after a hand-over', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' }), issue(12, { status: 'Next' })]))
     assert.notEqual(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec)), null)
@@ -65,7 +65,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('1 つの issue を 2 人に渡さない (先に渡した人の分で、控えが作業中になっている)', () => {
+  it("does not give one issue to 2 people (the board copy is already In Progress because of the first person's hand-over)", () => {
     idleSince('SWE1', 20)
     idleSince('SWE2', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' })]))
@@ -75,7 +75,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('空いていない、空きが短い、dispatch が無効、スクリプトが無い、のときは何もしない', () => {
+  it('does nothing when the member is not idle, the idle time is short, dispatch is disabled, or no script exists', () => {
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' })]))
     writeHeartbeat(p, { sessionId: 'session-SWE1', name: 'SWE1', pid: null }, 'busy', minutesAgo(30))
     assert.equal(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec)), null)
@@ -87,7 +87,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('有効な受け入れがある人には渡さない', () => {
+  it('does not hand over to a person with a valid acknowledgement', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' })]))
     const ack: Ack = { rule: 'T-IDLE', subject: 'SWE1', until: new Date(NOW.getTime() + 600_000).toISOString(), reason: "Waiting for the owner's answer", at: NOW.toISOString() }
@@ -96,7 +96,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('渡せるものが無ければ何もしない', () => {
+  it('does nothing when there is nothing to hand over', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Backlog' })]))
     assert.equal(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec)), null)
@@ -104,7 +104,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(readDispatches(p), [])
   })
 
-  it('ほかのプロセスが錠を持っているあいだは渡さない', () => {
+  it('does not hand over while another process holds the lock', () => {
     idleSince('SWE1', 20)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' })]))
     writeFileSync(p.dispatchLock, String(process.ppid))
@@ -112,7 +112,7 @@ describe('dispatchStep', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('スクリプトが失敗したら、記録も控えの書き換えもせず、5 分は試さない。その後はまた試す', () => {
+  it('when the script fails, writes neither the record nor the board copy, and does not retry for 5 minutes; tries again afterwards', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(11, { status: 'Next' })]))
     const failing: Exec = (script, args) => {
@@ -131,11 +131,11 @@ describe('dispatchStep', () => {
   })
 })
 
-describe('dispatchStep の促し', () => {
+describe('nudges of dispatchStep', () => {
   const later = (minutes: number): Date => new Date(NOW.getTime() + minutes * 60_000)
   const noGithub = (): null => null
 
-  it('止まっていない自分の作業中があれば、新しい issue は渡さず、ボードを書き換えずに、進めるよう促す', () => {
+  it('when the member has own In Progress work that is not stalled, does not hand over a new issue and nudges them to move forward without rewriting the board', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1', title: 'Ongoing job' }), issue(11, { status: 'Next' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, noGithub))
@@ -146,7 +146,7 @@ describe('dispatchStep の促し', () => {
     assert.match(readFileSync(p.events, 'utf8'), /"type":"nudged","count":1/)
   })
 
-  it('促しは idleMinutes ごとに、2 回まで。3 回目は送らない', () => {
+  it('sends a nudge every idleMinutes, up to 2 times; the third is not sent', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     assert.notEqual(dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, noGithub)), null)
@@ -157,7 +157,7 @@ describe('dispatchStep の促し', () => {
     assert.deepEqual(calls, [])
   })
 
-  it('作業中が止まっていれば、促さずに次の issue を渡す', () => {
+  it('when the In Progress work is stalled, hands over the next issue instead of nudging', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1', reason: 'External wait' }), issue(11, { status: 'Next' })]))
     const outcome = dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec))
@@ -166,7 +166,7 @@ describe('dispatchStep の促し', () => {
   })
 })
 
-describe('dispatchStep の促しの数え方', () => {
+describe('how dispatchStep counts nudges', () => {
   const at = (minutes: number): Date => new Date(NOW.getTime() + minutes * 60_000)
   const noGithub = (): null => null
   const busyThenIdle = (busyAt: number, idleAt: number): void => {
@@ -175,7 +175,7 @@ describe('dispatchStep の促しの数え方', () => {
     writeHeartbeat(p, who, 'idle', at(idleAt))
   }
 
-  it('促しの後、短い 1 ターンで空きに戻るのを繰り返しても、作業が進まなければ、2 回で止まり、A-NUDGE-IGNORED が出る', () => {
+  it('even if the member keeps returning to idle in a short 1-turn run after a nudge, stops after 2 nudges when work does not progress, and A-NUDGE-IGNORED is emitted', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     const sent: boolean[] = []
@@ -189,14 +189,14 @@ describe('dispatchStep の促しの数え方', () => {
     assert.deepEqual(findings.map((finding) => finding.subject), ['SWE1'])
   })
 
-  it('促しの記録に、そのときの作業の印 (ボードの印と gh の印) を残す', () => {
+  it('keeps the work marker at that time (the board marker and the gh marker) in the nudge record', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     dispatchStep(p, enabled, 'SWE1', NOW, dispatchPorts(enabled, exec, () => 'comments=3'))
     assert.deepEqual(readDispatches(p)[0]?.progress, { board: 'In Progress|None|SWE1|', github: 'comments=3' })
   })
 
-  it('促しの後に、gh の印 (PR の先頭のコミットなど) が変われば、進んでいる間は促さず、idleMinutes たって進まなければ、数え直して促す', () => {
+  it("when the gh marker (such as the PR's head commit) changes after a nudge, does not nudge while progressing; once idleMinutes pass without progress, restarts counting and nudges", () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     let token = 'a'
@@ -213,7 +213,7 @@ describe('dispatchStep の促しの数え方', () => {
     assert.deepEqual(readDispatches(p).map((record) => record.progress?.github), ['a', 'a', 'b'])
   })
 
-  it('進んでいる部下 (コメントが増え続ける) には、促しを続けない。進んだ時刻から idleMinutes たって、進まなければ促す', () => {
+  it('does not keep nudging a member who is progressing (comments keep increasing); nudges once idleMinutes pass from the time of progress without more progress', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     let comments = 1
@@ -230,7 +230,7 @@ describe('dispatchStep の促しの数え方', () => {
     assert.equal(readDispatches(p).length, 2)
   })
 
-  it('見た印は、促したときと、進んでいて促さなかったときに残す。進んでいなければ、前の時刻のまま', () => {
+  it('the marker seen is kept when nudging and when not nudging because of progress; when there is no progress, the earlier time stays', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     let token = 'a'
@@ -246,7 +246,7 @@ describe('dispatchStep の促しの数え方', () => {
     assert.equal(readSeen(p)['SWE1|app#240']?.at, at(22).toISOString())
   })
 
-  it('2 回目の促しの後に、gh の印だけが進んだとき、促しの判断と A-NUDGE-IGNORED が同じ印で、どちらも進んだと見る', () => {
+  it('when only the gh marker progressed after the second nudge, the nudge decision and A-NUDGE-IGNORED use the same marker and both see progress', () => {
     idleSince('SWE1', 40)
     saveSnapshot(p, snapshot([issue(240, { status: 'In Progress', assignee: 'SWE1' })]))
     let token = 'a'
@@ -262,7 +262,7 @@ describe('dispatchStep の促しの数え方', () => {
     assert.equal(ignored().length, 0)
   })
 
-  it('除く作者の作業中も数えて、作業中が上限なら、次の issue を渡さない (書き込みの守りと同じ数え方)', () => {
+  it('counts the In Progress of excluded authors too, and when In Progress is at the limit, does not hand over the next issue (the same counting as the write guard)', () => {
     idleSince('SWE1', 40)
     const others = Array.from({ length: enabled.wipLimit }, (_, index) => issue(100 + index, { status: 'In Progress', assignee: 'SWE2', author: 'external-dev' }))
     saveSnapshot(p, snapshot([...others, issue(11, { status: 'Next' })]))

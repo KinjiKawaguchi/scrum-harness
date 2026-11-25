@@ -17,7 +17,7 @@ const board = snapshot([
 ])
 
 describe('lintTeam', () => {
-  it('閾値を超えて空いている部下を T-IDLE にする', () => {
+  it('makes T-IDLE of a member who has been idle beyond the threshold', () => {
     const [finding, ...rest] = lintTeam([member('SWE3', 'idle', 55)], board, config, NOW)
     assert.equal(rest.length, 0)
     assert.equal(finding?.rule, 'T-IDLE')
@@ -27,37 +27,37 @@ describe('lintTeam', () => {
     assert.match(finding?.message ?? '', /Next: app#11 app#12/)
   })
 
-  it('空きが閾値未満なら出さない', () => {
+  it('does not emit when the idle time is under the threshold', () => {
     assert.deepEqual(lintTeam([member('SWE3', 'idle', 9)], board, config, NOW), [])
   })
 
-  it('空きの区間ごとに指紋が変わる', () => {
+  it('the fingerprint changes per idle period', () => {
     const first = lintTeam([member('SWE3', 'idle', 55)], board, config, NOW)[0]
     const second = lintTeam([member('SWE3', 'idle', 12)], board, config, NOW)[0]
     assert.notEqual(first?.key, second?.key)
   })
 
-  it('許可待ちが続く部下を T-WAITING にする', () => {
+  it('makes T-WAITING of a member who keeps waiting for permission', () => {
     const findings = lintTeam([member('SWE1', 'waiting', 6)], board, config, NOW)
     assert.deepEqual(findings.map((f) => `${f.rule} ${f.severity}`), ['T-WAITING high'])
   })
 
-  it('担当の作業中が無いまま長く動いている部下を T-BUSY-UNTRACKED にする', () => {
+  it('makes T-BUSY-UNTRACKED of a member who has been moving for long with no In Progress item assigned to them', () => {
     const findings = lintTeam([member('SWE1', 'busy', 31)], board, config, NOW)
     assert.deepEqual(findings.map((f) => `${f.rule} ${f.severity}`), ['T-BUSY-UNTRACKED low'])
   })
 
-  it('担当の作業中があれば動いていても何も出さない', () => {
+  it('emits nothing for a member who is moving when they have an assigned In Progress item', () => {
     assert.deepEqual(lintTeam([member('SWE3', 'busy', 120)], board, config, NOW), [])
   })
 
-  it('状態の分からない部下には何も出さない', () => {
+  it('emits nothing for a member whose state is unknown', () => {
     assert.deepEqual(lintTeam([{ name: 'SWE2', state: 'unknown', since: null }], board, config, NOW), [])
   })
 })
 
-describe('呼び方の設定', () => {
-  it('許可待ちの直し方に、設定の呼び方を使う', () => {
+describe('naming configuration', () => {
+  it('uses the configured name in the fix for waiting for permission', () => {
     const named = { ...config, ownerLabel: 'PM' }
     const [finding] = lintTeam([member('SWE1', 'waiting', 6)], board, named, NOW)
     assert.match(finding?.fix ?? '', /^Tell PM \(PushNotification\)/)

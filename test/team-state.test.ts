@@ -18,11 +18,11 @@ function signal(overrides: Partial<SessionSignal>): SessionSignal {
 }
 
 describe('aggregateMembers', () => {
-  it('信号の無い部下は unknown', () => {
+  it('a member with no signal is unknown', () => {
     assert.deepEqual(aggregateMembers([], ['SWE1']), [{ name: 'SWE1', state: 'unknown', since: null }])
   })
 
-  it('同じセッションの信号は更新の新しいほうを採る', () => {
+  it('for signals of the same session, takes the more recently updated one', () => {
     const old = signal({ state: 'busy', since: '2026-10-08T04:00:00.000Z', updatedAt: '2026-10-08T04:30:00.000Z' })
     const fresh = signal({ state: 'idle', since: '2026-10-08T05:00:00.000Z', updatedAt: '2026-10-08T05:00:00.000Z' })
     assert.deepEqual(aggregateMembers([old, fresh], ['SWE1']), [
@@ -30,7 +30,7 @@ describe('aggregateMembers', () => {
     ])
   })
 
-  it('同じ名前のセッションは、名前を後から取ったほうを採る (ListAgents と同じ)', () => {
+  it('for sessions of the same name, takes the one whose name was obtained later (the same as ListAgents)', () => {
     const abandoned = signal({ sessionId: 'a', state: 'busy', nameSince: '2026-09-27T00:00:00.000Z' })
     const current = signal({ sessionId: 'b', state: 'idle', since: '2026-10-08T05:20:00.000Z', nameSince: '2026-10-03T00:00:00.000Z' })
     assert.deepEqual(aggregateMembers([abandoned, current], ['SWE1'])[0], {
@@ -40,14 +40,14 @@ describe('aggregateMembers', () => {
     })
   })
 
-  it('心拍には名前を取った時刻が無いので、同じセッションの記録から引き継ぐ', () => {
+  it("a heartbeat has no time when the name was obtained, so it is carried over from the same session's record", () => {
     const record = signal({ sessionId: 'b', state: 'busy', updatedAt: '2026-10-08T05:00:00.000Z', nameSince: '2026-10-03T00:00:00.000Z' })
     const beat = signal({ sessionId: 'b', state: 'idle', since: '2026-10-08T05:30:00.000Z', updatedAt: '2026-10-08T05:30:00.000Z' })
     const abandoned = signal({ sessionId: 'a', state: 'busy', nameSince: '2026-09-27T00:00:00.000Z' })
     assert.equal(aggregateMembers([abandoned, record, beat], ['SWE1'])[0]?.state, 'idle')
   })
 
-  it('死んだセッションと終わったセッションは数えない', () => {
+  it('does not count dead sessions or finished sessions', () => {
     const dead = signal({ sessionId: 'a', state: 'busy', isAlive: false })
     const ended = signal({ sessionId: 'b', state: 'ended' })
     assert.equal(aggregateMembers([dead, ended], ['SWE1'])[0]?.state, 'unknown')
@@ -64,7 +64,7 @@ describe('parseSessionFile', () => {
     nameSince: Date.parse('2026-10-03T00:00:00.000Z'),
   }
 
-  it('Claude Code のセッションの記録を信号に変える', () => {
+  it('turns a Claude Code session record into a signal', () => {
     assert.deepEqual(parseSessionFile(raw, () => true), {
       sessionId: 'abc',
       name: 'SWE3',
@@ -76,16 +76,16 @@ describe('parseSessionFile', () => {
     })
   })
 
-  it('shell は作業中とみなす', () => {
+  it('treats shell as In Progress', () => {
     assert.equal(parseSessionFile({ ...raw, status: 'shell' }, () => true)?.state, 'busy')
   })
 
-  it('名前や状態が無ければ捨てる', () => {
+  it('drops entries with no name or state', () => {
     assert.equal(parseSessionFile({ ...raw, name: undefined }, () => true), null)
     assert.equal(parseSessionFile({ ...raw, status: 'mystery' }, () => true), null)
   })
 
-  it('プロセスが生きているかを pid で見る', () => {
+  it('checks whether a process is alive by pid', () => {
     assert.equal(parseSessionFile(raw, (pid) => pid !== 123)?.isAlive, false)
   })
 })

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const BIN = fileURLToPath(new URL('../bin/scrum', import.meta.url))
 
-/** node の代わりに、呼ばれたことだけを記録する偽物を PATH の先頭に置いて、bin/scrum の振り分けを見る。 */
+/** Puts a fake that only records being called at the front of PATH in place of node, to check how bin/scrum dispatches. */
 function run(role: string, patterns: string, args: readonly string[]): boolean {
   const dir = mkdtempSync(join(tmpdir(), 'scrum-bin-'))
   const calls = join(dir, 'calls')
@@ -27,20 +27,20 @@ function run(role: string, patterns: string, args: readonly string[]): boolean {
 
 const patterns = (dispatch: string, alerts: string) => `post\npre\n${dispatch}\n${alerts}\n`
 
-describe('bin/scrum の窓口の振り分け', () => {
-  it('窓口は、4 行目が 1 のときだけ、待機 (watch) で node を起こす', () => {
+describe('bin/scrum liaison dispatch', () => {
+  it('the liaison starts node in a watch only when line 4 is 1', () => {
     assert.equal(run('liaison', patterns('0', '1'), ['watch']), true)
     assert.equal(run('liaison', patterns('1', '0'), ['watch']), false)
     assert.equal(run('liaison', 'post\npre\n', ['watch']), false)
   })
 
-  it('窓口は、待機以外のフック (Stop、PostToolUse、SessionStart) では node を起こさない', () => {
+  it('the liaison does not start node for hooks other than watch (Stop, PostToolUse, SessionStart)', () => {
     for (const event of ['Stop', 'PostToolUse', 'SessionStart', 'UserPromptSubmit']) {
       assert.equal(run('liaison', patterns('1', '1'), ['hook', event]), false, event)
     }
   })
 
-  it('部下は 3 行目が 1 のときだけ、TechLead は常に、待機で node を起こす。チームの外は起こさない', () => {
+  it('a member starts node in a watch only when line 3 is 1; the TechLead always does; a session outside the team does not', () => {
     assert.equal(run('member', patterns('1', '0'), ['watch']), true)
     assert.equal(run('member', patterns('0', '1'), ['watch']), false)
     assert.equal(run('techlead', patterns('0', '0'), ['watch']), true)
@@ -48,7 +48,7 @@ describe('bin/scrum の窓口の振り分け', () => {
   })
 })
 
-/** 偽の node を置いた状態の置き場を作り、bin/scrum を何度でも呼べるようにする。events.jsonl に足された行を返す。 */
+/** Creates a home directory holding the fake node, so bin/scrum can be called any number of times. Returns the lines appended to events.jsonl. */
 function hookSandbox(role: string, options: { readonly withLogDir?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'scrum-bin-act-'))
   mkdirSync(join(dir, 'bin'))
@@ -73,8 +73,8 @@ function hookSandbox(role: string, options: { readonly withLogDir?: boolean } = 
   }
 }
 
-describe('bin/scrum の動きの記録 (activity)', () => {
-  it('TechLead、部下、窓口のどのセッションでも、PostToolUse が動きの記録を 1 行足す (役を残す)', () => {
+describe('bin/scrum activity record (activity)', () => {
+  it('in any session of the TechLead, a member, or the liaison, PostToolUse appends one line to the activity record (keeping the role)', () => {
     for (const role of ['techlead', 'member', 'liaison']) {
       const sandbox = hookSandbox(role)
       sandbox.call(['hook', 'PostToolUse'])
@@ -86,13 +86,13 @@ describe('bin/scrum の動きの記録 (activity)', () => {
     }
   })
 
-  it('役が決まっていない (識別の控えが無い) セッションは足さない。チームの外かもしれないため', () => {
+  it('does not append for a session whose role is undecided (no identity copy), since it may be outside the team', () => {
     const sandbox = hookSandbox('')
     sandbox.call(['hook', 'PostToolUse'])
     assert.equal(sandbox.lines().length, 0)
   })
 
-  it('UserPromptSubmit、SessionStart、Stop では足さない (週の上限の間も、予定の実行の入力でこれらのフックは通る)', () => {
+  it('does not append for UserPromptSubmit, SessionStart, or Stop (these hooks also pass during the weekly limit, on the input of a scheduled run)', () => {
     for (const event of ['UserPromptSubmit', 'SessionStart', 'Stop']) {
       for (const role of ['member', 'techlead', 'liaison']) {
         const sandbox = hookSandbox(role)
@@ -102,7 +102,7 @@ describe('bin/scrum の動きの記録 (activity)', () => {
     }
   })
 
-  it('チームの外のセッションと、PreToolUse、Notification、SessionEnd、statusline では足さない', () => {
+  it('does not append for sessions outside the team, or for PreToolUse, Notification, SessionEnd, and statusline', () => {
     const outside = hookSandbox('none')
     outside.call(['hook', 'PostToolUse'])
     assert.equal(outside.lines().length, 0)
@@ -113,12 +113,12 @@ describe('bin/scrum の動きの記録 (activity)', () => {
     }
   })
 
-  it('足した後、次の 10 分は足さない。次に書く時刻 (activity-due) が過ぎたら足す', () => {
+  it('after appending, does not append for the next 10 minutes; appends once the next write time (activity-due) has passed', () => {
     const sandbox = hookSandbox('member')
     sandbox.call(['hook', 'PostToolUse'])
     sandbox.call(['hook', 'PostToolUse'])
     assert.equal(sandbox.lines().length, 1)
-    // 次に書く時刻は、足した時刻の 10 分後 (9 分 〜 11 分の間に入る)
+    // The next time to write is 10 minutes after the time that was appended (it falls between 9 and 11 minutes)
     const untilDue = statSync(sandbox.due).mtimeMs - Date.now()
     assert.ok(untilDue > 9 * 60_000 && untilDue <= 10 * 60_000 + 2000, `${untilDue} ms until the next write`)
     const inOneMinute = new Date(Date.now() + 60_000)
@@ -131,7 +131,7 @@ describe('bin/scrum の動きの記録 (activity)', () => {
     assert.equal(sandbox.lines().length, 2)
   })
 
-  it('log のディレクトリが無ければ、何も足さず、フックは 0 で終わる', () => {
+  it('when the log directory is missing, appends nothing and the hook exits with 0', () => {
     const sandbox = hookSandbox('member', { withLogDir: false })
     sandbox.call(['hook', 'PostToolUse'])
     assert.equal(sandbox.lines().length, 0)
