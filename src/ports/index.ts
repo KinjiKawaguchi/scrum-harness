@@ -7,6 +7,7 @@ import type { TranscriptSource } from './usage.ts'
 export type { ActionReader, BoardSource, BoardWriter } from './board.ts'
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
+export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'
 export type { SessionDirectory, SessionEntry } from './sessions.ts'
 export type { Tokens, TranscriptFile, TranscriptScan, TranscriptSource, UsageRow } from './usage.ts'
 

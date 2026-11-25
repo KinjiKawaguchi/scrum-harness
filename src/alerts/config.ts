@@ -12,7 +12,7 @@ export type AlertsConfig = {
   readonly epicStallMinutes: number
   /** Minutes before a member with no issue to hand over is also reported to the owner */
   readonly emptyEscalateMinutes: number
-  /** Whether the harness shows a macOS notification (silent) directly. So that it reaches the owner even while the liaison is working */
+  /** Whether the harness shows a desktop notification (silent) directly. So that it reaches the owner even while the liaison is working */
   readonly isDesktopEnabled: boolean
   /** An Epic with a label of this name is parked on purpose, so it is not counted as E-STALL (the TechLead attaches the label) */
   readonly parkedLabels: readonly string[]

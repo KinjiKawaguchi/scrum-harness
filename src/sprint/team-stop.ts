@@ -7,7 +7,7 @@ export const TEAM_STOP_MS = 2 * 60 * 60 * 1000
 /**
  * The kinds of records that show someone on the team moved. member-state, stop-blocked, woke, and acked are written by watch, and activity is written by
  * the team sessions' hook (bin/scrum) once every 10 minutes even when watch is not running.
- * The opening and closing of findings (finding-opened, finding-closed), which launchd writes even when nobody is moving, are not counted as activity.
+ * The opening and closing of findings (finding-opened, finding-closed), which the scheduled run writes even when nobody is moving, are not counted as activity.
  */
 const ACTIVITY_TYPES: ReadonlySet<string> = new Set(['member-state', 'stop-blocked', 'woke', 'acked', 'activity'])
 

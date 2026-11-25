@@ -26,7 +26,7 @@ export function shortTitle(title: string): string {
 
 /**
  * The notification to the owner. The liaison is given the body to send as is via PushNotification, and when there is a target to attach a question to,
- * it has one line added for the pending question's text. The harness also shows the same content directly as a macOS notification (silent).
+ * it has one line added for the pending question's text. The harness also shows the same content directly as a desktop notification (silent).
  */
 export function ownerNotice(input: {
   readonly key: string

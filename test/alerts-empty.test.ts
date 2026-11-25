@@ -89,7 +89,7 @@ describe('evaluateEmpty', () => {
     assert.match(result.findings[0]?.message ?? '', /^SWE1 is idle but there is no issue to hand over \(no issue to hand over in Next \(unassigned or SWE1\) or in Backlog \(assigned to SWE1\)\)\. It has lasted 29 minutes$/)
   })
 
-  it('adds Q-EMPTY-OWNER at 30 minutes and creates the owner notification and the macOS notification', () => {
+  it('adds Q-EMPTY-OWNER at 30 minutes and creates the owner notification and the desktop notification', () => {
     const result = evaluateEmpty(choices(), { 'SWE1:no-candidate': minutesAgo(30) }, enabled, NOW)
     assert.deepEqual(result.findings.map((one) => one.rule), ['Q-EMPTY', 'Q-EMPTY-OWNER'])
     const notice = result.owner[0]

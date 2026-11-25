@@ -1,3 +1,6 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { isRefreshDue, refreshSnapshot } from './board/snapshot.ts'
 import {
   ackCommand,
@@ -13,19 +16,25 @@ import {
   writeShellPatterns,
 } from './cli-commands.ts'
 import { alertsCommand } from './alerts/command.ts'
-import { configPath, dispatchOf, loadConfig, type Config } from './config.ts'
+import { configPath, dispatchOf, loadConfig, stateDir, type Config } from './config.ts'
 import { dispatchOnce, formatOnce } from './dispatch/once.ts'
 import { handleHook } from './hooks/handlers.ts'
 import { linkPullRequests, type LinkPlan } from './links/run.ts'
 import { hookDeps, parseInput, readStdin, spawnRefresh, spawnUsageIndex } from './runtime.ts'
 import { runUsageIndex } from './usage/run.ts'
+import { initCommand } from './init/command.ts'
+import { scheduleCommand } from './schedule/command.ts'
+import { scheduleSetup } from './schedule/setup.ts'
+import { SCRUM_CLI } from './cli-path.ts'
 import { logError, paths, type Paths } from './store.ts'
 import { resolveIdentity } from './team/identity.ts'
 import type { Ports } from './ports/index.ts'
 import { watchFor } from './watch-role.ts'
 import { requestCommand } from './requests/command.ts'
-import { buildPorts } from './wiring.ts'
+import { buildPorts, buildScheduler } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
+
+const DEFAULT_STATE_DIR = join(homedir(), '.claude', 'scrum')
 
 const USAGE = `scrum: check the GitHub Project board and member activity
   scrum lint [--refresh] [--json]   all findings
@@ -37,11 +46,15 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum report [--since YYYY-MM-DD] summary for the sprint review
   scrum points                      points, budget, effort, and overrun of In Progress issues
   scrum link-prs [--dry-run]        list open PRs between the markers in the body of the issue each one points to (the watch runs it too when links.enabled; --dry-run only shows the plan)
-  scrum alerts                      advance the stall detection (E-STALL, Q-EMPTY) once; launchd runs it every 5 minutes (launchd/)
+  scrum alerts                      advance the stall detection (E-STALL, Q-EMPTY) once; the scheduler (scrum schedule) runs it every 5 minutes
   scrum dispatch --once [<name>...] for idle members, pick the next work once, write it to the board, and print the text to send (for members already idle right after enabling dispatch)
   scrum checkpoint                  record the last checkpoint not yet recorded (the watch also records it)
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
   scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
+  scrum init --project-id <id> --status-field-id <id> --repos <owner/name,...> --owner-user <@login> [...]
+                                    write a minimal team configuration and the state directory (scrum init with no flags shows the rest)
+  scrum schedule <install|uninstall|status|print> [--name <team>]
+                                    run the background loop under launchd (macOS) or a systemd user timer (Linux); print shows the files only
   scrum statusline                  short display for the statusline (the statusline JSON on stdin)
   scrum install | uninstall         add or remove the hooks in ~/.claude/settings.json
   scrum hook <Event> | watch        called from Claude Code hooks`
@@ -96,6 +109,28 @@ async function runRuntimeCommand(p: Paths, config: Config | null, ports: Ports |
   return output.exitCode
 }
 
+/** `scrum schedule`: a failure of the system's scheduler is shown with its own message and exit code 1. */
+function runSchedule(action: string, instance: string): number {
+  try {
+    const setup = scheduleSetup({
+      home: homedir(),
+      scrumDir: fileURLToPath(new URL('..', import.meta.url)).replace(/\/$/, ''),
+      stateDir: stateDir(),
+      defaultStateDir: DEFAULT_STATE_DIR,
+      nodePath: process.execPath,
+      shellPath: process.env.PATH ?? '',
+      instance,
+      requireGh: action === 'install' || action === 'print',
+    })
+    const result = scheduleCommand(action, buildScheduler(), setup)
+    process.stdout.write(`${result.text}\n`)
+    return result.ok ? 0 : 1
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+    return 1
+  }
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const p = paths()
   const [command = 'help', ...rest] = argv
@@ -117,6 +152,14 @@ async function main(argv: readonly string[]): Promise<number> {
       return runWatchCommand(p)
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
+    case 'init': {
+      const dir = typeof flags['state-dir'] === 'string' ? flags['state-dir'] : stateDir()
+      const result = initCommand(dir, dir === DEFAULT_STATE_DIR, SCRUM_CLI, flags)
+      process.stdout.write(`${result.text}\n`)
+      return result.ok ? 0 : 1
+    }
+    case 'schedule':
+      return runSchedule(positional[0] ?? '', typeof flags.name === 'string' ? flags.name : '')
     case 'refresh': {
       return needConfig((c, ports) => {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)

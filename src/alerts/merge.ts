@@ -3,7 +3,7 @@ import { NOTICE_TITLE } from './text.ts'
 import type { Notice } from './types.ts'
 
 /**
- * Combines the notifications to the owner produced in one evaluation into a single one. The macOS notification becomes one, and the PushNotification to the liaison becomes one.
+ * Combines the notifications to the owner produced in one evaluation into a single one. The desktop notification becomes one, and the PushNotification to the liaison becomes one.
  * With one item it is left as is. With two or more, they are lined up as one line per item (with the reason it is stalled). The combined notification holds all the fingerprints of the combined items
  * (the marker for what was sent is attached to all of the combined items).
  */

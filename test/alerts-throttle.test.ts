@@ -16,7 +16,7 @@ const plain: Notice = { key: 'E-STALL:x', kind: 'owner', text: '- x', desktop: {
 const withPush = (minutes: number) => stateWith({ ownerPushedAt: { 'epic:app#100': minutesAgo(minutes) } })
 
 describe('applyThrottle', () => {
-  it('a notification with a new fingerprint within 24 hours of the previous one is replaced by a one-line info for the liaison to read, and its macOS notification is dropped', () => {
+  it('a notification with a new fingerprint within 24 hours of the previous one is replaced by a one-line info for the liaison to read, and its desktop notification is dropped', () => {
     const [held] = applyThrottle([owner()], withPush(60), enabled, NOW)
     assert.equal(held?.kind, 'info')
     assert.equal(held?.key, 'E-STALL:app#100:t1:held')
@@ -32,7 +32,7 @@ describe('applyThrottle', () => {
     assert.equal(applyThrottle([owner()], withPush(24 * 60 - 1), enabled, NOW)[0]?.kind, 'info')
   })
 
-  it('a notification whose fingerprint was already emitted passes as is; a macOS notification alone, or a liaison alone, counts as an emitted fingerprint', () => {
+  it('a notification whose fingerprint was already emitted passes as is; a desktop notification alone, or a liaison alone, counts as an emitted fingerprint', () => {
     const sentDesktop = stateWith({ ...withPush(5), desktopSent: ['E-STALL:app#100:t1'] })
     const sentLiaison = stateWith({ ...withPush(5), liaisonSent: ['E-STALL:app#100:t1'] })
     assert.equal(applyThrottle([owner()], sentDesktop, enabled, NOW)[0]?.kind, 'owner')

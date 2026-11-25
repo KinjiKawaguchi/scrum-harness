@@ -103,14 +103,14 @@ describe('liaisonMessage', () => {
   const owner: Notice = { key: 'k1', kind: 'owner', text: '- E-STALL app#100: send the owner one PushNotification', desktop: { title: 't', body: 'b' } }
   const line: Notice = { key: 'k2', kind: 'idle-line', text: '- SWE1 has been idle for 10 minutes. Acknowledgement: none. Harness action: nothing sent yet' }
 
-  it('lists the owner notification first, then the idle line, and adds a note that the macOS notification was also emitted', () => {
+  it('lists the owner notification first, then the idle line, and adds a note that the desktop notification was also emitted', () => {
     assert.equal(
       liaisonMessage([line, owner], enabled),
       [
         'scrum-harness: notice for the liaison (decided by the harness; handle it without changing the content)',
         owner.text,
         line.text,
-        '(The notice to the owner is also shown directly by the harness as a macOS notification, without sound)',
+        '(The notice to the owner is also shown directly by the harness as a desktop notification, without sound)',
       ].join('\n'),
     )
   })
@@ -120,9 +120,9 @@ describe('liaisonMessage', () => {
     assert.deepEqual(liaisonMessage([info, line, owner], enabled).split('\n').slice(1, 4), [owner.text, info.text, line.text])
   })
 
-  it('with only an idle line, no notification note is added; none is added when the macOS notification is disabled either', () => {
-    assert.doesNotMatch(liaisonMessage([line], enabled), /macOS/)
+  it('with only an idle line, no notification note is added; none is added when the desktop notification is disabled either', () => {
+    assert.doesNotMatch(liaisonMessage([line], enabled), /desktop/)
     const quiet = { ...enabled, alerts: { ...alerts, isDesktopEnabled: false } }
-    assert.doesNotMatch(liaisonMessage([owner], quiet), /macOS/)
+    assert.doesNotMatch(liaisonMessage([owner], quiet), /desktop/)
   })
 })

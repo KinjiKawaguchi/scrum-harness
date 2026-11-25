@@ -75,6 +75,21 @@ SCRUM_LINE=$(echo "$input" | <clone directory>/bin/scrum statusline 2>/dev/null)
 [ -n "$SCRUM_LINE" ] && echo "$SCRUM_LINE"
 ```
 
+## Setting up a machine
+
+On macOS or Linux (the harness needs node 24, `git`, and an authenticated `gh`):
+
+```sh
+git clone <this repository> && cd scrum-harness
+bin/scrum init --project-id PVT_... --status-field-id PVTSSF_... --repos acme/app --owner-user @alice \
+  --techlead TechLead --members SWE1,SWE2 --liaison Liaison     # writes ~/.claude/scrum/config.json (or --state-dir <dir>)
+bin/scrum refresh && bin/scrum lint                             # read the board and check the findings
+bin/scrum install                                               # add the hooks to ~/.claude/settings.json
+bin/scrum schedule install                                      # run the background loop (launchd or systemd)
+```
+
+`init` asks nothing and does not overwrite an existing configuration unless `--force` is given. It does not write board scripts, sprint, dispatch, or links sections; add those by hand from `config.example.json` when the team needs them. To find the board's ids: `gh project list --owner <owner>` and `gh project field-list <number> --owner <owner> --format json` (the id of the Status field). Notifications to the owner use a desktop notification on macOS, `notify-send` on Linux when a desktop is reachable, and otherwise a line in `<state dir>/log/notifications.log`.
+
 ## Usage
 
 | Command | Meaning |
@@ -85,7 +100,9 @@ SCRUM_LINE=$(echo "$input" | <clone directory>/bin/scrum statusline 2>/dev/null)
 | `scrum ack <rule> <subject> --for 2h --reason "..."` | Silences a finding as an intended exception. A T-IDLE acknowledgement lasts at most 1 hour, and its reason is "Waiting for <owner>'s answer" or "slot HH:MM". S-POINTS-OVER is accepted only when the issue has a comment with the overrun-handling mark (docs/rules.md) dated after the checkpoint that showed the overrun |
 | `scrum report --since YYYY-MM-DD` | A summary for the sprint review (how long findings stayed, member idle time, how often it stopped the TechLead, exceptions) |
 | `scrum points` | Points, budget, effort, and overrun of In Progress issues (largest overrun first). Below it, estimate versus actual of finished issues (points, budget, checkpoints taken), and the median and range per points |
-| `scrum alerts` | Advances the stall detection (E-STALL, Q-EMPTY) once. launchd (`launchd/scrum-alerts.plist`) runs it every 5 minutes. For how to install it, see "Detecting stalls and notifying the owner" in docs/rules.md |
+| `scrum alerts` | Advances the stall detection (E-STALL, Q-EMPTY) once. The system scheduler (launchd or a systemd user timer; `scrum schedule`) runs it every 5 minutes. For how to install it, see "Detecting stalls and notifying the owner" in docs/rules.md |
+| `scrum schedule <install\|uninstall\|status\|print> [--name <team>]` | Runs `scrum alerts` every 5 minutes under launchd (macOS) or a systemd user timer (Linux). `print` shows the files and writes nothing |
+| `scrum init --project-id ... --status-field-id ... --repos ... --owner-user ...` | Writes a minimal team configuration and the state directory from flags, so a new machine needs no hand-copied config. See [Setting up a machine](#setting-up-a-machine) |
 | `scrum link-prs [--dry-run]` | Lists open PRs in the body of the issue each one points to, between the markers (`<!-- scrum-harness:prs -->` and `<!-- /scrum-harness:prs -->`) (the watch runs it too when links.enabled). `--dry-run` rewrites nothing and shows only the plan, the reasons for skipping, and broken markers. See "Linking PRs and issues" in docs/rules.md |
 | `scrum checkpoint` | Records the last checkpoint that is not recorded yet, now |
 | `scrum request <add\|list\|show\|reply\|close>` | Requests to the owner (questions and proposals). An answer reaches the TechLead as R-ANSWERED (see "Requests to the owner" in docs/rules.md) |
@@ -106,7 +123,7 @@ The source holds no values of a specific board or team. Values live only in the 
 Connections to external systems are split into ports and adapters. Dependencies point only from adapters to the core.
 
 - `src/ports/`: the types of what the core needs from the outside (reading and writing the board, reading actions, issues, PRs and branches, sessions, transcripts, notifications).
-- `src/adapters/<system>/`: the implementations of the ports. `github/` (gh and the configured scripts), `claude-code/` (`~/.claude/sessions` and the transcripts under `~/.claude/projects`), `macos/` (osascript).
+- `src/adapters/<system>/`: the implementations of the ports. `github/` (gh and the configured scripts), `claude-code/` (`~/.claude/sessions` and the transcripts under `~/.claude/projects`), `macos/` (osascript, launchd), `linux/` (notify-send, systemd).
 - `src/wiring.ts`: builds the adapters from the configuration and hands them to the core as ports. The feature folders of the core (`board/`, `team/`, `sprint/`, and so on) do not import adapters.
 - Tests pass the fake ports of `test/fake-ports.ts`, so they never reach an external system.
 
