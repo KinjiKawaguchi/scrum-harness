@@ -9,7 +9,7 @@ import { describePick, forgetMemberSource, pickFor, readMemberSources, recordMem
 import { budgetGate } from '../budget/gate.ts'
 import { adoptCommand } from './adopt.ts'
 import { moveCommand } from './move.ts'
-import { RESTART_NOTE, resumeSession } from './resume.ts'
+import { RESTART_NOTE, recordedSessionId, resumeSession } from './resume.ts'
 import { finishExit, startWatched, type WatchdogDeps } from './lifecycle.ts'
 import { watchdogOf } from './watchdog.ts'
 
@@ -42,7 +42,7 @@ function startOne(config: Config, ports: Ports, name: string, session: string, f
     return `${name}: not started: ${outcome.reason}`
   }
   const pickedEnv = outcome.kind === 'picked' ? outcome.pick.env : {}
-  const resumed = flags.resume === true ? resumeSession(ports, specOf(config, name), name, pickedEnv) : undefined
+  const resumed = flags.resume === true ? resumeSession(ports, specOf(config, name), name, pickedEnv, { signals: watchdogDeps?.signals() ?? ports.sessions.signals(), recordedSessionId: recordedSessionId(watchdogDeps?.memberSourcesPath, name) }) : undefined
   if (resumed !== undefined && 'problem' in resumed) return `${name}: not started: ${resumed.problem}`
   const planned = planMember(config, name, stateDir(), process.env.PATH, ports.launchers, { pickedEnv, ...(gate.model === undefined ? {} : { model: gate.model }), ...(resumed === undefined ? {} : { resume: { sessionId: resumed.sessionId, note: RESTART_NOTE } }) })
   if ('problem' in planned) return `${name}: ${planned.problem}`
@@ -95,7 +95,7 @@ function stopCommand(config: Config, ports: Ports, positional: readonly string[]
     try {
       ports.members.stop(launch.tmuxSession, name, flags.force === true ? 'kill' : 'graceful')
       if (flags.force === true) return `${name}: window closed`
-      return `${name}: ${deps === undefined ? 'asked to exit' : finishExit(ports, launch.tmuxSession, name, deps).text}`
+      return `${name}: ${deps === undefined ? 'asked to exit' : finishExit(ports, launch.tmuxSession, name, deps, specOf(config, name).product).text}`
     } catch (error) {
       return `${name}: could not stop: ${(error instanceof Error ? error.message : String(error)).slice(0, 200)}`
     }
