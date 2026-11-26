@@ -181,3 +181,14 @@ describe('the report for people', () => {
     assert.match(text, /overlapping sessions count once/)
   })
 })
+
+describe('the time zone of the report for people', () => {
+  const now = new Date('2026-10-08T06:00:00.000Z')
+  it('is the one asked for, else the team\'s own setting, else this machine\'s', async () => {
+    const { reportOffset } = await import('../src/metrics/command.ts')
+    assert.equal(reportOffset(config, { 'utc-offset': '-05:30' }, now), -330)
+    assert.equal(reportOffset({ ...config, runtime: { utcOffset: '+09:00' } }, {}, now), 540)
+    assert.equal(reportOffset({ ...config, runtime: undefined, sprint: undefined }, {}, now), -now.getTimezoneOffset())
+    assert.equal(typeof reportOffset(config, { 'utc-offset': '9' }, now), 'string')
+  })
+})

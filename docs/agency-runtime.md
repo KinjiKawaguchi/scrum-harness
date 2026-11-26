@@ -107,7 +107,7 @@ The shape is the one the node team published (`participantmetrics.sample.json` a
 - **Cost and tokens** are the participant's sessions added up, from the same index of the transcripts as `tokenUsage` (an estimate at API prices, in cents). As there, the call answers from what the index holds and starts `scrum usage-index` in the background when it is stale; until the first read it answers 503.
 - **Participants** are the team's TechLead and members, named as in `view` and `tokenUsage`. A second session that took a name counts as the member.
 - **Pull requests** are listed only when the hooks saw a session of the team open them: `gh pr create` in a Bash command, or an MCP server's `create_pull_request` (`<state dir>/log/pr-authors.jsonl`, kept 90 days; see `src/team/pr-authors.ts`). The repository (`owner/name`) and number are the ones in the pull request's own URL, which the tool printed; a record written before they were kept holds only the short reference (`app#42`), and gets them from the configured repositories when exactly one has that short name, else from the board. A pull request opened any other way is not listed; nothing is guessed from a title or a branch. `by` is the member's name.
-- `scrum metrics [--days N] [--json]` prints the same report for people (`--json` prints the op's answer).
+- `scrum metrics [--days N] [--utc-offset +09:00] [--json]` prints the same report for people (`--json` prints the op's answer). It cuts days in the `--utc-offset` given, else the team's own setting (`runtime.utcOffset`, then the sprint's), else this machine's time zone.
 
 ## `activity`: what the team did
 
