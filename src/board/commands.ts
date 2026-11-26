@@ -16,7 +16,8 @@ function newIssue(itemLabel: string, config: Config): BoardItem {
   const [repoName = '', number = '0'] = itemLabel.split('#')
   const repo = config.repos.find((full) => shortRepo(full) === repoName) ?? config.defaultRepo
   return {
-    itemId: '', kind: 'issue', repo, number: Number(number), title: '', state: 'OPEN', author: null,
+    // The label is kept as the item's reference, so an item named by a tracker's own id (no `#`) is found again by the same label.
+    itemId: '', ref: itemLabel, kind: 'issue', repo, number: Number(number), title: '', state: 'OPEN', author: null,
     status: null, reason: null, since: null, owner: null, assignee: null,
   }
 }
