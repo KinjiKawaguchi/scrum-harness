@@ -35,8 +35,24 @@ describe('the configuration scrum init builds', () => {
     assert.deepEqual([alertsOf(without as never).enabled, alertsOf(withLiaison as never).enabled, alertsOf(withLiaison as never).liaison], [false, true, 'Liaison'])
   })
 
+  it('writes a team section when the board is shared, with the field named Team unless told otherwise', () => {
+    const configOf = (flags: InitFlags) => parseConfig((configFromFlags({ ...FLAGS, ...flags }) as { config: Record<string, unknown> }).config)
+    assert.deepEqual(configOf({ team: 'node' })?.team, { field: 'Team', value: 'node', adoptsUnassigned: false })
+    assert.deepEqual(configOf({ team: ' clients ', 'team-field': 'Squad', 'adopts-unassigned': true })?.team, { field: 'Squad', value: 'clients', adoptsUnassigned: true })
+    assert.equal(configOf({})?.team, undefined)
+  })
+
+  it('writes the work type field and the GitHub host when they are given', () => {
+    const config = parseConfig((configFromFlags({ ...FLAGS, 'work-type-field': 'Work type', host: 'ghe.example.com' }) as { config: Record<string, unknown> }).config)
+    assert.deepEqual([config?.fields.workType, config?.host], ['Work type', 'ghe.example.com'])
+  })
+
   const refused: readonly (readonly [string, InitFlags, RegExp])[] = [
     ['no flags', {}, /--project-id/],
+    ['a team that is empty', { ...FLAGS, team: ' ' }, /--team needs/],
+    ['a team field without a team', { ...FLAGS, 'team-field': 'Squad' }, /need --team/],
+    ['adopting unassigned work without a team', { ...FLAGS, 'adopts-unassigned': true }, /need --team/],
+    ['a host that is not a host name', { ...FLAGS, host: 'https://ghe.example.com' }, /--host/],
     ['a project id that is not a node id', { ...FLAGS, 'project-id': 'abc' }, /--project-id/],
     ['a status field id that is not a node id', { ...FLAGS, 'status-field-id': 'PVT_x' }, /--status-field-id/],
     ['a repository without an owner', { ...FLAGS, repos: 'app' }, /--repos/],

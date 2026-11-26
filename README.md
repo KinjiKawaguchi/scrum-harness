@@ -116,7 +116,7 @@ bin/scrum install                                               # add the hooks 
 bin/scrum schedule install                                      # run the background loop (launchd or systemd)
 ```
 
-`init` asks nothing and does not overwrite an existing configuration unless `--force` is given. It does not write board scripts, sprint, dispatch, or links sections; add those by hand from `config.example.json` when the team needs them. To find the board's ids: `gh project list --owner <owner>` and `gh project field-list <number> --owner <owner> --format json` (the id of the Status field). Notifications to the owner use a desktop notification on macOS, `notify-send` on Linux when a desktop is reachable, and otherwise a line in `<state dir>/log/notifications.log`.
+`init` asks nothing and does not overwrite an existing configuration unless `--force` is given. To share the board with other teams, add `--team <option> [--team-field <name>] [--adopts-unassigned]`; for GitHub Enterprise, `--host <host>`; for the work type field, `--work-type-field <name>`. It does not write board scripts, sprint, dispatch, or links sections; add those by hand from `config.example.json` when the team needs them. To find the board's ids: `gh project list --owner <owner>` and `gh project field-list <number> --owner <owner> --format json` (the id of the Status field). Notifications to the owner use a desktop notification on macOS, `notify-send` on Linux when a desktop is reachable, and otherwise a line in `<state dir>/log/notifications.log`.
 
 ## Usage
 
