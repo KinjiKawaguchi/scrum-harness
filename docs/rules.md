@@ -43,6 +43,7 @@ Activity is decided from `~/.claude/sessions` (Claude Code's session records) an
 
 | Rule | Severity | Condition | Fix |
 |---|---|---|---|
+| M-START-FAILED | Medium | A member was started by `scrum member start` with a startup watchdog (a Codex member by default), and showed no sign of life after its start and its retries, and still has no live session | Look at its window (tmux), then `scrum member start <name>` again. It goes away when the member shows a sign of life |
 | T-IDLE | High | A member has been idle for `idleMinutes` minutes or more | Assign work (with `dispatch` enabled, the harness hands work to an idle member who has no acknowledgement; see "Handing the next work to idle members" below). For an intended wait, `scrum ack T-IDLE <name> --for 1h --reason "Waiting for <owner>'s answer"`. A T-IDLE acknowledgement lasts at most 1 hour, and its reason is "Waiting for `ownerLabel`'s answer" or "slot HH:MM". Spare context capacity cannot be a reason |
 | T-WAITING | High | A member has been stopped at a permission prompt for `waitingMinutes` minutes or more | Tell the person named by `ownerLabel`. Do not approve on their behalf from the TechLead |
 | T-BUSY-UNTRACKED | Low | A member has been active for `untrackedMinutes` minutes or more but has no In Progress issue assigned | Assign the issue they are working on |
