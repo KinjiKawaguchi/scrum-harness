@@ -16,6 +16,7 @@ The severity decides how a finding is reported.
 |---|---|---|---|
 | B-WIP-OVER | High | The open issues In Progress exceed the limit (`wipLimit`) | Start with the blocked ones, and move them back to Backlog |
 | B-DOING-NO-ASSIGNEE | High | An issue is In Progress but has no assignee | Assign it. If you cannot decide, move it to Backlog |
+| B-NO-TEAM | Medium | On a shared board (`team` is set), for the team that has `adoptsUnassigned`: an open issue is on the board with no team | `scrum board move <ref> --team <name>` |
 | B-CLOSED-NOT-DONE | Medium | A closed issue's Status is not Done | Set Status to Done |
 | B-OPEN-DONE | Medium | An open issue is Done | Close it, or move it back to In Progress or Backlog |
 | B-PR-STATUS | Medium | A PR has a Status | The `gh project item-edit ... --clear` shown in the finding |

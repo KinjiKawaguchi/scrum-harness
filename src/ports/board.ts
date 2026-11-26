@@ -23,6 +23,10 @@ export type BoardWriter = {
   /** Whether a way to set the blocked reason exists. Without it, a decision cannot unblock an item. */
   readonly canSetReason: boolean
   readonly setReason: (item: BoardItem, reason: string) => void
+  /** Adds an issue to the board: Status Backlog when it has none, and this team's value in the team field when the board is shared. Not an error when it is already there. */
+  readonly addToBoard: (repo: string, number: number) => void
+  /** Sets the team field of an item, handing it to that team. */
+  readonly setTeam: (item: BoardItem, team: string) => void
   /** Writes the number of exceeded checkpoints. A single failure does not stop it; returns descriptions of the ones that failed */
   readonly writeOverrun: (marks: readonly Mark[]) => readonly string[]
 }
