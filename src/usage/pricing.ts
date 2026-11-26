@@ -32,12 +32,16 @@ const CACHE_WRITE_1H = 2
 /** Fast mode (usage.speed is "fast") costs twice as much per token. */
 const FAST_MULTIPLIER = 2
 
+/** The prices of models of other products. None is listed: dollars are given only for a model with a published price, so a model of another product costs 0 here. */
+const isClaude = (model: string): boolean => model.startsWith('claude-')
+
 export function priceOf(model: string): Price {
   return PRICES.find(([pattern]) => pattern.test(model))?.[1] ?? FALLBACK
 }
 
 /** The estimated cost in USD, not rounded. */
 export function costOf(model: string, tokens: Tokens, isFast: boolean): number {
+  if (!isClaude(model)) return 0
   const price = priceOf(model)
   const usd =
     (tokens.input * price.input +
