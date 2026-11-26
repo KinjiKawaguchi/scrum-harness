@@ -7,6 +7,11 @@ export type ContentState = 'OPEN' | 'CLOSED' | 'MERGED'
 /** One item of the board. Issues, PRs, and drafts are held in the same shape. */
 export type BoardItem = {
   readonly itemId: string
+  /**
+   * The item's reference: its id and display label in findings, requests, and the team view (and the target of a decision). The GitHub adapter leaves it
+   * out and the reference is `<repo>#<number>`; a board module for another tracker sets it. See docs/board-module.md for the rule it has to fit.
+   */
+  readonly ref?: string
   readonly kind: ItemKind
   readonly repo: string
   readonly number: number | null
@@ -39,6 +44,8 @@ export type BoardItem = {
 
 /** Open issues of the target repositories, including those outside the board. */
 export type OpenIssue = {
+  /** As on a board item: the reference, when the adapter sets one */
+  readonly ref?: string
   readonly repo: string
   readonly number: number
   readonly author: string | null

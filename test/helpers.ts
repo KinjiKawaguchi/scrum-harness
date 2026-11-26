@@ -39,7 +39,7 @@ export function snapshot(items: readonly BoardItem[], openIssues?: Snapshot['ope
       openIssues ??
       items
         .filter((item) => item.kind === 'issue' && item.state === 'OPEN')
-        .map((item) => ({ repo: item.repo, number: item.number ?? 0, author: item.author })),
+        .map((item) => ({ ...(item.ref === undefined ? {} : { ref: item.ref }), repo: item.repo, number: item.number ?? 0, author: item.author })),
   }
 }
 
