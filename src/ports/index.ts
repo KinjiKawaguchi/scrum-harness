@@ -11,7 +11,7 @@ export type { BodyThread, IssueBody, IssueComment, IssueThread } from './issue-t
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'
 export type { MemberHost } from './members.ts'
 export type { SessionDirectory, SessionEntry } from './sessions.ts'
-export type { Tokens, TranscriptFile, TranscriptScan, TranscriptSource, UsageRow } from './usage.ts'
+export type { SentMessage, Tokens, TranscriptFile, TranscriptScan, TranscriptSource, UsageRow } from './usage.ts'
 
 /** Notifies the owner. Throws on failure. */
 export type Notifier = (title: string, body: string) => void

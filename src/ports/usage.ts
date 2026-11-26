@@ -30,9 +30,25 @@ export type TranscriptFile = {
   readonly size: number
 }
 
+/**
+ * One message an agent sent to another (a SendMessage call): who it went to, when, and the short label the sender gave it. The body is never read:
+ * nothing but these fields leaves the transcript.
+ */
+export type SentMessage = {
+  /** The id of the tool call, unique in the team */
+  readonly toolUseId: string
+  /** Epoch milliseconds */
+  readonly at: number
+  readonly to: string
+  /** The sender's own short label, cut at 120 characters; empty when it gave none */
+  readonly summary: string
+}
+
 export type TranscriptScan = {
   /** One row per request: the lines of a response that repeat the same usage are already merged */
   readonly rows: readonly UsageRow[]
+  /** The messages the session sent, in the order they appear (never their bodies) */
+  readonly messages: readonly SentMessage[]
   /** Names the session recorded about itself (a custom title or an agent name) */
   readonly titles: readonly string[]
   /** The position after the last complete line read. The next scan starts here. */

@@ -1,8 +1,10 @@
 import type { Config } from '../config.ts'
 import type { Ports } from '../ports/index.ts'
 import { releaseLock, tryLock, type Paths } from '../store.ts'
+import { appendEvents, trimLog } from '../activity/log.ts'
+import { messageEvents } from '../activity/messages.ts'
 import { teamFiles, baseName, sessionNames } from './attribution.ts'
-import { readIndex, updateIndex } from './index-store.ts'
+import { readIndex, updateIndex, type OnMessages } from './index-store.ts'
 
 /** The sessions whose usage is reported: the TechLead and the members (the people of the team view). */
 export const teamNamesOf = (config: Config): ReadonlySet<string> => new Set([config.techlead, ...config.members].map(baseName))
@@ -22,8 +24,16 @@ export function isIndexStale(p: Paths, now: Date): boolean {
 export function runUsageIndex(p: Paths, config: Config, transcripts: Ports['transcripts'], now: Date): { readonly files: number; readonly rows: number } | null {
   if (!tryLock(p.usageLock)) return null
   try {
-    const files = teamFiles(transcripts.files(), sessionNames(p, transcripts), teamNamesOf(config))
-    const index = updateIndex(p.usageIndex, files, transcripts, now)
+    const names = sessionNames(p, transcripts)
+    const team = teamNamesOf(config)
+    const files = teamFiles(transcripts.files(), names, team)
+    // The messages the team's sessions sent go to the activity log as they are read; the index itself keeps only token use.
+    const onMessages: OnMessages = (file, messages) => {
+      const name = file.isSubagent ? undefined : names.get(file.sessionId)
+      if (name !== undefined && team.has(baseName(name))) appendEvents(p.activityLog, messageEvents(file.sessionId, baseName(name), messages), now)
+    }
+    const index = updateIndex(p.usageIndex, files, transcripts, now, onMessages)
+    trimLog(p.activityLog, now)
     return { files: files.length, rows: index.rows.length }
   } finally {
     releaseLock(p.usageLock)
