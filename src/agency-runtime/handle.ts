@@ -8,6 +8,7 @@ import { aggregateMembers } from '../team/state.ts'
 import { runtimeOf } from './config.ts'
 import { decide } from './decide.ts'
 import { isRuntimeError, parseRuntimeRequest } from './request.ts'
+import { activity } from './activity.ts'
 import { tokenUsage } from './token-usage.ts'
 import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeInput, type RuntimeResponse } from './types.ts'
 import { teamViewProblem } from './validate.ts'
@@ -24,7 +25,7 @@ export type RuntimeDeps = {
   readonly spawnUsageIndex: () => void
 }
 
-const OPS = ['describe', 'view', 'decide', 'tokenUsage']
+const OPS = ['describe', 'view', 'decide', 'tokenUsage', 'activity']
 const fail = (status: number, message: string): { readonly error: RuntimeError } => ({ error: { status, message } })
 
 function labelOf(request: RuntimeInput, config: Config): string {
@@ -50,6 +51,7 @@ function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unkno
   }
   if (request.op === 'view') return view(request, deps)
   if (request.op === 'tokenUsage') return tokenUsage(request, deps)
+  if (request.op === 'activity') return activity(request, deps)
   const error = decide(deps, request.decision)
   return error === null ? { result: {} } : { error }
 }

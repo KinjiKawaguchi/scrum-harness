@@ -20,6 +20,8 @@ export function paths(dir: string = stateDir()) {
     usageIndex: join(dir, 'cache', 'usage-index.json'),
     /** A lock held while the transcripts are read, so that two readers do not count the same lines */
     usageLock: join(dir, 'cache', 'usage-index.lock'),
+    /** What the team did in the last 24 hours, one event per line (see activity/log.ts) */
+    activityLog: join(dir, 'cache', 'activity.jsonl'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
