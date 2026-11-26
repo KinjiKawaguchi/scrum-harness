@@ -1,15 +1,17 @@
 import { readFileSync } from 'node:fs'
-import type { AdapterModuleConfig } from '../../adapter-module.ts'
+import { isCommandConfig, type AdaptersConfig } from '../../adapter-module.ts'
 import type { BoardCommand } from '../../board/commands.ts'
 import { snapshotProblems } from '../../board/snapshot-check.ts'
 import type { Config } from '../../config.ts'
 import type { ToolCall } from '../../ports/index.ts'
+import { rawCommandPorts } from '../command/ports.ts'
 import { loadRawModulePorts } from './load.ts'
 
 export type CheckResult = { readonly text: string; readonly isOk: boolean }
 
 type CallCase = { readonly call: ToolCall; readonly expect?: readonly BoardCommand[] }
 
+const what = (spec: AdaptersConfig): string => (isCommandConfig(spec) ? `program      ${spec.command.join(' ')}` : `module       ${spec.module}`)
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error)).slice(0, 400)
 
 function readCases(path: string): readonly CallCase[] | string {
@@ -64,20 +66,20 @@ function checkCalls(ports: ReturnType<typeof loadRawModulePorts>, cases: readonl
  * it reads (shape, references, statuses), the patterns of its action reader, and, from a file of cases, what its action reader makes of tool calls.
  * The writes are not exercised, because they would change the tracker.
  */
-export function checkBoardModule(spec: AdapterModuleConfig, config: Config, now: Date, callsFile?: string): CheckResult {
+export function checkBoardModule(spec: AdaptersConfig, config: Config, now: Date, callsFile?: string): CheckResult {
   const cases = callsFile === undefined ? [] : readCases(callsFile)
   if (typeof cases === 'string') return { text: cases, isOk: false }
   let ports: ReturnType<typeof loadRawModulePorts>
   try {
-    ports = loadRawModulePorts(spec, config)
+    ports = isCommandConfig(spec) ? rawCommandPorts(spec, config) : loadRawModulePorts(spec, config)
   } catch (error) {
-    return { text: `module       ${spec.module}\nload         FAILED: ${message(error)}`, isOk: false }
+    return { text: `${what(spec)}\nload         FAILED: ${message(error)}`, isOk: false }
   }
   const provided = Object.keys(ports)
   const checks = [checkSnapshot(ports, config, now), checkPatterns(ports), checkCalls(ports, cases)]
   const problems = checks.reduce((total, one) => total + one.problems, 0)
   const lines = [
-    `module       ${spec.module}`,
+    what(spec),
     'load         ok',
     `ports        ${provided.length === 0 ? 'none (everything is GitHub)' : provided.join(', ')}${provided.length < 5 ? ` (the rest is GitHub)` : ''}`,
     ...checks.flatMap((one) => one.lines),
