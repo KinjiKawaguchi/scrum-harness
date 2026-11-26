@@ -4,6 +4,7 @@ import { settingsTargets } from './adapters/claude-code/settings-targets.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
+import { loadModulePorts } from './adapters/module/load.ts'
 import { tmuxHost } from './adapters/tmux/host.ts'
 import { linuxNotifier } from './adapters/linux/notify.ts'
 import { realRun } from './adapters/run.ts'
@@ -34,5 +35,7 @@ export function buildScheduler(platform: NodeJS.Platform = process.platform): Sc
  */
 export function buildPorts(config: Config): Ports {
   const dirs = claudeConfigDirs(config.claudeConfigDirs)
-  return { ...githubPorts(config), sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), notify: buildNotifier() }
+  // A board module, when the configuration names one, replaces the GitHub adapters it provides; the rest stays GitHub. A module that cannot be loaded throws: reading GitHub instead would read the wrong system.
+  const board = { ...githubPorts(config), ...(config.adapters === undefined ? {} : loadModulePorts(config.adapters, config)) }
+  return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), notify: buildNotifier() }
 }

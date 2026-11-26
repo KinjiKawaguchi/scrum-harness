@@ -135,6 +135,29 @@ function runSchedule(action: string, instance: string): number {
   }
 }
 
+/** The ports, or the reason they cannot be built (a board module that cannot be loaded or trusted). */
+function portsOrError(config: Config): { readonly ports: Ports } | { readonly error: string } {
+  try {
+    return { ports: buildPorts(config) }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+/** A hook or a watch never stops a session, so it only records the reason; the node gets the reason as a 503 it retries; anything else prints it. */
+function reportPortsError(p: Paths, command: string, reason: string): number {
+  if (command === 'hook' || command === 'watch') {
+    logError(p, command, new Error(reason))
+    return 0
+  }
+  if (command === 'runtime') {
+    process.stdout.write(`${JSON.stringify({ error: { status: 503, message: reason.slice(0, 300) } })}\n`)
+    return 1
+  }
+  process.stderr.write(`scrum: ${reason}\n`)
+  return 1
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const p = paths()
   const [command = 'help', ...rest] = argv
@@ -144,7 +167,9 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0
   }
   const config = loadConfig()
-  const ports = config === null ? null : buildPorts(config)
+  const built = config === null ? { ports: null } : portsOrError(config)
+  if ('error' in built) return reportPortsError(p, command, built.error)
+  const { ports } = built
   if (command === 'runtime') return runRuntimeCommand(p, config, ports)
   if (config !== null && ports !== null) writeShellPatterns(p, config, ports.actions)
   const needConfig = (run: (config: Config, ports: Ports) => string) =>
