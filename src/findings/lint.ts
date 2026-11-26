@@ -20,6 +20,8 @@ import type { DispatchRecord } from '../dispatch/types.ts'
 import { currentRuleName } from '../compat.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
 import { lintRequests } from '../requests/rules.ts'
+import { lintStartFailures } from '../members/rules.ts'
+import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
 import { readRequests } from '../requests/store.ts'
 import type { OwnerRequest } from '../requests/types.ts'
 import { applyAcks, type Ack } from './acks.ts'
@@ -42,6 +44,8 @@ export type LintContext = {
   readonly seen?: SeenMap
   /** Requests to the owner. One the owner answered and the team has not closed becomes R-ANSWERED. */
   readonly requests?: readonly OwnerRequest[]
+  /** Members that were started and showed no sign of life (M-START-FAILED) */
+  readonly startFailures?: readonly StartFailure[]
 }
 
 export type LintResult = { readonly active: readonly Finding[]; readonly acked: readonly Finding[] }
@@ -77,6 +81,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintDispatch(ctx.dispatches ?? [], ctx.config, ctx.now, subordinates, ctx.snapshot, ctx.seen ?? {}),
     ...evaluateAlerts({ ...ctx, dispatches: ctx.dispatches ?? [], alerts: ctx.alerts ?? EMPTY_ALERT_STATE }).findings,
     ...lintRequests(ctx.requests ?? [], ctx.config),
+    ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
   ]
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
@@ -101,5 +106,6 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     alerts: readAlertState(p),
     seen: readSeen(p),
     requests: readRequests(p),
+    startFailures: readStartFailures(p.startFailures),
   }
 }

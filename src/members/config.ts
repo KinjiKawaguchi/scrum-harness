@@ -18,6 +18,13 @@ export type MemberSpec = {
   readonly permissions?: Permissions
   /** Codex only: how much the member's commands may touch (`-s`). Left to the user's Codex configuration when absent */
   readonly sandbox?: Sandbox
+  /**
+   * The startup watchdog: after the member is started it has this many seconds (5 to 600) to show a sign of life (a hook heartbeat or a live session record).
+   * If it does not, its window is closed and it is started again, `startupRetries` more times (0 to 5, default 2), and then it is reported as a finding.
+   * Off unless set, except for a Codex member (60 seconds), since a session started alone has been seen to hang before its first hook.
+   */
+  readonly startupSeconds?: number
+  readonly startupRetries?: number
   /** The Claude Code configuration directory (`CLAUDE_CONFIG_DIR`) the member runs under, for a team that uses more than one subscription */
   readonly configDir?: string
 }
@@ -38,16 +45,17 @@ const SETTING = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PRODUCTS: readonly Product[] = ['claude-code', 'codex']
 const SANDBOXES: readonly Sandbox[] = ['read-only', 'workspace-write', 'danger-full-access']
 const PERMISSIONS: readonly Permissions[] = ['ask', 'skip']
-const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'sandbox', 'configDir'] as const
+const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'sandbox', 'configDir', 'startupSeconds', 'startupRetries'] as const
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
+const isWhole = (value: unknown, min: number, max: number): boolean => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
 const isSetting = (value: unknown): value is string => typeof value === 'string' && SETTING.test(value)
 
 /** One member's settings, or null when a value is of the wrong shape or a key is not known (a misspelled key would otherwise be ignored). */
 function parseSpec(raw: unknown): MemberSpec | null {
   if (!isObject(raw) || Object.keys(raw).some((key) => !(KEYS as readonly string[]).includes(key))) return null
-  const { dir, brief, product, model, effort, permissions, sandbox, configDir } = raw
+  const { dir, brief, product, model, effort, permissions, sandbox, configDir, startupSeconds, startupRetries } = raw
   const isValid =
     (dir === undefined || isPath(dir)) &&
     (configDir === undefined || isPath(configDir)) &&
@@ -56,9 +64,11 @@ function parseSpec(raw: unknown): MemberSpec | null {
     (model === undefined || isSetting(model)) &&
     (effort === undefined || isSetting(effort)) &&
     (permissions === undefined || PERMISSIONS.includes(permissions as Permissions)) &&
-    (sandbox === undefined || SANDBOXES.includes(sandbox as Sandbox))
+    (sandbox === undefined || SANDBOXES.includes(sandbox as Sandbox)) &&
+    (startupSeconds === undefined || isWhole(startupSeconds, 5, 600)) &&
+    (startupRetries === undefined || isWhole(startupRetries, 0, 5))
   if (!isValid) return null
-  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(sandbox === undefined ? {} : { sandbox: sandbox as Sandbox }), ...(configDir === undefined ? {} : { configDir }) }
+  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(sandbox === undefined ? {} : { sandbox: sandbox as Sandbox }), ...(configDir === undefined ? {} : { configDir }), ...(startupSeconds === undefined ? {} : { startupSeconds: startupSeconds as number }), ...(startupRetries === undefined ? {} : { startupRetries: startupRetries as number }) }
 }
 
 /** Reads the `launch` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */

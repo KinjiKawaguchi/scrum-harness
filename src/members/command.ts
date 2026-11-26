@@ -1,13 +1,15 @@
 import type { Config } from '../config.ts'
-import type { Ports } from '../ports/index.ts'
+import type { LaunchPlan, Ports } from '../ports/index.ts'
 import { stateDir } from '../config.ts'
 import { formatReport, memberReport, type MemberReport } from './list.ts'
 import { planMember } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
+import { clearStartFailure, recordStartFailure } from './start-failures.ts'
+import { waitForLife, watchdogOf, type WaitDeps } from './watchdog.ts'
 
 export const MEMBER_USAGE = `scrum member: the members of this team and where they run
   scrum member list                                  Each member in the configuration, whether it runs, and what runs but is not listed (or is listed and does not run)
-  scrum member start <name...> | --all [--dry-run]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run`
+  scrum member start <name...> | --all [--dry-run] [--no-wait]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run. A member with a startup watchdog (a Codex member by default) is waited for, closed, and started again if it shows no sign of life; --no-wait skips that`
 
 const shellWord = (word: string): string => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`)
 
@@ -18,7 +20,33 @@ function describePlan(name: string, dir: string, env: Readonly<Record<string, st
   return `${name}: in ${dir}\n  env ${vars.join(' ')} ${shown.join(' ')}`
 }
 
-function startCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport): string {
+/** What the watchdog needs: where the failures are kept, and the clock, the sleep, and the signs of life. */
+export type WatchdogDeps = WaitDeps & { readonly startFailuresPath: string }
+
+/**
+ * Starts a member, and waits for its sign of life when it has a startup watchdog: a member that shows none in time has its window closed and is
+ * started again, up to its retries, and then recorded as a finding. Returns the line to print.
+ */
+function startWatched(ports: Ports, session: string, plan: LaunchPlan, watchdog: NonNullable<ReturnType<typeof watchdogOf>>, deps: WatchdogDeps): string {
+  const tries = watchdog.retries + 1
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    const since = deps.now()
+    ports.members.start(session, plan)
+    if (waitForLife(plan.name, since, watchdog.seconds, deps)) {
+      clearStartFailure(deps.startFailuresPath, plan.name)
+      return `${plan.name}: started in ${plan.dir}${attempt > 1 ? ` (try ${attempt})` : ''}, shows a sign of life`
+    }
+    try {
+      ports.members.stop(session, plan.name, 'kill')
+    } catch {
+      // A window that is already gone needs no closing.
+    }
+  }
+  recordStartFailure(deps.startFailuresPath, { name: plan.name, at: deps.now().toISOString(), tries })
+  return `${plan.name}: no sign of life after ${tries} start${tries === 1 ? '' : 's'} of ${watchdog.seconds} seconds; its window is closed and it is reported as a finding (M-START-FAILED)`
+}
+
+function startCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport, watchdogDeps: WatchdogDeps | undefined): string {
   const launch = config.launch
   if (launch === undefined) return 'there is no launch section in the configuration, so there is no tmux session to start members in'
   const known = report.rows.map((row) => row.name)
@@ -33,6 +61,8 @@ function startCommand(config: Config, ports: Ports, positional: readonly string[
     const { plan, brief } = planned
     if (flags['dry-run'] === true) return describePlan(plan.name, plan.dir, plan.env, plan.argv, brief)
     try {
+      const watchdog = watchdogOf(planned.spec)
+      if (watchdog !== null && watchdogDeps !== undefined && flags['no-wait'] !== true) return startWatched(ports, launch.tmuxSession, plan, watchdog, watchdogDeps)
       ports.members.start(launch.tmuxSession, plan)
       return `${name}: started in ${plan.dir}`
     } catch (error) {
@@ -49,12 +79,12 @@ function reportOf(config: Config, ports: Ports): MemberReport {
 }
 
 /** `scrum member ...`. Returns the text to print. */
-export function memberCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags = {}): string {
+export function memberCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags = {}, watchdogDeps?: WatchdogDeps): string {
   switch (positional[0]) {
     case 'list':
       return formatReport(reportOf(config, ports))
     case 'start':
-      return startCommand(config, ports, positional, flags, reportOf(config, ports))
+      return startCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
     default:
       return MEMBER_USAGE
   }

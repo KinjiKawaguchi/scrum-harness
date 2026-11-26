@@ -22,6 +22,8 @@ export function paths(dir: string = stateDir()) {
     usageLock: join(dir, 'cache', 'usage-index.lock'),
     /** What the team did in the last 24 hours, one event per line (see activity/log.ts) */
     activityLog: join(dir, 'cache', 'activity.jsonl'),
+    /** Members that did not show a sign of life after their start and retries (see members/start-failures.ts) */
+    startFailures: join(dir, 'cache', 'member-start-failed.json'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
