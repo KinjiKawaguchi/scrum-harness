@@ -45,6 +45,7 @@ The main settings in the configuration (`config.json`):
 |---|---|
 | `claudeConfigDirs` | The Claude Code configuration directories (`CLAUDE_CONFIG_DIR`) the team's sessions run under, as absolute paths or `~/...` (optional; default `["~/.claude"]`). The session records and the transcripts of every directory are read, so a member is found, and its usage counted, wherever it runs. Install the hooks in each with `scrum install --all`. A session of another directory also needs `SCRUM_STATE_DIR` in its environment |
 | `offBoard` | Which open issues of `repos` that are not on the board count as off the board (B-OFF-BOARD), for a repository shared with other teams (optional). `scope`: `all` (the default: every open issue), `none` (only what is on the board is watched, and the repository's issues are not even listed), or `filter` with `labels` and/or `assignees` (only an open issue with a listed label, or assigned to a listed login). A section of the wrong shape makes the configuration unusable, so it never falls back to flagging every other team's issue |
+| `launch` | How the team's members are started and found (optional). `tmuxSession` (the tmux session with one window per member, named after the member), `defaults` and `members` (per member: `dir`, `brief`, `product`, `model`, `effort`, `permissions`; `permissions: "skip"` starts a member without permission prompts and is never a default), `ignoreWindows` (windows that are not members). A key that is not known, or a value of the wrong shape, makes the section ignored. See [Members](#members) |
 | `host` | The GitHub host name when the board is on GitHub Enterprise (for example `ghe.example.com`). Every `gh` call and every board script the harness runs gets `GH_HOST=<host>`. Optional; without it `gh`'s own default host applies. See [GitHub Enterprise](#github-enterprise) |
 | `projectId`, `repos`, `defaultRepo` | The board and the repositories to check |
 | `fields`, `statuses`, `reasonNone`, `reasonJudge`, `statusFieldId` | The names of the board's fields and options. `fields.workType` (optional) names a single-select field that says what kind of work an item is (for example New feature, Improvement, Maintenance, Debt, Incident); when set, the harness reads it into each item |
@@ -83,6 +84,10 @@ The harness does not name github.com anywhere; it reaches GitHub through `gh`, w
 - A scheduled job (launchd or a systemd user timer) needs to reach the token. On macOS the keychain works from a launchd agent. On Linux there may be no keyring in a systemd user session; set `GH_ENTERPRISE_TOKEN` in the unit's environment, or sign in with `gh auth login --insecure-storage`.
 - The fix text that runs `gh` itself starts with `GH_HOST=<host>`, and a board command you type with `GH_HOST=...` in front, or with `-R <host>/owner/repo`, is read as usual.
 - The dispatch and alerts features read an issue's parent (sub-issues). An older GitHub Enterprise Server may not have that field; if the board read fails with an unknown field, leave `dispatch` and `alerts` disabled there.
+
+### Members
+
+`launch` is the one place that says where each member runs, so the `members` list and what runs do not drift apart. `scrum member list` shows, for the lead, the members, and the liaison, whether each one runs (a window in the tmux session, or a live session record, with its activity), and reports both kinds of drift: windows that are not in the configuration, and listed members that are not running. Without a `launch` section it judges from the session records only. Starting and stopping from the configuration follow (#37).
 
 To use sprint checkpoints and story points (optional), add two Number fields to the board (story points and overrun) and write `sprint` in the configuration:
 

@@ -1,6 +1,7 @@
 import type { ActionReader, BoardSource, BoardWriter } from './board.ts'
 import type { CodeHost } from './code-host.ts'
 import type { IssueThread } from './issue-thread.ts'
+import type { MemberHost } from './members.ts'
 import type { SessionDirectory } from './sessions.ts'
 import type { TranscriptSource } from './usage.ts'
 
@@ -8,6 +9,7 @@ export type { ActionReader, BoardSource, BoardWriter } from './board.ts'
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'
+export type { MemberHost } from './members.ts'
 export type { SessionDirectory, SessionEntry } from './sessions.ts'
 export type { Tokens, TranscriptFile, TranscriptScan, TranscriptSource, UsageRow } from './usage.ts'
 
@@ -25,6 +27,7 @@ export type Ports = {
   readonly issues: IssueThread
   readonly code: CodeHost
   readonly sessions: SessionDirectory
+  readonly members: MemberHost
   readonly transcripts: TranscriptSource
   readonly notify: Notifier
 }
