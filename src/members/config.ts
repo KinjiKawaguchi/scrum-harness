@@ -10,7 +10,7 @@ export type Permissions = 'ask' | 'skip'
 export type Sandbox = 'read-only' | 'workspace-write' | 'danger-full-access'
 
 /** What a Codex member is told when it has been idle too long. */
-export type Continuation = { readonly text: string; readonly afterMinutes: number; readonly tell?: string }
+export type Continuation = { readonly text: string; readonly afterMinutes: number }
 
 export type MemberSpec = {
   /** The working directory: an absolute path, or one under `~/` */
@@ -44,8 +44,8 @@ export type MemberSpec = {
   /**
    * Codex ends its turn and waits for a next message that no one sends, for example after saying "continuing...". For a Codex member with `continuation`,
    * the harness types `text` into its window once it has been idle at its prompt for `afterMinutes` (default 10), at most once for each stretch of
-   * idleness, and not while an acknowledgement of its idleness is in force. `tell` (`<tmux session>:<window>`) is a window the notice that it did so is
-   * typed into, besides the line `scrum refresh` prints and the event log. Claude Code members are not given this: they go on by themselves.
+   * idleness, and not while an acknowledgement of its idleness is in force. The notice that it did so is in the output of `scrum refresh`, in the event
+   * log, and as the finding M-CONTINUED for the TechLead. Claude Code members are not given this: they go on by themselves.
    */
   readonly continuation?: Continuation
   readonly startupRetries?: number
@@ -93,17 +93,16 @@ export const isPath = (value: unknown): value is string => typeof value === 'str
 const isWhole = (value: unknown, min: number, max: number): boolean => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
 export const isSetting = (value: unknown): value is string => typeof value === 'string' && SETTING.test(value)
 
-const WINDOW_TARGET = /^[A-Za-z0-9][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9 ._-]*$/
 /** The default time a Codex member may sit idle before it is told to go on. */
 export const DEFAULT_CONTINUE_MINUTES = 10
 
-/** A `continuation` setting, or null when it is of the wrong shape: a one-line `text` of up to 1000 characters, `afterMinutes` 1 to 1440, `tell` as `session:window`. */
+/** A `continuation` setting, or null when it is of the wrong shape: a one-line `text` of up to 1000 characters, and `afterMinutes` 1 to 1440. */
 function parseContinuation(raw: unknown): Continuation | null {
-  if (!isObject(raw) || Object.keys(raw).some((key) => key !== 'text' && key !== 'afterMinutes' && key !== 'tell')) return null
-  const { text, afterMinutes, tell } = raw
+  if (!isObject(raw) || Object.keys(raw).some((key) => key !== 'text' && key !== 'afterMinutes')) return null
+  const { text, afterMinutes } = raw
   const isText = typeof text === 'string' && text.trim() !== '' && text.length <= 1000 && !/[\u0000-\u001f\u007f]/.test(text)
-  if (!isText || !(afterMinutes === undefined || isWhole(afterMinutes, 1, 1440)) || !(tell === undefined || (typeof tell === 'string' && WINDOW_TARGET.test(tell)))) return null
-  return { text: text.trim(), afterMinutes: (afterMinutes as number | undefined) ?? DEFAULT_CONTINUE_MINUTES, ...(tell === undefined ? {} : { tell: tell as string }) }
+  if (!isText || !(afterMinutes === undefined || isWhole(afterMinutes, 1, 1440))) return null
+  return { text: text.trim(), afterMinutes: (afterMinutes as number | undefined) ?? DEFAULT_CONTINUE_MINUTES }
 }
 
 /** One member's settings, or null when a value is of the wrong shape or a key is not known (a misspelled key would otherwise be ignored). */

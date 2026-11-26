@@ -9,6 +9,8 @@ import type { Config } from '../src/config.ts'
 import { memberCommand } from '../src/members/command.ts'
 import { parseLaunch } from '../src/members/config.ts'
 import { continueIdle, isStillTyped } from '../src/members/continue.ts'
+import { readContinued } from '../src/members/continued.ts'
+import { lintContinued } from '../src/members/rules.ts'
 import type { WatchdogDeps } from '../src/members/lifecycle.ts'
 import { paths, writeJson, type Paths } from '../src/store.ts'
 import type { SessionSignal } from '../src/team/types.ts'
@@ -23,15 +25,15 @@ const signal = (name: string, state: SessionSignal['state'], sinceMinutesAgo: nu
 describe('the continuation setting of a member', () => {
   const parse = (spec: object) => parseLaunch({ tmuxSession: 't', members: { CodexA: { product: 'codex', ...spec } } })?.members.CodexA
 
-  it('is a one-line text with the minutes after which it is sent (10 by default) and, optionally, a window to tell', () => {
+  it('is a one-line text with the minutes after which it is sent (10 by default)', () => {
     assert.deepEqual(parse({ continuation: { text: TEXT } })?.continuation, { text: TEXT, afterMinutes: 10 })
-    assert.deepEqual(parse({ continuation: { text: ` ${TEXT} `, afterMinutes: 25, tell: 'agency:Lead' } })?.continuation, { text: TEXT, afterMinutes: 25, tell: 'agency:Lead' })
+    assert.deepEqual(parse({ continuation: { text: ` ${TEXT} `, afterMinutes: 25 } })?.continuation, { text: TEXT, afterMinutes: 25 })
   })
 
   it('is refused for a member that is not a Codex member, and for a value of the wrong shape', () => {
     assert.equal(parseLaunch({ tmuxSession: 't', members: { ClaudeA: { continuation: { text: TEXT } } } }), undefined)
     assert.equal(parseLaunch({ tmuxSession: 't', members: { ClaudeA: { product: 'claude-code', continuation: { text: TEXT } } } }), undefined)
-    for (const bad of [{}, { text: '' }, { text: 'two\nlines' }, { text: 'x'.repeat(1001) }, { text: TEXT, afterMinutes: 0 }, { text: TEXT, afterMinutes: 1441 }, { text: TEXT, afterMinutes: 1.5 }, { text: TEXT, tell: 'no-colon' }, { text: TEXT, extra: 1 }]) {
+    for (const bad of [{}, { text: '' }, { text: 'two\nlines' }, { text: 'x'.repeat(1001) }, { text: TEXT, afterMinutes: 0 }, { text: TEXT, afterMinutes: 1441 }, { text: TEXT, afterMinutes: 1.5 }, { text: TEXT, tell: 'agency:Lead' }, { text: TEXT, extra: 1 }]) {
       assert.equal(parse({ continuation: bad }), undefined, JSON.stringify(bad))
     }
   })
@@ -139,14 +141,9 @@ describe('telling a Codex member to go on', () => {
     assert.deepEqual(said, [])
   })
 
-  it('tells the window it is set to tell, and reports a window it cannot reach without failing', () => {
-    const { lines } = run({}, { tell: 'agency:Lead' })
-    assert.deepEqual(said.map((one) => [one.session, one.name]), [['team', 'CodexA'], ['agency', 'Lead']])
-    assert.match(said[1]?.text ?? '', /^CodexA was idle at its prompt for 12 minutes \(no In Progress item\); the harness typed its continuation text$/)
-    assert.match(lines.join(''), /; told agency:Lead$/)
-    said = []
-    const unreachable = run({ failsFor: 'Lead', signals: [signal('CodexA', 'idle', 30)] }, { tell: 'agency:Lead' })
-    assert.match(unreachable.lines.join(''), /could not tell agency:Lead: there is no window named Lead/)
+  it('types into the window of the member itself and nowhere else', () => {
+    run({ signals: [signal('CodexA', 'idle', 30), signal('SWE1', 'idle', 600)] })
+    assert.deepEqual(said.map((one) => [one.session, one.name]), [['team', 'CodexA']])
   })
 
   it('does not record a try that failed, so the next call tries again', () => {
@@ -167,6 +164,29 @@ describe('telling a Codex member to go on', () => {
     const deps: WatchdogDeps = { startFailuresPath: p.startFailures, paths: p, now: () => NOW, sleep: () => undefined, signals: () => [signal('CodexA', 'idle', 15)] }
     assert.match(memberCommand(config(), ports, ['continue'], {}, deps), /CodexA was idle at its prompt for 15 minutes/)
     assert.match(memberCommand(config(), ports, ['continue'], {}, deps), /no Codex member needs to be told to go on/)
+  })
+})
+
+describe('the finding that tells the TechLead', () => {
+  const record = { idleSince: minutesAgo(40), at: minutesAgo(5), minutes: 35, items: [] as readonly string[], isSubmitted: true }
+
+  it('is medium, says which case it was, is one finding for the idle stretch, and goes away after an hour', () => {
+    const [none] = lintContinued({ CodexA: record }, NOW)
+    assert.deepEqual([none?.rule, none?.subject, none?.severity, none?.key], ['M-CONTINUED', 'CodexA', 'medium', `M-CONTINUED:CodexA:${record.idleSince}`])
+    assert.equal(none?.message, 'CodexA was idle at its prompt for 35 minutes (no In Progress item); the harness typed its continuation text')
+    const [doing] = lintContinued({ CodexA: { ...record, items: ['app#7', 'app#9'], isSubmitted: false } }, NOW)
+    assert.match(doing?.message ?? '', /\(app#7, app#9 In Progress\).*still in its input box: it was not submitted/)
+    assert.deepEqual(lintContinued({ CodexA: { ...record, at: minutesAgo(61) } }, NOW), [])
+  })
+
+  it('is made from the record that telling a member keeps', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-continue-finding-')))
+    const ports = fakePorts({ members: { windows: () => ['CodexA'], start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined } })
+    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, paths: p, now: () => NOW, sleep: () => undefined, signals: () => [signal('CodexA', 'idle', 15)] }
+    const launch = parseLaunch({ tmuxSession: 'team', members: { CodexA: { product: 'codex', continuation: { text: TEXT } } } })
+    continueIdle({ ...base, members: ['CodexA'], launch }, ports, deps)
+    const [finding] = lintContinued(readContinued(p.memberContinued), NOW)
+    assert.match(finding?.message ?? '', /^CodexA was idle at its prompt for 15 minutes \(no In Progress item\)/)
   })
 })
 
