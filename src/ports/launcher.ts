@@ -8,4 +8,4 @@ export type LaunchRequest = {
 }
 
 /** Builds the command line that starts a member of one product. Pure; it runs nothing. */
-export type ProductLauncher = (request: LaunchRequest) => readonly string[]
+export type ProductLauncher = (request: LaunchRequest, scrum?: string) => readonly string[]
