@@ -41,22 +41,28 @@ function intervalsOf(marks: readonly StateMark[], life: SessionLife | undefined,
   })
 }
 
-type Edge = { readonly at: number; readonly state: Counted; readonly delta: 1 | -1 }
+type EdgeKind = Counted | 'owner'
+type Edge = { readonly at: number; readonly state: EdgeKind; readonly delta: 1 | -1 }
 
-/** What the member was doing at each moment: busy when any session is busy, else waiting for approval, else idle. Gaps with no session count for nothing. */
-function segmentsOf(intervals: readonly Interval[]): readonly Interval[] {
-  const edges: readonly Edge[] = intervals.flatMap((one) => [
+/**
+ * What the member was doing at each moment: busy when any session is busy, else waiting for approval, else idle. Gaps with no session count for nothing.
+ * While a request of the member waits for the owner (`owner`), the idle time inside it is waiting: it never takes time from busy time, and it adds no time
+ * when no session of the member was alive.
+ */
+function segmentsOf(intervals: readonly Interval[], ownerWaits: readonly Interval[]): readonly Interval[] {
+  const edges: readonly Edge[] = [...intervals, ...ownerWaits.map((one) => ({ ...one, state: 'owner' as const }))].flatMap((one) => [
     { at: one.from, state: one.state, delta: 1 as const },
     { at: one.to, state: one.state, delta: -1 as const },
   ])
   const sorted = edges.toSorted((a, b) => a.at - b.at)
-  const open = { busy: 0, waiting: 0, idle: 0 }
+  const open = { busy: 0, waiting: 0, idle: 0, owner: 0 }
   const out: Interval[] = []
   sorted.forEach((edge, i) => {
     open[edge.state] += edge.delta
     const next = sorted[i + 1]
     if (next === undefined || next.at <= edge.at) return
-    const state: Counted | null = open.busy > 0 ? 'busy' : open.waiting > 0 ? 'waiting' : open.idle > 0 ? 'idle' : null
+    const idle: Counted = open.owner > 0 ? 'waiting' : 'idle'
+    const state: Counted | null = open.busy > 0 ? 'busy' : open.waiting > 0 ? 'waiting' : open.idle > 0 ? idle : null
     if (state !== null) out.push({ from: edge.at, to: next.at, state })
   })
   return out
@@ -88,6 +94,8 @@ export type StateTimeInput = {
   readonly now: Date
   /** The time zone the days are cut in, as minutes east of UTC (the same as `tokenUsage`) */
   readonly offsetMinutes: number
+  /** Stretches in which a member's request waited for the owner's answer (`requests/waits.ts`): idle time inside them is counted as waiting */
+  readonly ownerWaits?: readonly { readonly name: string; readonly from: number; readonly to: number }[]
   /** When recording began. A state that began before it (a heartbeat file from before the log held it) is counted from then, since the time before is not known. */
   readonly recordedSince?: Date | null
 }
@@ -96,7 +104,7 @@ export type StateTimeInput = {
  * How long each member was busy, waiting for approval, and idle on each of the last `days` calendar days, from the hooks' state marks.
  * Time is counted only while a session is known to have run; the seconds are cut down to whole seconds, so that the three of a day never add up to more than the day.
  */
-export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes, recordedSince = null }: StateTimeInput): readonly MemberStateSeconds[] {
+export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes, recordedSince = null, ownerWaits = [] }: StateTimeInput): readonly MemberStateSeconds[] {
   const dates = lastDates(days, now, offsetMinutes)
   const floor = recordedSince === null ? -Infinity : recordedSince.getTime()
   const counted = [...marks, ...unlogged(marks, sessions)].map((mark) => (Date.parse(mark.at) >= floor ? mark : { ...mark, at: new Date(floor).toISOString() }))
@@ -107,7 +115,8 @@ export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes
     .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([name, intervals]) => {
       const totals = new Map(dates.map((date) => [date, { busy: 0, waiting: 0, idle: 0 }]))
-      addSegments(totals, segmentsOf(intervals), offsetMinutes)
+      const waits = ownerWaits.filter((wait) => baseName(wait.name) === name).map((wait) => ({ from: Math.max(wait.from, floor), to: wait.to, state: 'waiting' as const })).filter((wait) => wait.to > wait.from)
+      addSegments(totals, segmentsOf(intervals, waits), offsetMinutes)
       return {
         name,
         byDay: dates.map((date) => {

@@ -1,5 +1,7 @@
 import { label } from '../board/rules.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
+import { readRequests } from '../requests/store.ts'
+import { ownerWaits } from '../requests/waits.ts'
 import { readPrAuthorRecords, type PrAuthor } from '../team/pr-authors.ts'
 import { readStateMarks, recordingStart } from '../team/state-log.ts'
 import { stateSecondsByMember, type SessionLife } from '../team/state-time.ts'
@@ -64,7 +66,7 @@ export function participantMetrics(request: ParticipantMetricsRequest, deps: Run
     readHeartbeats(p, now).filter((one) => isTeam(one.name)).map((one) => [one.sessionId, { isAlive: one.isAlive, updatedAt: one.updatedAt, name: one.name, state: one.state, since: one.since }]),
   )
   const times = new Map(
-    stateSecondsByMember({ marks: readStateMarks(p.memberStates).filter((mark) => isTeam(mark.name)), sessions, days: request.days, now, offsetMinutes, recordedSince: recordingStart(p.memberStates) }).map((one) => [one.name, one.byDay]),
+    stateSecondsByMember({ marks: readStateMarks(p.memberStates).filter((mark) => isTeam(mark.name)), sessions, days: request.days, now, offsetMinutes, recordedSince: recordingStart(p.memberStates), ownerWaits: ownerWaits(readRequests(p), now) }).map((one) => [one.name, one.byDay]),
   )
   const dates = lastDates(request.days, now, offsetMinutes)
   const participants = [...new Set([...times.keys(), ...usage.keys()])].toSorted().flatMap((name) => {
