@@ -1,3 +1,6 @@
+import type { BudgetConfig } from '../budget/config.ts'
+import { parseBudget } from '../budget/config.ts'
+
 /**
  * How a team's members are started and found: the one place that says where each runs. Names, directories, and models are values of a team, so they
  * live only in the configuration file.
@@ -13,6 +16,8 @@ export type MemberSpec = {
   readonly brief?: string
   readonly product?: Product
   readonly model?: string
+  /** The model this member starts on while the team's weekly budget is at `warning`; replaces `launch.budget.warningModel` of its product */
+  readonly warningModel?: string
   readonly effort?: string
   /** `skip` starts the member without permission prompts; it is never a default and has to be written next to the member */
   readonly permissions?: Permissions
@@ -49,6 +54,8 @@ export type FundingConfig = {
 }
 
 export type LaunchConfig = {
+  /** The team's weekly budget is asked of the node: a cheaper model at `warning`, no new work at `over`. Off when absent */
+  readonly budget?: BudgetConfig
   /** Which account a member's session runs under is asked of the node at each start. Off when absent */
   readonly funding?: FundingConfig
   /** The tmux session the members' windows are in */
@@ -66,23 +73,24 @@ const SETTING = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PRODUCTS: readonly Product[] = ['claude-code', 'codex']
 const SANDBOXES: readonly Sandbox[] = ['read-only', 'workspace-write', 'danger-full-access']
 const PERMISSIONS: readonly Permissions[] = ['ask', 'skip']
-const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'sandbox', 'configDir', 'startupSeconds', 'startupRetries', 'trustDirectory'] as const
+const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'sandbox', 'configDir', 'startupSeconds', 'startupRetries', 'trustDirectory', 'warningModel'] as const
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-const isPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
+export const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+export const isPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
 const isWhole = (value: unknown, min: number, max: number): boolean => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
-const isSetting = (value: unknown): value is string => typeof value === 'string' && SETTING.test(value)
+export const isSetting = (value: unknown): value is string => typeof value === 'string' && SETTING.test(value)
 
 /** One member's settings, or null when a value is of the wrong shape or a key is not known (a misspelled key would otherwise be ignored). */
 function parseSpec(raw: unknown): MemberSpec | null {
   if (!isObject(raw) || Object.keys(raw).some((key) => !(KEYS as readonly string[]).includes(key))) return null
-  const { dir, brief, product, model, effort, permissions, sandbox, configDir, startupSeconds, startupRetries, trustDirectory } = raw
+  const { dir, brief, product, model, effort, permissions, sandbox, configDir, startupSeconds, startupRetries, trustDirectory, warningModel } = raw
   const isValid =
     (dir === undefined || isPath(dir)) &&
     (configDir === undefined || isPath(configDir)) &&
     (brief === undefined || isPath(brief)) &&
     (product === undefined || PRODUCTS.includes(product as Product)) &&
     (model === undefined || isSetting(model)) &&
+    (warningModel === undefined || isSetting(warningModel)) &&
     (effort === undefined || isSetting(effort)) &&
     (permissions === undefined || PERMISSIONS.includes(permissions as Permissions)) &&
     (sandbox === undefined || SANDBOXES.includes(sandbox as Sandbox)) &&
@@ -90,7 +98,7 @@ function parseSpec(raw: unknown): MemberSpec | null {
     (startupRetries === undefined || isWhole(startupRetries, 0, 5)) &&
     (trustDirectory === undefined || typeof trustDirectory === 'boolean')
   if (!isValid) return null
-  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(sandbox === undefined ? {} : { sandbox: sandbox as Sandbox }), ...(configDir === undefined ? {} : { configDir }), ...(startupSeconds === undefined ? {} : { startupSeconds: startupSeconds as number }), ...(startupRetries === undefined ? {} : { startupRetries: startupRetries as number }), ...(trustDirectory === undefined ? {} : { trustDirectory: trustDirectory as boolean }) }
+  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(warningModel === undefined ? {} : { warningModel }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(sandbox === undefined ? {} : { sandbox: sandbox as Sandbox }), ...(configDir === undefined ? {} : { configDir }), ...(startupSeconds === undefined ? {} : { startupSeconds: startupSeconds as number }), ...(startupRetries === undefined ? {} : { startupRetries: startupRetries as number }), ...(trustDirectory === undefined ? {} : { trustDirectory: trustDirectory as boolean }) }
 }
 
 function parseFunding(raw: unknown): FundingConfig | null {
@@ -105,7 +113,7 @@ function parseFunding(raw: unknown): FundingConfig | null {
 /** Reads the `launch` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */
 export function parseLaunch(raw: unknown): LaunchConfig | undefined {
   if (!isObject(raw)) return undefined
-  const { tmuxSession, defaults, members, ignoreWindows, funding } = raw
+  const { tmuxSession, defaults, members, ignoreWindows, funding, budget } = raw
   if (typeof tmuxSession !== 'string' || !WORD.test(tmuxSession)) return undefined
   if (!isObject(members) || !Object.keys(members).every((name) => NAME.test(name))) return undefined
   const parsedDefaults = defaults === undefined ? {} : parseSpec(defaults)
@@ -114,8 +122,11 @@ export function parseLaunch(raw: unknown): LaunchConfig | undefined {
   if (ignoreWindows !== undefined && !(Array.isArray(ignoreWindows) && ignoreWindows.every((one) => typeof one === 'string'))) return undefined
   const parsedFunding = funding === undefined ? undefined : parseFunding(funding)
   if (parsedFunding === null) return undefined
+  const parsedBudget = budget === undefined ? undefined : parseBudget(budget)
+  if (parsedBudget === null) return undefined
   return {
     ...(parsedFunding === undefined ? {} : { funding: parsedFunding }),
+    ...(parsedBudget === undefined ? {} : { budget: parsedBudget }),
     tmuxSession,
     defaults: parsedDefaults,
     members: Object.fromEntries(parsedMembers.map(([name, spec]) => [name, spec as MemberSpec])),

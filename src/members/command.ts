@@ -6,6 +6,7 @@ import { planMember, specOf } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
 import { refreshFundingDirs } from './funding-dirs.ts'
 import { describePick, forgetMemberSource, pickFor, readMemberSources, recordMemberSource, type MemberSource } from './funding.ts'
+import { budgetGate } from '../budget/gate.ts'
 import { adoptCommand } from './adopt.ts'
 import { moveCommand } from './move.ts'
 import { RESTART_NOTE, resumeSession } from './resume.ts'
@@ -32,6 +33,8 @@ function describePlan(name: string, dir: string, env: Readonly<Record<string, st
 
 /** Starts one member that is not running: asks the node which account it runs under, plans the launch, and starts it (watched, where there is a watchdog). */
 function startOne(config: Config, ports: Ports, name: string, session: string, flags: Flags, watchdogDeps: WatchdogDeps | undefined): string {
+  const gate = budgetGate(config, ports, specOf(config, name), watchdogDeps?.budgetPath, watchdogDeps?.now() ?? new Date())
+  if (gate.refusal !== undefined) return `${name}: not started: ${gate.refusal}`
   const outcome = pickFor(ports, specOf(config, name))
   const sourcesPath = watchdogDeps?.memberSourcesPath
   if (outcome.kind === 'none' || outcome.kind === 'unguarded') {
@@ -41,10 +44,11 @@ function startOne(config: Config, ports: Ports, name: string, session: string, f
   const pickedEnv = outcome.kind === 'picked' ? outcome.pick.env : {}
   const resumed = flags.resume === true ? resumeSession(ports, specOf(config, name), name, pickedEnv) : undefined
   if (resumed !== undefined && 'problem' in resumed) return `${name}: not started: ${resumed.problem}`
-  const planned = planMember(config, name, stateDir(), process.env.PATH, ports.launchers, { pickedEnv, ...(resumed === undefined ? {} : { resume: { sessionId: resumed.sessionId, note: RESTART_NOTE } }) })
+  const planned = planMember(config, name, stateDir(), process.env.PATH, ports.launchers, { pickedEnv, ...(gate.model === undefined ? {} : { model: gate.model }), ...(resumed === undefined ? {} : { resume: { sessionId: resumed.sessionId, note: RESTART_NOTE } }) })
   if ('problem' in planned) return `${name}: ${planned.problem}`
   const { plan, brief } = planned
-  const account = outcome.kind === 'picked' ? `\n${name}: ${describePick(outcome.pick)}` : outcome.kind === 'failed' ? `\n${name}: the account could not be picked (${outcome.reason}); it starts on its own settings` : ''
+  const budgetNote = gate.note === undefined ? '' : `\n${name}: ${gate.note}`
+  const account = budgetNote + (outcome.kind === 'picked' ? `\n${name}: ${describePick(outcome.pick)}` : outcome.kind === 'failed' ? `\n${name}: the account could not be picked (${outcome.reason}); it starts on its own settings` : '')
   if (flags['dry-run'] === true) return describePlan(plan.name, plan.dir, plan.env, plan.argv, brief) + account
   try {
     if (outcome.kind === 'picked') noteSource(sourcesPath, watchdogDeps, name, { source: outcome.pick.source ?? '', state: outcome.pick.state })

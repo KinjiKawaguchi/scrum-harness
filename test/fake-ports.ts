@@ -32,6 +32,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     members: { windows: () => null, start: unused('members.start') as () => never, stop: unused('members.stop') as () => never, screen: () => null, press: unused('members.press') as () => never },
     funding: null,
     fundingSources: null,
+    budget: null,
     hasHooksIn: () => true,
     hasTranscriptIn: () => true,
     launchers: { 'claude-code': () => ['claude'], codex: () => ['codex'] },

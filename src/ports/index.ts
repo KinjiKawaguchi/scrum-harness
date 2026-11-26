@@ -1,6 +1,7 @@
 import type { ActionReader, BoardSource, BoardWriter } from './board.ts'
 import type { CodeHost } from './code-host.ts'
 import type { IssueThread } from './issue-thread.ts'
+import type { BudgetReader } from './budget.ts'
 import type { FundingLister, FundingPicker } from './funding.ts'
 import type { ProductLauncher } from './launcher.ts'
 import type { MemberHost } from './members.ts'
@@ -12,6 +13,7 @@ export type { ActionReader, BoardSource, BoardWriter, ToolCall } from './board.t
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { BodyThread, IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'
+export type { BudgetLine, BudgetReader, BudgetState, BudgetStatus } from './budget.ts'
 export type { FundingLister, FundingPick, FundingPicker, FundingSource, FundingTool } from './funding.ts'
 export type { LaunchPlan, MemberHost } from './members.ts'
 export type { LaunchRequest, ProductLauncher } from './launcher.ts'
@@ -37,6 +39,8 @@ export type Ports = {
   readonly funding: FundingPicker | null
   /** Null when the team has no funding command */
   readonly fundingSources: FundingLister | null
+  /** Null when the team has no `launch.budget` */
+  readonly budget: BudgetReader | null
   /** Whether the harness's hooks are in a Claude Code configuration directory (a member under another login runs unguarded and unwatched without them) */
   readonly hasHooksIn: (configDir: string) => boolean
   /** Whether the conversation of a session can be found under a Claude Code configuration directory (so that `--resume` works there) */

@@ -76,8 +76,8 @@ describe('agencyFundingPicker: what the node answers', () => {
 
   it('refuses a program that others can write, and one that does not exist', () => {
     answer(OK)
-    assert.throws(() => agencyFundingPicker({ command: [program(0o777)] })('claude'), /funding program can be written by the group or by others/)
-    assert.throws(() => agencyFundingPicker({ command: ['/no/such/agency'] })('claude'), /funding program does not exist/)
+    assert.throws(() => agencyFundingPicker({ command: [program(0o777)] })('claude'), /node program can be written by the group or by others/)
+    assert.throws(() => agencyFundingPicker({ command: ['/no/such/agency'] })('claude'), /node program does not exist/)
   })
 
   it('stops waiting for a program that hangs', { timeout: 40_000 }, () => {

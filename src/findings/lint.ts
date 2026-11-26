@@ -20,6 +20,9 @@ import type { DispatchRecord } from '../dispatch/types.ts'
 import { currentRuleName } from '../compat.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
 import { lintRequests } from '../requests/rules.ts'
+import { currentBudget, readBudgetRecord } from '../budget/record.ts'
+import { lintBudget } from '../budget/rules.ts'
+import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
 import { lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
 import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
@@ -49,6 +52,8 @@ export type LintContext = {
   readonly startFailures?: readonly StartFailure[]
   /** The account each member started on, or why its start was refused (M-SOURCE-REFUSED) */
   readonly memberSources?: readonly MemberSource[]
+  /** The team's weekly budget as the node last said, when it is fresh (B-BUDGET-OVER, B-BUDGET-WARNING) */
+  readonly budget?: BudgetStatus | null
 }
 
 export type LintResult = { readonly active: readonly Finding[]; readonly acked: readonly Finding[] }
@@ -86,6 +91,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintRequests(ctx.requests ?? [], ctx.config),
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
+    ...lintBudget(ctx.budget ?? null),
   ]
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
@@ -112,5 +118,6 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     requests: readRequests(p),
     startFailures: readStartFailures(p.startFailures),
     memberSources: readMemberSources(p.memberSources),
+    budget: currentBudget(readBudgetRecord(p.budget), now),
   }
 }
