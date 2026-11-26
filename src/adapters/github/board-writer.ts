@@ -6,6 +6,7 @@ import { dispatchOf, type Config } from '../../config.ts'
 import type { BoardWriter } from '../../ports/index.ts'
 import type { Mark } from '../../sprint/marks.ts'
 import { ghEnv, type GhRun } from './gh.ts'
+import { addIssueToBoard, setItemTeam } from './team-writer.ts'
 
 /** Runs the script that rewrites the board. Throws on failure. */
 export type Exec = (script: string, args: readonly string[]) => void
@@ -74,6 +75,8 @@ export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): Board
       if (setReason === undefined) throw new Error('scripts.setReason is not configured')
       exec(setReason, [numberOf(item), reason])
     },
+    addToBoard: (repo, number) => addIssueToBoard(run, config, repo, number),
+    setTeam: (item, team) => setItemTeam(run, config, item, team),
     writeOverrun: (marks) => applyMarks(run, marks, config),
   }
 }

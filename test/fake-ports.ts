@@ -22,6 +22,8 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
       setStatus: () => undefined,
       canSetReason: true,
       setReason: () => undefined,
+      addToBoard: () => undefined,
+      setTeam: () => undefined,
       writeOverrun: () => [],
     },
     actions: { commandsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) },

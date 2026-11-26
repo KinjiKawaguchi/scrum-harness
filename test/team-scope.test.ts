@@ -71,7 +71,7 @@ describe('reading the team field', () => {
   })
 })
 
-const optionsReply = (names: readonly string[] | null) => JSON.stringify({ data: { node: { field: names === null ? null : { options: names.map((name) => ({ name })) } } } })
+const optionsReply = (names: readonly string[] | null) => JSON.stringify({ data: { node: { field: names === null ? null : { id: 'F_team', options: names.map((name) => ({ id: `O_${name}`, name })) } } } })
 const runOptions = (names: readonly string[] | null) => () => optionsReply(names)
 
 describe('assertTeamValue', () => {

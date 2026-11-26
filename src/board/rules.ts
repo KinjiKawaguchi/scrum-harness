@@ -49,6 +49,13 @@ const ITEM_RULES: readonly ItemRule[] = [
     fix: (item, config) => fixWith(config, item, 'setAssignee', '<assignee>', 'Assign it, or move it back to Backlog if you cannot decide'),
   },
   {
+    rule: 'B-NO-TEAM',
+    severity: 'medium',
+    applies: (item, config) => config.team?.adoptsUnassigned === true && isOpenIssue(item) && item.team === null,
+    message: (item) => `${label(item)} is on the board but has no team`,
+    fix: (item) => `${SCRUM_CLI} board move ${label(item)} --team <name>`,
+  },
+  {
     rule: 'B-CLOSED-NOT-DONE',
     severity: 'medium',
     applies: (item, config) => item.kind === 'issue' && item.state === 'CLOSED' && item.status !== config.statuses.done,
@@ -164,7 +171,7 @@ function lintOffBoard(snapshot: Snapshot, config: Config): readonly Finding[] {
         subject: label(open),
         severity: 'medium',
         message: `${label(open)} is open but not on the board`,
-        fix: fixWith(config, open, 'setStatus', config.statuses.backlog, `Add it to the board and set Status to ${config.statuses.backlog}`),
+        fix: config.team === undefined ? fixWith(config, open, 'setStatus', config.statuses.backlog, `Add it to the board and set Status to ${config.statuses.backlog}`) : `${SCRUM_CLI} board add ${label(open)}`,
       }),
     )
 }

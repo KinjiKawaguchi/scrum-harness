@@ -66,7 +66,7 @@ Each team keeps its own harness (its own state directory and configuration). To 
 
 The harness reads the whole board and narrows it to the items whose field has the team's value, so every check, the dispatch, the links, and the runtime view see only the team's work. An issue that is on the board under another team is not reported as off the board. Exactly one team sets `adoptsUnassigned`: it also owns the items with no value and the issues that are not on the board, so no two teams fight over one item. Without a `team` section the whole board is the team's. A `team` section of the wrong shape makes the whole configuration unusable (it never falls back to the whole board), and a `value` that is not an option of the field fails the board read with that message.
 
-To move an existing single team: add the field, set it on the existing items, then add the section with `adoptsUnassigned: true`. The behavior is the same at every step.
+To move an existing single team: add the field, set it on the existing items (`scrum board move --unassigned --team <name>` does it for every item that has no team), then add the section with `adoptsUnassigned: true`. The behavior is the same at every step. The team that adopts unassigned work gets the finding B-NO-TEAM for an open issue that is on the board with no team (fix: `scrum board move`), and `scrum board add` as the fix for an issue that is not on the board.
 
 ### GitHub Enterprise
 
@@ -134,6 +134,8 @@ bin/scrum schedule install                                      # run the backgr
 | `scrum link-prs [--dry-run]` | Lists open PRs in the body of the issue each one points to, between the markers (`<!-- scrum-harness:prs -->` and `<!-- /scrum-harness:prs -->`) (the watch runs it too when links.enabled). `--dry-run` rewrites nothing and shows only the plan, the reasons for skipping, and broken markers. See "Linking PRs and issues" in docs/rules.md |
 | `scrum checkpoint` | Records the last checkpoint that is not recorded yet, now |
 | `scrum request <add\|list\|show\|reply\|close>` | Requests to the owner (questions and proposals). An answer reaches the TechLead as R-ANSWERED (see "Requests to the owner" in docs/rules.md) |
+| `scrum board add <N\|repo#N>` | Adds an issue to the board: Status Backlog when it has none and, when the board is shared (`team`), this team's value in the team field. Not an error when it is already there |
+| `scrum board move <N\|repo#N> --team <name>` | Hands one of this team's items to another team (it leaves this team's part of the board at the next refresh). `scrum board move --unassigned --team <name>` gives every item with no team to a team, the first step of sharing a board |
 | `scrum runtime` | Called by an Agency node (agency-runtime/1). Reads one JSON request on stdin, and returns the team's state (TeamView), applies an answer to a request, or reports token use by day and person. See [docs/agency-runtime.md](docs/agency-runtime.md) |
 | `scrum usage-index` | Reads what the agents' transcripts gained since the last run into the usage index. `scrum runtime` starts it in the background when the index is stale; run it by hand to build the index before the first call |
 
