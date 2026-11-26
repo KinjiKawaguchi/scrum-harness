@@ -8,6 +8,7 @@ import { fencedBlock } from '../quote.ts'
 import { answer, isSameAnswer, parseAnswer } from '../requests/model.ts'
 import { readRequest, writeRequest } from '../requests/store.ts'
 import type { Paths } from '../store.ts'
+import { OWNER_ID } from './people.ts'
 import { pendingDecisionItems } from './requests.ts'
 import type { RuntimeDecision, RuntimeError } from './types.ts'
 
@@ -16,6 +17,19 @@ export type DecideDeps = {
   readonly config: Config
   readonly now: Date
   readonly ports: Pick<Ports, 'board' | 'writer' | 'issues'>
+}
+
+/**
+ * Refuses a decision whose decider is not the request's addressee, by the decider's participant name (the node sends it with every decision).
+ * The addressee is `to`, else the owner; the owner may also decide a request for someone else, because the node sends a `to` it does not know to
+ * the owner and the runtime cannot see that map. A decider who is not allowed gets the same 404 as an unknown target, so the answer does not say
+ * what exists. A node that does not send the name gets a 400, which it does not retry.
+ */
+function checkDecider(decision: RuntimeDecision, to: string | undefined, unknownMessage: string): RuntimeError | null {
+  const { byParticipant } = decision
+  if (byParticipant === undefined) return refusal(400, 'the decision does not name the decider as a participant (byParticipant), so it cannot be checked against the addressee')
+  const isAddressee = byParticipant === (to ?? OWNER_ID) || byParticipant === OWNER_ID
+  return isAddressee ? null : refusal(404, unknownMessage)
 }
 
 const refusal = (status: number, message: string): RuntimeError => ({ status, message })
@@ -53,7 +67,10 @@ function postOnce(deps: DecideDeps, item: BoardItem, decision: RuntimeDecision):
  */
 function answerRequest(deps: DecideDeps, decision: RuntimeDecision): RuntimeError | null {
   const request = readRequest(deps.p, decision.target)
-  if (request === null) return refusal(404, `no such request: ${decision.target}`)
+  const unknown = `no such request: ${decision.target}`
+  if (request === null) return refusal(404, unknown)
+  const refused = checkDecider(decision, request.to, unknown)
+  if (refused !== null) return refused
   const parsed = parseAnswer(decision.payload, request)
   if (!parsed.ok) return refusal(400, parsed.message)
   if (isSameAnswer(request, parsed.value, decision.by)) return null
@@ -71,7 +88,10 @@ export function decide(deps: DecideDeps, decision: RuntimeDecision): RuntimeErro
   const snapshot = currentSnapshot(deps)
   if (snapshot === null) return refusal(503, 'the board has not been read yet')
   const item = pendingDecisionItems(snapshot.items, deps.config).find((one) => label(one) === decision.target)
-  if (item === undefined) return refusal(404, `no pending decision for ${decision.target}`)
+  const unknown = `no pending decision for ${decision.target}`
+  if (item === undefined) return refusal(404, unknown)
+  const refused = checkDecider(decision, undefined, unknown)
+  if (refused !== null) return refused
   if (!deps.ports.writer.canSetReason) return refusal(503, 'scripts.setReason is not configured, so the block cannot be cleared')
   try {
     postOnce(deps, item, decision)
