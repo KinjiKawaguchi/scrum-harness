@@ -109,6 +109,8 @@ describe('resolveIdentity', () => {
     writeFileSync(join(sessions, '10.json'), JSON.stringify({ pid: 10, sessionId: 'lead', name: 'TechLead' }))
     writeFileSync(join(sessions, '11.json'), JSON.stringify({ pid: 11, sessionId: 'other', name: 'dev-22' }))
     process.env.SCRUM_SESSIONS_DIR = sessions
+    // A member's own session sets its name in the environment, which wins over the session record; the test is about the record.
+    delete process.env.SCRUM_NAME
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-identity-')))
     const now = new Date('2026-10-08T06:00:00.000Z')
     assert.deepEqual(resolveIdentity(p, 'lead', now, config, claudeCodeSessions()), { sessionId: 'lead', name: 'TechLead', pid: 10 })

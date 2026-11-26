@@ -12,13 +12,13 @@ type Settings = { readonly hooks?: Readonly<Record<string, readonly HookGroup[]>
 /** timeout applies to asyncRewake hooks, so it is set slightly longer than the watch's upper limit (50 minutes). */
 const WATCH_TIMEOUT_SECONDS = 3100
 
-function groups(bin: string): Readonly<Record<string, readonly HookGroup[]>> {
+function groups(bin: string, tools: readonly string[]): Readonly<Record<string, readonly HookGroup[]>> {
   const hook = (event: string, timeout: number): HookEntry => ({ type: 'command', command: `${bin} hook ${event}`, timeout })
   const watch: HookEntry = { type: 'command', command: `${bin} watch`, asyncRewake: true, timeout: WATCH_TIMEOUT_SECONDS }
   return {
     SessionStart: [{ hooks: [hook('SessionStart', 30), watch] }],
     UserPromptSubmit: [{ hooks: [hook('UserPromptSubmit', 15)] }],
-    PreToolUse: [{ matcher: 'Bash', hooks: [hook('PreToolUse', 10)] }],
+    PreToolUse: [{ matcher: ['Bash', ...tools].join('|'), hooks: [hook('PreToolUse', 10)] }],
     PostToolUse: [{ hooks: [hook('PostToolUse', 30)] }],
     Stop: [{ hooks: [hook('Stop', 15), watch] }],
     Notification: [{ matcher: 'permission_prompt', hooks: [hook('Notification', 10)] }],
@@ -36,9 +36,10 @@ export function withoutHooks(settings: Settings): Settings {
   return entries.length === 0 ? rest : { ...rest, hooks: Object.fromEntries(entries) }
 }
 
-export function withHooks(settings: Settings, bin: string): Settings {
+/** `tools` are names (regular expressions) of tools besides Bash whose calls the write guard also reads, for example the tools of an MCP server (`mcp__<server>__.*`). */
+export function withHooks(settings: Settings, bin: string, tools: readonly string[] = []): Settings {
   const base = withoutHooks(settings).hooks ?? {}
-  const ours = groups(bin)
+  const ours = groups(bin, tools)
   const events = [...new Set([...Object.keys(base), ...Object.keys(ours)])]
   const hooks = Object.fromEntries(events.map((event) => [event, [...(base[event] ?? []), ...(ours[event] ?? [])]]))
   return { ...settings, hooks }

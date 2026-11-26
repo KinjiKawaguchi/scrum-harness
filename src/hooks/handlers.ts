@@ -1,13 +1,13 @@
 import { checkGuard } from '../board/commands.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
 import type { Config } from '../config.ts'
-import type { Ports } from '../ports/index.ts'
+import type { Ports, ToolCall } from '../ports/index.ts'
 import type { Paths } from '../store.ts'
 import { dueCheckpoint, loadRecords } from '../sprint/record.ts'
 import { writeHeartbeat } from '../team/heartbeat.ts'
 import { roleOf, type Identity } from '../team/identity.ts'
 import type { ActivityState } from '../team/types.ts'
-import { techleadAfterBash, techleadDiff, techleadSessionStart, techleadStop } from './techlead.ts'
+import { techleadAfterTool, techleadDiff, techleadSessionStart, techleadStop } from './techlead.ts'
 
 export type HookDeps = {
   readonly p: Paths
@@ -53,11 +53,20 @@ function bashCommand(input: HookInput): string | null {
   return typeof command === 'string' ? command : null
 }
 
+/** The tool call a hook was given, of any tool (a Bash command or an MCP tool). Null when the input does not name a tool. */
+function toolCall(input: HookInput): ToolCall | null {
+  if (typeof input.tool_name !== 'string' || input.tool_name === '') return null
+  const raw = input.tool_input
+  const toolInput = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+  return { tool: input.tool_name, input: toolInput, ...(input.tool_response === undefined ? {} : { response: input.tool_response }) }
+}
+
 function guard(input: HookInput, deps: HookDeps): HookResult {
-  const command = bashCommand(input)
+  const call = toolCall(input)
   const snapshot = loadSnapshot(deps.p)
-  if (command === null || snapshot === null) return NOTHING
-  const reason = checkGuard(snapshot, deps.ports.actions.commandsOf(command), deps.config, command)
+  if (call === null || snapshot === null) return NOTHING
+  // The escape `SCRUM_GUARD=off` is a word in a Bash command; no other tool has one.
+  const reason = checkGuard(snapshot, deps.ports.actions.actionsOf(call), deps.config, bashCommand(input) ?? '')
   if (reason === null) return NOTHING
   return {
     exitCode: 0,
@@ -72,8 +81,8 @@ function techlead(event: string, input: HookInput, deps: HookDeps): HookResult {
     case 'UserPromptSubmit':
       return inject(event, techleadDiff(deps))
     case 'PostToolUse': {
-      const command = bashCommand(input)
-      return inject(event, command === null ? techleadDiff(deps) : techleadAfterBash(deps, command))
+      const call = toolCall(input)
+      return inject(event, call === null ? techleadDiff(deps) : techleadAfterTool(deps, call))
     }
     case 'Stop': {
       const reason = techleadStop(deps, input.stop_hook_active === true)

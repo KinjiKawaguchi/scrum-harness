@@ -218,7 +218,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'install':
     case 'uninstall': {
       const targets = settingsTargets(flags, config)
-      return print(typeof targets === 'string' ? targets : installCommand(p, command === 'install', targets))
+      return print(typeof targets === 'string' ? targets : installCommand(p, command === 'install', targets, config?.hookTools ?? []))
     }
     default:
       return print(USAGE)

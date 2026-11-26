@@ -126,7 +126,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig; readonly hookTools?: readonly string[] }
 
 /** The lead and the members, each name once (the lead may also be listed in `members`). */
 export const teamNamesOf = (config: Config): readonly string[] => [...new Set([config.techlead, ...config.members])]
@@ -221,6 +221,9 @@ export const isHostName = (value: unknown): value is string => typeof value === 
 /** The Claude Code configuration directories, when given, are a non-empty list of absolute paths (or `~/...`); a relative one would mean a different place in every process. */
 const isValidConfigDirs = (value: unknown): boolean => value === undefined || (Array.isArray(value) && value.length > 0 && value.every(isConfigPath))
 
+/** Names of tools besides Bash whose calls the hooks read: each is a tool name or a pattern of name characters and `*`, joined into the hooks' matcher. */
+const isValidHookTools = (value: unknown): boolean => value === undefined || (Array.isArray(value) && value.every((one) => typeof one === 'string' && /^[A-Za-z0-9_.*-]+$/.test(one)))
+
 /** The config file is a system boundary, so a missing value is not used. */
 export function parseConfig(raw: unknown): Config | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -230,7 +233,7 @@ export function parseConfig(raw: unknown): Config | null {
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
     isValidWorkTypeField(record.fields)
-  if (!isValid || (record.host !== undefined && !isHostName(record.host)) || !isValidConfigDirs(record.claudeConfigDirs)) return null
+  if (!isValid || (record.host !== undefined && !isHostName(record.host)) || !isValidConfigDirs(record.claudeConfigDirs) || !isValidHookTools(record.hookTools)) return null
   const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, launch: rawLaunch, offBoard: rawOffBoard, ...rest } = record
   const sprint = parseSprint(rawSprint)
   const dispatch = parseDispatch(rawDispatch)
