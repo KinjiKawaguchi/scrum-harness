@@ -1,7 +1,11 @@
 import type { LaunchPlan, Ports } from '../ports/index.ts'
 import type { MemberSpec, Product } from './config.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
-import { CODEX_TRUST_QUESTION, screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
+import { CODEX_TRUST_QUESTION, claudeTrustKey, screenQuestion } from './trust.ts'
+import { screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
+
+/** The most keys sent to Claude Code's trust question for one start. Two answer it; the rest are for a key it did not take. */
+const MAX_TRUST_KEYS = 6
 
 /** What a start came to: whether the member is up, and the line to print. */
 export type StartResult = { readonly isStarted: boolean; readonly text: string }
@@ -29,21 +33,35 @@ export type WatchdogDeps = WaitDeps & {
 export function startWatched(ports: Ports, session: string, plan: LaunchPlan, spec: MemberSpec, watchdog: NonNullable<ReturnType<typeof watchdogOf>>, deps: WatchdogDeps): StartResult {
   const tries = watchdog.retries + 1
   let lastScreen: string | null = null
+  let lastQuestion: string | null = null
   for (let attempt = 1; attempt <= tries; attempt += 1) {
     const since = deps.now()
     ports.members.start(session, plan)
-    // Codex's one-time question about a directory is answered once, and only for a member that is set to have it answered.
+    // The one-time question about the member's folder is answered only for a member that is set to have it answered: Codex's once (Enter), Claude Code's
+    // with Down to "Yes" and Enter, reading the focused line each time, and giving up after a few keys.
     let answered = false
+    let keys = 0
     const answerTrust = (): void => {
-      if (answered || spec.trustDirectory !== true || spec.product !== 'codex' || !CODEX_TRUST_QUESTION.test(ports.members.screen(session, plan.name) ?? '')) return
-      answered = true
-      ports.members.press(session, plan.name, 'Enter')
+      if (spec.trustDirectory !== true) return
+      const screen = ports.members.screen(session, plan.name) ?? ''
+      if (spec.product === 'codex') {
+        if (answered || !CODEX_TRUST_QUESTION.test(screen)) return
+        answered = true
+        ports.members.press(session, plan.name, 'Enter')
+        return
+      }
+      const key = keys < MAX_TRUST_KEYS ? claudeTrustKey(screen, plan.dir) : null
+      if (key === null) return
+      keys += 1
+      ports.members.press(session, plan.name, key)
     }
     if (waitForLife(plan.name, since, watchdog.seconds, deps, answerTrust)) {
       clearStartFailure(deps.startFailuresPath, plan.name)
       return { isStarted: true, text: `${plan.name}: started in ${plan.dir}${attempt > 1 ? ` (try ${attempt})` : ''}, shows a sign of life` }
     }
-    lastScreen = screenSummary(ports.members.screen(session, plan.name))
+    const lastFull = ports.members.screen(session, plan.name)
+    lastScreen = screenSummary(lastFull)
+    lastQuestion = screenQuestion(lastFull)
     try {
       ports.members.stop(session, plan.name, 'kill')
     } catch {
@@ -51,7 +69,7 @@ export function startWatched(ports: Ports, session: string, plan: LaunchPlan, sp
     }
   }
   recordStartFailure(deps.startFailuresPath, { name: plan.name, at: deps.now().toISOString(), tries, ...(lastScreen === null ? {} : { screen: lastScreen }) })
-  const seen = lastScreen === null ? '' : ` Its window showed: ${lastScreen}.`
+  const seen = `${lastScreen === null ? '' : ` Its window showed: ${lastScreen}.`}${lastQuestion === null ? '' : ` ${lastQuestion[0]?.toUpperCase()}${lastQuestion.slice(1)}.`}`
   const text = `${plan.name}: no sign of life after ${tries} start${tries === 1 ? '' : 's'} of ${watchdog.seconds} seconds; its window is closed and it is reported as a finding (M-START-FAILED).${seen}`
   return { isStarted: false, text }
 }

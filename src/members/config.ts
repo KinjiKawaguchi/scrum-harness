@@ -30,9 +30,12 @@ export type MemberSpec = {
    */
   readonly startupSeconds?: number
   /**
-   * Codex asks "Do you trust the contents of this directory?" the first time it runs in one, and waits for an answer that no one is there to give.
-   * With `trustDirectory: true` the harness answers it ("Yes, continue") for the member's own working directory, which the owner chose by configuring the member.
-   * Trusting a directory lets Codex load its project-local config, hooks, and exec policies, so it is never a default.
+   * Codex asks "Do you trust the contents of this directory?" the first time it runs in one, and Claude Code asks "Quick safety check: Is this a project you
+   * created or one you trust?" the first time a login runs in a folder; each waits for an answer that no one is there to give.
+   * With `trustDirectory: true` the harness answers Yes for the member's own working directory, which the owner chose by configuring the member (and
+   * for Claude Code only the plain question: one that says the folder brings hooks or servers that run code is left to a person). The member is then watched
+   * at its start (60 seconds, unless `startupSeconds` is set) so that there is someone to answer.
+   * Trusting a directory lets the product load its project-local config, hooks, and exec policies, so it is never a default.
    */
   readonly trustDirectory?: boolean
   readonly startupRetries?: number

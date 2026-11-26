@@ -5,6 +5,8 @@ import type { MemberSpec } from './config.ts'
 /** How long a Codex member has to show a sign of life, when its settings do not say. */
 export const DEFAULT_CODEX_STARTUP_SECONDS = 60
 export const DEFAULT_STARTUP_RETRIES = 2
+/** A Claude Code member that is to have its trust question answered is watched, so that the answer has someone to give it. */
+export const DEFAULT_CLAUDE_TRUST_STARTUP_SECONDS = 60
 
 /** How often a waiting watchdog looks for the sign of life, in milliseconds. */
 const POLL_MS = 2000
@@ -13,7 +15,7 @@ export type Watchdog = { readonly seconds: number; readonly retries: number }
 
 /** The member's watchdog: the settings, with the defaults of its product. Null when it has none. */
 export function watchdogOf(spec: MemberSpec): Watchdog | null {
-  const seconds = spec.startupSeconds ?? (spec.product === 'codex' ? DEFAULT_CODEX_STARTUP_SECONDS : undefined)
+  const seconds = spec.startupSeconds ?? (spec.product === 'codex' ? DEFAULT_CODEX_STARTUP_SECONDS : spec.trustDirectory === true ? DEFAULT_CLAUDE_TRUST_STARTUP_SECONDS : undefined)
   return seconds === undefined ? null : { seconds, retries: spec.startupRetries ?? DEFAULT_STARTUP_RETRIES }
 }
 
@@ -53,9 +55,6 @@ export function waitUntil(done: () => boolean, seconds: number, deps: Pick<WaitD
     deps.sleep(POLL_MS)
   }
 }
-
-/** What Codex asks the first time it runs in a directory. */
-export const CODEX_TRUST_QUESTION = /Do you trust the contents of this directory\?/
 
 /** The last few lines of a window, for a message: blank lines dropped, each cut short. Null when there is nothing on it. */
 export function screenSummary(screen: string | null, lines = 6): string | null {
