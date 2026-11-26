@@ -178,6 +178,19 @@ Either MIT or Apache-2.0, at your option ([LICENSE-MIT](LICENSE-MIT), [LICENSE-A
 
 **Which account a member runs under.** When one person holds several subscriptions, the node (`agency`) decides which one a new session starts on, by the usage of each. Set `launch.funding` to the node's program and its first arguments (`"command": ["/usr/local/bin/agency", "funding"]`, an absolute path owned by you and not writable by others; optional `"dir"` is the node's data directory). Then `scrum member start` runs `<command> pick --tool claude` (`codex` for a Codex member) before it launches a member and sets what the answer's `env` names (`CLAUDE_CONFIG_DIR` or `CODEX_HOME`, and nothing else) for that member's session; the start prints which source it is on and why, and `scrum member list` shows the source of each running member. `--dry-run` asks too and starts nothing. A running session keeps the login it started with; a member that restarts continues from the board and the harness's own state.
 
+The node's list of sources (`<command> list`) is read at each `scrum member start` and `scrum refresh`, and the login directories in it are kept in `cache/funding-dirs.json`. Session records and transcripts of those directories are read like the configured `claudeConfigDirs` (and the `CODEX_HOME` of Codex sources), and `scrum install --all` writes the hooks into each Claude Code directory. If the node cannot be asked, the kept list stays.
+
+**Setting up a second login (recommended).** A second Claude Code login needs its own `CLAUDE_CONFIG_DIR` (it holds the credentials), but the rest can be the first one's, by symlink, so that a member restarted on the other login keeps its instructions and memory and `claude --continue` finds its transcript:
+
+```sh
+mkdir -p ~/.claude-accounts/personal-2
+cd ~/.claude-accounts/personal-2
+for item in settings.json CLAUDE.md rules hooks skills plugins projects; do ln -s ~/.claude/$item $item; done
+CLAUDE_CONFIG_DIR=~/.claude-accounts/personal-2 claude   # then /login with the second account
+```
+
+Because `settings.json` is shared, the harness's hooks are already there (the check that refuses a login without them follows the symlink), and `scrum install --dir` on either directory changes both. The trade-off: both logins then share history, memory, and settings; a transcript written under one is read under the other, so nothing separates the two accounts' work except which one is billed. Do not link the credentials (`.credentials.json`, or the keychain entry macOS keeps per directory): each login keeps its own. Keep the logins to one person's own subscriptions.
+
 - A Claude Code member with its own `configDir` is pinned to it, and the node is not asked.
 - If the node cannot be asked (the program is missing, fails, answers something that is not the agreed JSON, or takes more than 20 seconds), the member starts on its own settings and the start says why. A node that is down does not stop the team.
 - If every source is at its limit (`none`), the member is not started. The same happens when the picked login for a Claude Code member has no harness hooks: its write guard and watchdog would not see it, so it would run unguarded and unwatched. The start says which, and names `scrum install --dir <dir>`, which you run (the harness never edits another account's settings). Both show in `scrum member list` and as the finding M-SOURCE-REFUSED until the member runs.

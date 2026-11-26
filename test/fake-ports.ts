@@ -31,6 +31,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     code: { openPullRequests: unused('code.openPullRequests'), referencedIssues: () => null, prepareBranch: () => null, activity: () => null },
     members: { windows: () => null, start: unused('members.start') as () => never, stop: unused('members.stop') as () => never, screen: () => null, press: unused('members.press') as () => never },
     funding: null,
+    fundingSources: null,
     hasHooksIn: () => true,
     launchers: { 'claude-code': () => ['claude'], codex: () => ['codex'] },
     sessions: { find: () => ({ name: null, pid: null }), signals: (): readonly SessionSignal[] => [] },

@@ -16,3 +16,13 @@ export type FundingPick = {
 
 /** Asks the node which account a session of the tool should run under. Throws, with the reason, when it cannot be asked or does not answer. */
 export type FundingPicker = (tool: FundingTool) => FundingPick
+
+/** One funding source the node knows: where a session on it keeps its login (`env` is empty for the default login). */
+export type FundingSource = {
+  readonly source: string
+  readonly tool: FundingTool
+  readonly env: Readonly<Record<string, string>>
+}
+
+/** Lists the node's funding sources. Throws, with the reason, when the node cannot be asked or does not answer. */
+export type FundingLister = () => readonly FundingSource[]

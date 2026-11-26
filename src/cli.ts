@@ -35,6 +35,7 @@ import { boardCommand } from './board/board-command.ts'
 import { collectSignals } from './findings/lint.ts'
 import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
+import { refreshFundingDirs } from './members/funding-dirs.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
@@ -204,7 +205,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'board':
       return needConfig((cfg, prt) => boardCommand(p, cfg, prt, positional, flags))
     case 'member':
-      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
+      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, fundingDirsPath: p.fundingDirs, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'init': {
@@ -218,7 +219,9 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'refresh': {
       return needConfig((c, ports) => {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)
-        return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})` : `Refreshed ${snapshot.items.length} items`
+        const fundingProblem = refreshFundingDirs(ports, p.fundingDirs, new Date())
+        const note = fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`
+        return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${note}`
       })
     }
     case 'lint':
