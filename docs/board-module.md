@@ -28,3 +28,14 @@ Every item has a reference (today `<repo>#<number>`): it names the item in findi
 ## When the module cannot be used
 
 A hook records the reason in `errors.log` and finishes without stopping the session. `scrum runtime` answers 503 with the reason, which the node retries. Any other command prints it and exits 1. None of them reads GitHub instead.
+
+## Checking a module
+
+`scrum adapter check [--module <path>] [--calls <file>]` loads the module (the one in the configuration, or the one at `--module`) and checks what can be checked without writing to the tracker. It lists every problem, not only the first one a read would stop at:
+
+- the module loads, is trusted, and its ports have their functions;
+- the snapshot its board reads: the shape of each item (`itemId`, `kind`, `repo`, `number`, `title`, `state`, the date in `since`), every Status being one the configuration names, every reference fitting the rule and being unique;
+- the patterns of its action reader are valid;
+- with `--calls`, what its action reader makes of tool calls. The file is a JSON list of `{ "call": { "tool", "input", "response"? }, "expect": [ ...board commands ]? }`, and a case that differs from `expect` is reported.
+
+The writes (assign, set Status, comments) are not exercised, because they would change the tracker. The exit code is 0 when there is no problem and 1 otherwise, so a module's own tests can run it.
