@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
 import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
+import { parseOffBoardScope, type OffBoardScope } from './board/off-board-scope.ts'
 import { parseTeamScope, type TeamScope } from './board/team-scope.ts'
 import { parseLaunch, type LaunchConfig } from './members/config.ts'
 import { isConfigPath } from './paths.ts'
@@ -125,7 +126,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly launch?: LaunchConfig }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig }
 
 /** The lead and the members, each name once (the lead may also be listed in `members`). */
 export const teamNamesOf = (config: Config): readonly string[] => [...new Set([config.techlead, ...config.members])]
@@ -230,7 +231,7 @@ export function parseConfig(raw: unknown): Config | null {
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
     isValidWorkTypeField(record.fields)
   if (!isValid || (record.host !== undefined && !isHostName(record.host)) || !isValidConfigDirs(record.claudeConfigDirs)) return null
-  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, launch: rawLaunch, ...rest } = record
+  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, launch: rawLaunch, offBoard: rawOffBoard, ...rest } = record
   const sprint = parseSprint(rawSprint)
   const dispatch = parseDispatch(rawDispatch)
   const links = parseLinks(rawLinks)
@@ -239,6 +240,8 @@ export function parseConfig(raw: unknown): Config | null {
   const team = parseTeamScope(rawTeam)
   const launch = parseLaunch(rawLaunch)
   if (team === null) return null
+  const offBoard = parseOffBoardScope(rawOffBoard)
+  if (offBoard === null) return null
   return {
     ...DEFAULT_TUNING,
     ...DEFAULT_ADAPTERS,
@@ -249,6 +252,7 @@ export function parseConfig(raw: unknown): Config | null {
     ...(alerts === undefined ? {} : { alerts }),
     ...(runtime === undefined ? {} : { runtime }),
     ...(team === undefined ? {} : { team }),
+    ...(offBoard === undefined ? {} : { offBoard }),
     ...(launch === undefined ? {} : { launch }),
   } as Config
 }

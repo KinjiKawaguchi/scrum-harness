@@ -1,6 +1,7 @@
 import type { Config } from '../../config.ts'
 import type { BoardSource } from '../../ports/index.ts'
 import { FetchError } from '../../board/fetch-log.ts'
+import { watchedIssues } from '../../board/off-board-scope.ts'
 import { scopeToTeam } from '../../board/team-scope.ts'
 import type { BoardItem, OpenIssue, Snapshot } from '../../board/types.ts'
 import type { GhRun } from './gh.ts'
@@ -74,14 +75,21 @@ function parseOrCarry(raw: string): readonly BoardItem[] {
   }
 }
 
-/** For each configured repository, reads the numbers and authors of open issues or PRs. */
+type RawOpen = { number: number; author?: { login?: string }; labels?: readonly { name?: string }[]; assignees?: readonly { login?: string }[] }
+
+const names = (list: readonly (string | undefined)[]): readonly string[] => list.flatMap((one) => (one === undefined ? [] : [one]))
+
+/** For each configured repository, reads the numbers and authors of open issues or PRs, and the labels and assignees when the off-board scope filters on them. */
 function listOpen(run: GhRun, kind: 'issue' | 'pr', config: Config): readonly OpenIssue[] {
+  const fields = kind === 'issue' && config.offBoard?.scope === 'filter' ? 'number,author,labels,assignees' : 'number,author'
   return config.repos.flatMap((repo): readonly OpenIssue[] => {
-    const raw = JSON.parse(run([kind, 'list', '-R', repo, '--state', 'open', '--limit', '1000', '--json', 'number,author']))
-    return (raw as readonly { number: number; author?: { login?: string } }[]).map((one) => ({
+    const raw = JSON.parse(run([kind, 'list', '-R', repo, '--state', 'open', '--limit', '1000', '--json', fields]))
+    return (raw as readonly RawOpen[]).map((one) => ({
       repo,
       number: one.number,
       author: one.author?.login ?? null,
+      ...(one.labels === undefined ? {} : { labels: names(one.labels.map((label) => label.name)) }),
+      ...(one.assignees === undefined ? {} : { assignees: names(one.assignees.map((assignee) => assignee.login)) }),
     }))
   })
 }
@@ -91,7 +99,8 @@ export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
   const pagedItems = parseOrCarry(
     run(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${itemsQuery(config)}`, '-F', `projectId=${config.projectId}`]),
   )
-  const openIssues = listOpen(run, 'issue', config)
+  // Only the issues the scope watches are read, so a team in a large shared repository does not list or flag every other team's issue.
+  const openIssues = config.offBoard?.scope === 'none' ? [] : watchedIssues(listOpen(run, 'issue', config), config.offBoard)
   // A PR is not a target of B-OFF-BOARD, so it is not put into the board copy's openIssues and is used only as a candidate to read and add.
   const openPullRequests = listOpen(run, 'pr', config)
   // An item on the board may appear neither in the list nor in the total (it can last for hours after it is added). Before flagging it as not on the board, read it one by one and add it.
