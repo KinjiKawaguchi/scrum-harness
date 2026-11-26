@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { writeHeartbeat } from '../src/team/heartbeat.ts'
 import { appendStateMark, keptMarks, readStateMarks, trimStateLog, type StateMark } from '../src/team/state-log.ts'
 import { stateSecondsByMember, type SessionLife } from '../src/team/state-time.ts'
 import type { ActivityState } from '../src/team/types.ts'
-import { paths } from '../src/store.ts'
+import { paths, readJson, writeJson } from '../src/store.ts'
 
 const mark = (at: string, sessionId: string, state: ActivityState, name = 'SWE1'): StateMark => ({ at, sessionId, name, state })
 const alive = (updatedAt: string): SessionLife => ({ isAlive: true, updatedAt })
@@ -29,6 +29,43 @@ describe('the state log written by the heartbeat', () => {
       { at: '2026-11-26T09:00:00.000Z', sessionId: 's1', name: 'SWE1', state: 'busy' },
       { at: '2026-11-26T09:05:00.000Z', sessionId: 's1', name: 'SWE1', state: 'idle' },
     ])
+  })
+
+  it('logs the state a heartbeat file already held when the log did not exist, with the time it began', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    const before = { sessionId: 's1', name: 'SWE1', state: 'busy', since: '2026-11-26T08:00:00.000Z', updatedAt: '2026-11-26T08:40:00.000Z', isAlive: true, nameSince: null, pid: null }
+    writeJson(join(p.heartbeats, 's1.json'), before)
+    writeHeartbeat(p, { sessionId: 's1', name: 'SWE1', pid: null }, 'idle', new Date('2026-11-26T09:30:00Z'))
+    assert.deepEqual(readStateMarks(p.memberStates).map((one) => [one.at, one.state]), [['2026-11-26T08:00:00.000Z', 'busy'], ['2026-11-26T09:30:00.000Z', 'idle']])
+    writeHeartbeat(p, { sessionId: 's1', name: 'SWE1', pid: null }, 'busy', new Date('2026-11-26T09:40:00Z'))
+    assert.equal(readStateMarks(p.memberStates).length, 3)
+  })
+
+  it('logs the first line of a member that does not change state, when the same state is heard again', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    const before = { sessionId: 's1', name: 'SWE1', state: 'busy', since: '2026-11-26T08:00:00.000Z', updatedAt: '2026-11-26T08:59:50.000Z', isAlive: true, nameSince: null, pid: null }
+    writeJson(join(p.heartbeats, 's1.json'), before)
+    writeHeartbeat(p, { sessionId: 's1', name: 'SWE1', pid: null }, 'busy', new Date('2026-11-26T09:00:00Z'))
+    assert.deepEqual(readStateMarks(p.memberStates).map((one) => [one.at, one.state]), [['2026-11-26T08:00:00.000Z', 'busy']])
+    writeHeartbeat(p, { sessionId: 's1', name: 'SWE1', pid: null }, 'busy', new Date('2026-11-26T09:05:00Z'))
+    assert.equal(readStateMarks(p.memberStates).length, 1)
+  })
+
+  it('keeps both when a turn ends and the next prompt comes in the same second, whichever process gets there first', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    const identity = { sessionId: 's1', name: 'SWE1', pid: null }
+    writeHeartbeat(p, identity, 'busy', new Date('2026-11-26T09:00:00.000Z'))
+    // the next prompt's process writes first, then the end of the turn that came before it
+    writeHeartbeat(p, identity, 'busy', new Date('2026-11-26T09:10:00.800Z'))
+    writeHeartbeat(p, identity, 'idle', new Date('2026-11-26T09:10:00.200Z'))
+    assert.deepEqual(readStateMarks(p.memberStates).map((one) => [one.at.slice(11, 23), one.state]), [['09:00:00.000', 'busy'], ['09:10:00.200', 'idle'], ['09:10:00.800', 'busy']])
+    assert.equal(readJson<{ state: string }>(join(p.heartbeats, 's1.json'), { state: '' }).state, 'busy')
+  })
+
+  it('leaves no lock behind', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    writeHeartbeat(p, { sessionId: 's1', name: 'SWE1', pid: null }, 'busy', NOW)
+    assert.equal(existsSync(join(p.heartbeats, 's1.json.lock')), false)
   })
 
   it('drops a line it cannot read', () => {
@@ -77,6 +114,13 @@ describe('stateSecondsByMember', () => {
     assert.deepEqual(utc?.byDay.map((day) => [day.date, day.busySeconds]), [['2026-11-25', 1800], ['2026-11-26', 3600]])
     const [tokyo] = today(marks, { s1: gone('2026-11-26T01:00:00Z') }, 540)
     assert.deepEqual(tokyo?.byDay.map((day) => [day.date, day.busySeconds]), [['2026-11-25', 0], ['2026-11-26', 5400]])
+  })
+
+  it('counts a session the log has no line for from the state its heartbeat holds', () => {
+    const life: SessionLife = { isAlive: true, updatedAt: '2026-11-26T11:00:00Z', name: 'SWE1 (2)', state: 'busy', since: '2026-11-26T08:00:00Z' }
+    const [swe1] = today([], { s1: life })
+    assert.equal(swe1?.name, 'SWE1')
+    assert.deepEqual(swe1?.byDay.at(-1), { date: '2026-11-26', busySeconds: 14_400, idleSeconds: 0, waitingSeconds: 0 })
   })
 
   it('keeps members apart and ignores what is before the range', () => {
