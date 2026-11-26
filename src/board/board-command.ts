@@ -31,8 +31,10 @@ function failure(error: unknown): string {
 function addCommand(config: Config, ports: Ports, positional: readonly string[]): string {
   const ref = parseRef(positional[1] ?? '', config)
   if (ref === null) return `pass an issue as <number> or <repo>#<number>, where the repository is one of: ${config.repos.map(shortRepo).join(', ')}`
+  const { addToBoard } = ports.writer
+  if (addToBoard === undefined) return 'this board cannot add an issue from here'
   try {
-    ports.writer.addToBoard(ref.repo, ref.number)
+    addToBoard(ref.repo, ref.number)
   } catch (error) {
     return `could not add ${shortRepo(ref.repo)}#${ref.number}: ${failure(error)}`
   }
@@ -52,6 +54,8 @@ function moveTargets(p: Paths, config: Config, positional: readonly string[], fl
 
 function moveCommand(p: Paths, config: Config, ports: Ports, positional: readonly string[], flags: Flags): string {
   if (config.team === undefined) return 'there is no team section in the configuration, so the board is not shared'
+  const { setTeam } = ports.writer
+  if (setTeam === undefined) return 'this board cannot hand an item to a team from here'
   const team = flags.team
   if (typeof team !== 'string' || team.trim() === '') return 'pass --team <name>, an option of the board\'s team field'
   const targets = moveTargets(p, config, positional, flags)
@@ -59,7 +63,7 @@ function moveCommand(p: Paths, config: Config, ports: Ports, positional: readonl
   if (targets.length === 0) return 'no item to move'
   const results = targets.map((item) => {
     try {
-      ports.writer.setTeam(item, team.trim())
+      setTeam(item, team.trim())
       return { text: `${label(item)} -> ${team.trim()}`, isFailure: false }
     } catch (error) {
       return { text: `${label(item)}: ${failure(error)}`, isFailure: true }

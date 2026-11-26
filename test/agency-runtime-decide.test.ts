@@ -31,7 +31,7 @@ function ports(overrides: { canSetReason?: boolean; addComment?: Ports['issues']
     issues: {
       ...base.issues,
       comments: () => existing.map((body) => ({ body, createdAt: NOW.toISOString() })),
-      addComment: overrides.addComment ?? ((repo, number, body) => void comments.push({ repo, number, body })),
+      addComment: overrides.addComment ?? ((item, body) => void comments.push({ repo: item.repo, number: item.number as number, body })),
     },
     writer: {
       ...base.writer,

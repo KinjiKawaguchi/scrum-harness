@@ -58,7 +58,7 @@ function postOnce(deps: DecideDeps, item: BoardItem, decision: RuntimeDecision):
   const body = decisionComment(decision)
   const { issues } = deps.ports
   if (issues.comments(item).some((comment) => comment.body === body)) return
-  issues.addComment(item.repo, item.number as number, body)
+  issues.addComment(item, body)
 }
 
 /**

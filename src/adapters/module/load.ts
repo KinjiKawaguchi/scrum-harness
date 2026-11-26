@@ -15,11 +15,23 @@ export type ModulePorts = Partial<Pick<Ports, 'board' | 'writer' | 'actions' | '
 /** The functions each port must have, so a module that forgot one fails when loaded and not at the first call that needs it. */
 const REQUIRED: Readonly<Record<keyof ModulePorts, readonly string[]>> = {
   board: ['fetchSnapshot', 'statusEvents'],
-  writer: ['assign', 'setStatus', 'setReason', 'addToBoard', 'setTeam', 'writeOverrun'],
-  actions: ['commandsOf', 'shellPatterns'],
-  issues: ['comments', 'openIssues', 'read', 'writeBody', 'addComment'],
+  writer: ['assign', 'setStatus', 'setReason', 'writeOverrun'],
+  actions: ['actionsOf', 'shellPatterns'],
+  issues: ['comments', 'addComment'],
   code: ['openPullRequests', 'referencedIssues', 'prepareBranch', 'activity'],
 }
+
+/** Functions a port may have: when one is given it has to be a function. */
+const OPTIONAL: Readonly<Partial<Record<keyof ModulePorts, readonly string[]>>> = {
+  writer: ['addToBoard', 'setTeam'],
+  issues: ['openIssues', 'read', 'writeBody'],
+}
+
+/** Functions that go together: a port has all of them or none (the body side of an issue thread, which serves linking PRs into issues). */
+const ALL_OR_NONE: Readonly<Partial<Record<keyof ModulePorts, readonly string[]>>> = { issues: ['openIssues', 'read', 'writeBody'] }
+
+/** Properties of a port that are flags, not functions. */
+const FLAGS: Readonly<Partial<Record<keyof ModulePorts, readonly string[]>>> = { writer: ['canAssign', 'canSetReason'] }
 
 /**
  * A module is code that runs here with this process's privileges, so it has to be a regular file of the user that runs the harness, and not
@@ -59,8 +71,17 @@ export function checkModulePorts(returned: unknown, path: string): ModulePorts {
   for (const [port, names] of Object.entries(REQUIRED)) {
     const value = (returned as Record<string, unknown>)[port]
     if (value === undefined) continue
-    const missing = names.filter((name) => typeof (value as Record<string, unknown> | null)?.[name] !== 'function')
+    const record = (value ?? {}) as Record<string, unknown>
+    const isFunction = (name: string): boolean => typeof record[name] === 'function'
+    const missing = names.filter((name) => !isFunction(name))
     if (missing.length > 0) throw new Error(`the board module ${path} returned a ${port} without: ${missing.join(', ')}`)
+    const wrong = (OPTIONAL[port as keyof ModulePorts] ?? []).filter((name) => record[name] !== undefined && !isFunction(name))
+    if (wrong.length > 0) throw new Error(`the board module ${path} returned a ${port} whose ${wrong.join(', ')} is not a function`)
+    const group = ALL_OR_NONE[port as keyof ModulePorts] ?? []
+    const given = group.filter(isFunction)
+    if (given.length > 0 && given.length < group.length) throw new Error(`the board module ${path} returned a ${port} with only part of ${group.join(', ')} (all three or none)`)
+    const flags = (FLAGS[port as keyof ModulePorts] ?? []).filter((name) => typeof record[name] !== 'boolean')
+    if (flags.length > 0) throw new Error(`the board module ${path} returned a ${port} whose ${flags.join(', ')} is not true or false`)
   }
   return returned as ModulePorts
 }
