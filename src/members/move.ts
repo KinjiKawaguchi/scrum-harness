@@ -44,6 +44,7 @@ function sourceVerdict(facts: Facts, name: string): { readonly stay: string } | 
   if (recorded === undefined || recorded.state === 'refused' || recorded.source === '') return { stay: 'no record of the source it started on (it was not started by `scrum member start`)' }
   const from = facts.sources.find((source) => source.source === recorded.source)
   if (from === undefined) return { stay: `its source ${recorded.source} is not in the node's list` }
+  if (from.unknown === true) return { stay: `the node cannot read the usage of ${from.source} right now, so it stays where it is` }
   if (from.overThreshold === undefined && from.blocked === undefined) return { stay: `the node does not say whether ${from.source} is past its threshold` }
   if (from.overThreshold !== true && from.blocked !== true) return { stay: `${from.source} is still under its threshold` }
   return { from }

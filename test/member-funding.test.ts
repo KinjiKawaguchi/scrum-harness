@@ -243,6 +243,13 @@ describe('agencyFundingLister: the node\'s funding sources', () => {
     assert.deepEqual(agencyFundingLister({ command: [program()] })().map((one) => [one.source, one.tool, one.env]), [['one', 'claude', {}], ['two', 'claude', { CLAUDE_CONFIG_DIR: '/accounts/two' }], ['cx', 'codex', { CODEX_HOME: '/accounts/cx' }]])
   })
 
+  it('reads the list the live node answers: three flags on every source, and a source on the default login with an empty env', () => {
+    const flags = { sevenDayThreshold: 80, overThreshold: false, blocked: false, unknown: false }
+    answer(JSON.stringify([{ source: 'personal-1', tool: 'claude', env: {}, ...flags }, { source: 'personal-2', tool: 'claude', env: { CLAUDE_CONFIG_DIR: '/accounts/two' }, ...flags, unknown: true }, { source: 'codex-1', tool: 'codex', env: {}, ...flags }]))
+    const [one, two, three] = agencyFundingLister({ command: [program()] })()
+    assert.deepEqual([one?.overThreshold, one?.blocked, one?.unknown, two?.unknown, three?.tool], [false, false, false, true, 'codex'])
+  })
+
   it('reads whether a source is past its threshold or blocked, when the node says', () => {
     answer(JSON.stringify([{ source: 'one', tool: 'claude', env: {}, overThreshold: true, blocked: false }, { source: 'two', tool: 'claude', env: {}, overThreshold: 'yes' }]))
     const [one, two] = agencyFundingLister({ command: [program()] })()

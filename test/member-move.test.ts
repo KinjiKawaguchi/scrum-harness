@@ -105,6 +105,7 @@ describe('moving a member to the account the node picks', () => {
 
   const stays: readonly (readonly [string, World, RegExp])[] = [
     ['its source is still under its threshold', { sources: [{ ...ONE, overThreshold: false }, TWO] }, /one is still under its threshold/],
+    ['the node cannot read the usage of its source', { sources: [{ ...ONE, overThreshold: false, blocked: false, unknown: true }, TWO] }, /cannot read the usage of one right now, so it stays/],
     ['the node does not say whether its source is past its threshold', { sources: [{ source: 'one', tool: 'claude', env: {} }, TWO] }, /does not say whether one is past its threshold/],
     ['there is no better source', { pick: { state: 'overThreshold', source: 'one', env: {} } }, /no better source \(the node says overThreshold\)/],
     ['it already is on the picked source', { pick: { state: 'ok', source: 'one', env: {} } }, /already on one/],
