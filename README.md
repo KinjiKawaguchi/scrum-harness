@@ -145,6 +145,8 @@ bin/scrum schedule install                                      # run the backgr
 | `scrum runtime` | Called by an Agency node (agency-runtime/1). Reads one JSON request on stdin, and returns the team's state (TeamView), applies an answer to a request, or reports token use by day and person. See [docs/agency-runtime.md](docs/agency-runtime.md) |
 | `scrum usage-index` | Reads what the agents' transcripts gained since the last run into the usage index. `scrum runtime` starts it in the background when the index is stale; run it by hand to build the index before the first call |
 
+`bin/scrum` keeps node's compile cache in `<state dir>/cache/node-compile` (set `NODE_COMPILE_CACHE` to put it elsewhere), so every call after the first skips compiling the harness's modules: about 0.09 seconds of CPU instead of 0.30 for `scrum runtime` on a board of 150 items.
+
 State is kept in `~/.claude/scrum/` (change it with `SCRUM_STATE_DIR`). Errors go to `~/.claude/scrum/log/errors.log`.
 
 ## Development
