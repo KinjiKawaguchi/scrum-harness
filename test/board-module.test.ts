@@ -45,7 +45,7 @@ describe('the adapters section', () => {
       assert.equal(parseAdapterModule(raw), null, JSON.stringify(raw))
     }
     assert.equal(parseConfig({ ...base, adapters: { module: 'relative.mjs' } }), null)
-    assert.equal(parseConfig({ ...base, adapters: { module: '/x.mjs' } })?.adapters?.module, '/x.mjs')
+    assert.deepEqual(parseConfig({ ...base, adapters: { module: '/x.mjs' } })?.adapters, { module: '/x.mjs', options: {} })
   })
 })
 

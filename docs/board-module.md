@@ -46,3 +46,28 @@ A hook records the reason in `errors.log` and finishes without stopping the sess
 - with `--calls`, what its action reader makes of tool calls. The file is a JSON list of `{ "call": { "tool", "input", "response"? }, "expect": [ ...board commands ]? }`, and a case that differs from `expect` is reported.
 
 The writes (assign, set Status, comments) are not exercised, because they would change the tracker. The exit code is 0 when there is no problem and 1 otherwise, so a module's own tests can run it.
+
+## A tracker program instead of a module (`scrum-board/1`)
+
+A tracker whose owner does not want to write a module in JavaScript can give the harness a program. The harness runs it once for each call, with one JSON request on stdin, and reads one JSON answer on stdout. The program may be written in any language.
+
+```json
+"adapters": { "command": ["/opt/board/tracker", "--site", "eng"], "capabilities": ["write", "comments"], "timeoutSeconds": 30, "options": { "project": "ENG" } }
+```
+
+`command` is the program and its arguments (the first word is an absolute path, or one under `~/`). `options` is JSON that goes into every request. A section that names both a module and a command, or is of the wrong shape, makes the configuration unusable. The program is trusted like a module: a regular file of the user that runs the harness, not writable by the group or others.
+
+### The request and the answer
+
+Every request is an object with `board: "scrum-board/1"`, `op`, `options`, and the op's fields. The answer is `{"result": ...}`, or `{"error": {"message": "..."}}` with a non-zero exit code; a program that cannot do an op answers an error. A call that takes longer than `timeoutSeconds` is stopped. The harness never puts a request in an error message.
+
+| op | request fields | result |
+|---|---|---|
+| `snapshot` | `now` (the time of the read) | `{ "fetchedAt"?: <ISO time>, "items": [...], "openIssues": [...] }`, the snapshot below |
+| `statusEvents` | `items`: the references of the items | `{ "<ref>": [ { "at": <ISO time>, "status": <text or null> } ] }`, or `null` when the program cannot say |
+
+`snapshot` is the same snapshot a board module returns (`src/board/types.ts`): each item has `itemId`, `kind` (`issue`, `pr`, or `draft`), `repo` (a project or space name), `number` (a whole number, or null), `title`, `state` (`OPEN`, `CLOSED`, `MERGED`, or null), `author`, `status`, `reason`, `since` (`YYYY-MM-DD` or null), `owner`, and `assignee`, and optionally `ref` (the reference; see References above), `points`, `labels`, and the other fields of `BoardItem`. `fetchedAt` is filled in by the harness when the program gives none. Every snapshot is checked before the harness uses it, as `scrum adapter check` does, and one that does not fit is refused with the problems named.
+
+What else the program can do is named in `capabilities` (the configuration accepts them now; the operations behind them, and their requests, are added in the next changes, and until then only reading is offered). The harness offers, and calls, only those: `write` (assign, Status, blocked reason, overrun), `add` (add an issue to the board), `team` (hand an item to a team), `comments` (read and add comments). Without a capability the matching operation is not available, and what needs it (for example a decision on a pending item, which needs `comments` and `write`) says so. The agents' own board writes are read from the `scripts` named in the configuration, as for GitHub. Everything the program does not provide stays GitHub.
+
+`scrum adapter check` works for a program too: it calls `snapshot` and lists every problem in what it answers.
