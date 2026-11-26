@@ -1,5 +1,7 @@
 import { lastDates } from '../usage/summary.ts'
 import type { StateMark } from './state-log.ts'
+import type { ActivityState } from './types.ts'
+import { baseName } from '../usage/attribution.ts'
 
 const DAY_MS = 86_400_000
 const MINUTE_MS = 60_000
@@ -9,8 +11,11 @@ export type DayStateSeconds = { readonly date: string; readonly busySeconds: num
 
 export type MemberStateSeconds = { readonly name: string; readonly byDay: readonly DayStateSeconds[] }
 
-/** What the heartbeat of a session says of when it was last seen: the end of its last interval when it is not running any more. */
-export type SessionLife = { readonly isAlive: boolean; readonly updatedAt: string }
+/**
+ * What the heartbeat of a session says: when it was last seen (the end of its last interval when it is not running any more), and, when the
+ * heartbeat gives them, its name and the state it has been in since a time. A session the log has no line for is counted from that state.
+ */
+export type SessionLife = { readonly isAlive: boolean; readonly updatedAt: string; readonly name?: string; readonly state?: ActivityState; readonly since?: string }
 
 type Counted = 'busy' | 'waiting' | 'idle'
 type Interval = { readonly from: number; readonly to: number; readonly state: Counted }
@@ -68,6 +73,14 @@ function addSegments(totals: Map<string, Record<Counted, number>>, segments: rea
   }
 }
 
+/** The state a session was in since a time, for each session whose heartbeat says so and the log has no line for (it has not changed state since the log began). */
+function unlogged(marks: readonly StateMark[], sessions: ReadonlyMap<string, SessionLife>): readonly StateMark[] {
+  const logged = new Set(marks.map((mark) => mark.sessionId))
+  return [...sessions].flatMap(([sessionId, life]): readonly StateMark[] =>
+    logged.has(sessionId) || life.name === undefined || life.state === undefined || life.since === undefined ? [] : [{ at: life.since, sessionId, name: baseName(life.name), state: life.state }],
+  )
+}
+
 export type StateTimeInput = {
   readonly marks: readonly StateMark[]
   readonly sessions: ReadonlyMap<string, SessionLife>
@@ -83,7 +96,8 @@ export type StateTimeInput = {
  */
 export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes }: StateTimeInput): readonly MemberStateSeconds[] {
   const dates = lastDates(days, now, offsetMinutes)
-  const owned = [...Map.groupBy(marks, (mark) => mark.sessionId)].flatMap(([sessionId, own]) => intervalsOf(own, sessions.get(sessionId), now.getTime()))
+  const bySession = Map.groupBy([...marks, ...unlogged(marks, sessions)], (mark) => mark.sessionId)
+  const owned = [...bySession].flatMap(([sessionId, own]) => intervalsOf(own, sessions.get(sessionId), now.getTime()))
   const byMember = Map.groupBy(owned, (one) => one.name)
   return [...byMember]
     .toSorted(([a], [b]) => a.localeCompare(b))
