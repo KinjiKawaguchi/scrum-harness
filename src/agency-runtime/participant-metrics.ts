@@ -1,7 +1,7 @@
 import { label } from '../board/rules.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
 import { readPrAuthorRecords, type PrAuthor } from '../team/pr-authors.ts'
-import { readStateMarks } from '../team/state-log.ts'
+import { readStateMarks, recordingStart } from '../team/state-log.ts'
 import { stateSecondsByMember, type SessionLife } from '../team/state-time.ts'
 import { readHeartbeats } from '../team/heartbeat.ts'
 import { baseName, membersBySession, sessionNames } from '../usage/attribution.ts'
@@ -9,6 +9,7 @@ import { dailyUsage } from '../usage/daily.ts'
 import { readIndex } from '../usage/index-store.ts'
 import { isIndexStale, teamNamesOf } from '../usage/run.ts'
 import { lastDates } from '../usage/summary.ts'
+import { shortRepo } from '../config.ts'
 import { usageOffsetMinutes } from './config.ts'
 import type { RuntimeDeps } from './handle.ts'
 import type { ParticipantDay, ParticipantMetrics, ParticipantMetricsRequest, PullRequestAuthor, RuntimeError } from './types.ts'
@@ -21,14 +22,22 @@ const MAX_PULL_REQUESTS = 10_000
 const isEmptyDay = (day: ParticipantDay): boolean =>
   day.busySeconds === 0 && day.waitingSeconds === 0 && day.idleSeconds === 0 && day.costUsd === 0 && day.tokens.input + day.tokens.output + day.tokens.cacheRead + day.tokens.cacheWrite === 0
 
-/** The pull requests whose opener the hooks saw, once each, named as GitHub names them. A record with no repository is looked up on the board; one it is not on is left out. */
-function pullRequestsOf(records: readonly PrAuthor[], board: ReturnType<typeof loadSnapshot>): readonly PullRequestAuthor[] {
+/** The repository and number a reference such as `app#42` names, when exactly one configured repository has that short name. */
+function fromRef(ref: string, repos: readonly string[]): { readonly repo: string; readonly number: number } | null {
+  const match = /^(.+)#(\d+)$/.exec(ref)
+  const found = match === null ? [] : [...new Set(repos)].filter((repo) => shortRepo(repo) === match[1])
+  return match === null || found.length !== 1 ? null : { repo: found[0] ?? '', number: Number(match[2]) }
+}
+
+/** The pull requests whose opener the hooks saw, once each, named as GitHub names them. A record with no repository is looked up in the configured repositories by its short name, then on the board; one that is in neither is left out. */
+function pullRequestsOf(records: readonly PrAuthor[], board: ReturnType<typeof loadSnapshot>, repos: readonly string[]): readonly PullRequestAuthor[] {
   const onBoard = new Map((board?.items ?? []).filter((item) => item.kind === 'pr' && item.number !== null).map((item) => [label(item), item] as const))
   const seen = new Set<string>()
   const found = records.flatMap((record): readonly PullRequestAuthor[] => {
     const item = onBoard.get(record.ref)
-    const repo = record.repo ?? item?.repo
-    const number = record.number ?? item?.number ?? null
+    const named = fromRef(record.ref, repos)
+    const repo = record.repo ?? named?.repo ?? item?.repo
+    const number = record.number ?? named?.number ?? item?.number ?? null
     if (repo === undefined || !repo.includes('/') || number === null || number <= 0 || seen.has(`${repo}#${number}`)) return []
     seen.add(`${repo}#${number}`)
     return [{ repo, number, by: record.name }]
@@ -55,7 +64,7 @@ export function participantMetrics(request: ParticipantMetricsRequest, deps: Run
     readHeartbeats(p, now).filter((one) => isTeam(one.name)).map((one) => [one.sessionId, { isAlive: one.isAlive, updatedAt: one.updatedAt, name: one.name, state: one.state, since: one.since }]),
   )
   const times = new Map(
-    stateSecondsByMember({ marks: readStateMarks(p.memberStates).filter((mark) => isTeam(mark.name)), sessions, days: request.days, now, offsetMinutes }).map((one) => [one.name, one.byDay]),
+    stateSecondsByMember({ marks: readStateMarks(p.memberStates).filter((mark) => isTeam(mark.name)), sessions, days: request.days, now, offsetMinutes, recordedSince: recordingStart(p.memberStates) }).map((one) => [one.name, one.byDay]),
   )
   const dates = lastDates(request.days, now, offsetMinutes)
   const participants = [...new Set([...times.keys(), ...usage.keys()])].toSorted().flatMap((name) => {
@@ -72,6 +81,6 @@ export function participantMetrics(request: ParticipantMetricsRequest, deps: Run
     const days = byDay.filter((day) => !isEmptyDay(day))
     return days.length === 0 ? [] : [{ name, byDay: days }]
   })
-  const pullRequests = pullRequestsOf(readPrAuthorRecords(p.prAuthors), loadSnapshot(p))
+  const pullRequests = pullRequestsOf(readPrAuthorRecords(p.prAuthors), loadSnapshot(p), [config.defaultRepo, ...config.repos])
   return { result: { org: request.org, team: request.team, days: request.days, generatedAt: now.toISOString(), utcOffsetMinutes: offsetMinutes, participants, pullRequests } }
 }

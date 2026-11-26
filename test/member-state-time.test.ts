@@ -1,10 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { writeHeartbeat } from '../src/team/heartbeat.ts'
-import { appendStateMark, keptMarks, readStateMarks, trimStateLog, type StateMark } from '../src/team/state-log.ts'
+import { appendStateMark, keptMarks, readStateMarks, recordingStart, trimStateLog, type StateMark } from '../src/team/state-log.ts'
 import { stateSecondsByMember, type SessionLife } from '../src/team/state-time.ts'
 import type { ActivityState } from '../src/team/types.ts'
 import { paths, readJson, writeJson } from '../src/store.ts'
@@ -129,6 +130,48 @@ describe('stateSecondsByMember', () => {
     assert.deepEqual(result.map((member) => member.name), ['SWE1', 'SWE2'])
     assert.equal(result[0]?.byDay.every((day) => day.busySeconds === 0 && day.idleSeconds === 0), true)
     assert.equal(result[1]?.byDay.at(-1)?.busySeconds, 1200)
+  })
+})
+
+describe('when recording began', () => {
+  // The lines the live logs hold: a state a heartbeat file held before the log (busy since 07:48) beside the lines written as the states changed.
+  const real = [
+    mark('2026-11-26T09:14:39.832Z', 's2', 'busy', 'SWE2'),
+    mark('2026-11-26T09:16:22.918Z', 's2', 'idle', 'SWE2'),
+    mark('2026-11-26T07:48:32.074Z', 's1', 'busy', 'SWE1'),
+    mark('2026-11-26T10:20:02.222Z', 's1', 'idle', 'SWE1'),
+    mark('2026-11-26T10:20:06.895Z', 's1', 'busy', 'SWE1'),
+  ]
+  const afternoon = new Date('2026-11-26T11:00:00Z')
+  const run = (recordedSince: Date | null) =>
+    stateSecondsByMember({ marks: real, sessions: new Map([['s1', alive('2026-11-26T10:59:00Z')], ['s2', gone('2026-11-26T09:16:22Z')]]), days: 1, now: afternoon, offsetMinutes: 0, recordedSince })
+
+  it('counts a state that began before recording from the start of recording, not from before it', () => {
+    const swe1 = run(new Date('2026-11-26T09:06:00Z')).find((one) => one.name === 'SWE1')?.byDay.at(-1)
+    // busy 09:06 to 10:20:02, then idle 4 s, then busy to 11:00; not the 07:48 start the heartbeat file gave
+    assert.ok(swe1 !== undefined && Math.abs(swe1.busySeconds - 6835) <= 1 && swe1.idleSeconds >= 4 && swe1.idleSeconds <= 5, JSON.stringify(swe1))
+    const unclipped = run(null).find((one) => one.name === 'SWE1')?.byDay.at(-1)
+    assert.ok((unclipped?.busySeconds ?? 0) > 3 * 3600)
+  })
+
+  it('writes the time of the first line beside the log, and keeps it', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    assert.equal(recordingStart(p.memberStates), null)
+    appendStateMark(p.memberStates, mark('2026-11-26T07:00:00Z', 's1', 'busy'))
+    const first = recordingStart(p.memberStates)
+    assert.ok(first !== null && Math.abs(first.getTime() - Date.now()) < 60_000)
+    appendStateMark(p.memberStates, mark('2026-11-26T08:00:00Z', 's1', 'idle'))
+    assert.equal(recordingStart(p.memberStates)?.getTime(), first?.getTime())
+  })
+
+  it('takes the time a log without the marker was made, and writes it down at the next line', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-state-')))
+    mkdirSync(dirname(p.memberStates), { recursive: true })
+    writeFileSync(p.memberStates, `${JSON.stringify(mark('2026-11-26T07:00:00Z', 's1', 'busy'))}\n`)
+    const made = recordingStart(p.memberStates)
+    assert.ok(made !== null && Math.abs(made.getTime() - Date.now()) < 60_000)
+    appendStateMark(p.memberStates, mark('2026-11-26T08:00:00Z', 's1', 'idle'))
+    assert.equal(recordingStart(p.memberStates)?.getTime(), made?.getTime())
   })
 })
 
