@@ -5,6 +5,7 @@ import type { Ports, ToolCall } from '../ports/index.ts'
 import type { Paths } from '../store.ts'
 import { dueCheckpoint, loadRecords } from '../sprint/record.ts'
 import { writeHeartbeat } from '../team/heartbeat.ts'
+import { openedPullRequest, recordPrAuthor } from '../team/pr-authors.ts'
 import { roleOf, type Identity } from '../team/identity.ts'
 import type { ActivityState } from '../team/types.ts'
 import { techleadAfterTool, techleadDiff, techleadSessionStart, techleadStop } from './techlead.ts'
@@ -93,6 +94,13 @@ function techlead(event: string, input: HookInput, deps: HookDeps): HookResult {
   }
 }
 
+/** Records the member whose session opened a pull request, from the tool result. */
+function notePullRequest(identity: Identity, input: HookInput, deps: HookDeps): void {
+  const call = toolCall(input)
+  const ref = call === null ? null : openedPullRequest(call)
+  if (ref !== null) recordPrAuthor(deps.p.prAuthors, { at: deps.now.toISOString(), name: identity.name, sessionId: identity.sessionId, ref })
+}
+
 /**
  * The hook's entry point. Does nothing in a session outside the team. Writes the heartbeat in every role, and if there is a checkpoint not yet recorded,
  * starts recording in the background (so that it is recorded if anyone on the team moves, without waiting for the TechLead's turn boundary).
@@ -105,6 +113,7 @@ export function handleHook(event: string, input: HookInput, deps: HookDeps): Hoo
   if (identity === null || role === null) return NOTHING
   const state = heartbeatState(event, input)
   if (state !== null) writeHeartbeat(deps.p, identity, state, deps.now)
+  if (event === 'PostToolUse') notePullRequest(identity, input, deps)
   if (dueCheckpoint(loadRecords(deps.p), deps.config, deps.now) !== null) deps.spawnCheckpoint()
   return role === 'techlead' ? techlead(event, input, deps) : NOTHING
 }

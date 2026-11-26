@@ -25,10 +25,10 @@ function itemAdded(item: BoardItem): readonly ActivityEvent[] {
 }
 
 /** A pull request that is an item of the board: when it was opened, and when it was merged (with the lead time). Exact times from GitHub. */
-function pullRequest(item: BoardItem): readonly ActivityEvent[] {
+function pullRequest(item: BoardItem, authors: ReadonlyMap<string, string>): readonly ActivityEvent[] {
   if (item.kind !== 'pr') return []
   const ref = label(item)
-  const base = { ref, title: titleOf(item), ...optional('issue', item.closes), ...epicOf(item) }
+  const base = { ref, title: titleOf(item), ...optional('by', authors.get(ref)), ...optional('issue', item.closes), ...epicOf(item) }
   const opened: readonly ActivityEvent[] = item.openedAt === undefined ? [] : [{ id: eventId('b', 'prOpened', ref, iso(item.openedAt)), at: iso(item.openedAt), kind: 'prOpened', ...base }]
   if (item.mergedAt === undefined) return opened
   const leadSeconds = item.openedAt === undefined ? undefined : Math.max(0, Math.round((Date.parse(item.mergedAt) - Date.parse(item.openedAt)) / 1000))
@@ -49,10 +49,10 @@ function statusChanged(previous: ReadonlyMap<string, BoardItem>, item: BoardItem
 /**
  * What the board read shows the team did: items added, pull requests opened and merged (all with the times GitHub gives), and Status changes
  * since the previous read (with the time the new read was made). The same read always gives the same events, so offering one twice is harmless.
- * Without a previous read there are no Status changes.
+ * Without a previous read there are no Status changes. A pull request carries `by`, the member whose session opened it, when the hooks saw it opened.
  */
-export function boardEvents(previous: Snapshot | null, fresh: Snapshot, config: Config): readonly ActivityEvent[] {
+export function boardEvents(previous: Snapshot | null, fresh: Snapshot, config: Config, authors: ReadonlyMap<string, string> = new Map()): readonly ActivityEvent[] {
   const before = new Map((previous?.items ?? []).map((item) => [label(item), item]))
   const at = iso(fresh.fetchedAt)
-  return fresh.items.flatMap((item) => [...itemAdded(item), ...pullRequest(item), ...(previous === null ? [] : statusChanged(before, item, config, at))])
+  return fresh.items.flatMap((item) => [...itemAdded(item), ...pullRequest(item, authors), ...(previous === null ? [] : statusChanged(before, item, config, at))])
 }
