@@ -26,6 +26,8 @@ export function paths(dir: string = stateDir()) {
     doneTimes: join(dir, 'cache', 'done-at.json'),
     /** Members that did not show a sign of life after their start and retries (see members/start-failures.ts) */
     startFailures: join(dir, 'cache', 'member-start-failed.json'),
+    /** The account each member started on, or why its start was refused (see members/funding.ts) */
+    memberSources: join(dir, 'cache', 'member-source.json'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
