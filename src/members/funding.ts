@@ -49,20 +49,21 @@ export function pickFor(ports: Ports, spec: MemberSpec): FundingOutcome {
   try {
     const pick = ports.funding(toolOf(spec))
     if (pick.state === 'none') return { kind: 'none', reason: pick.reason ?? 'every funding source is at its limit' }
-    return unguardedReason(ports, spec, pick) ?? { kind: 'picked', pick }
+    const unguarded = missingHooksReason(ports, spec, pick)
+    return unguarded === null ? { kind: 'picked', pick } : { kind: 'unguarded', reason: unguarded }
   } catch (error) {
     return { kind: 'failed', reason: (error instanceof Error ? error.message : String(error)).slice(0, 300) }
   }
 }
 
 /**
- * A Claude Code session under the picked login runs only the hooks of that directory's settings. Without the harness's hooks the write guard and the watchdog
+ * Why a Claude Code member must not start under the picked login, or null. A session under the login runs only the hooks of that directory's settings. Without the harness's hooks the write guard and the watchdog
  * do not see the member, so it is not started; the harness does not install them, since that edits another account's settings.
  */
-function unguardedReason(ports: Ports, spec: MemberSpec, pick: FundingPick): FundingOutcome | null {
+export function missingHooksReason(ports: Ports, spec: MemberSpec, pick: FundingPick): string | null {
   const dir = pick.env.CLAUDE_CONFIG_DIR
   if (spec.product === 'codex' || dir === undefined || ports.hasHooksIn(expandHome(dir))) return null
-  return { kind: 'unguarded', reason: `source ${pick.source ?? 'picked'} (${dir}) has no harness hooks, so a member there would run unguarded and unwatched; run \`scrum install --dir ${dir}\` and start it again` }
+  return `source ${pick.source ?? 'picked'} (${dir}) has no harness hooks, so a member there would run unguarded and unwatched; run \`scrum install --dir ${dir}\` and start it again`
 }
 
 /** The words that say which source a member runs on, for the line a start prints. */

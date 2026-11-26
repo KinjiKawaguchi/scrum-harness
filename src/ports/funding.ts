@@ -22,6 +22,10 @@ export type FundingSource = {
   readonly source: string
   readonly tool: FundingTool
   readonly env: Readonly<Record<string, string>>
+  /** Whether the source is past its weekly threshold, as the node says; absent when the node does not say */
+  readonly overThreshold?: boolean
+  /** Whether a window of the source is at its limit, as the node says; absent when the node does not say */
+  readonly blocked?: boolean
 }
 
 /** Lists the node's funding sources. Throws, with the reason, when the node cannot be asked or does not answer. */

@@ -237,6 +237,12 @@ describe('agencyFundingLister: the node\'s funding sources', () => {
     assert.deepEqual(agencyFundingLister({ command: [program()] })().map((one) => [one.source, one.tool, one.env]), [['one', 'claude', {}], ['two', 'claude', { CLAUDE_CONFIG_DIR: '/accounts/two' }], ['cx', 'codex', { CODEX_HOME: '/accounts/cx' }]])
   })
 
+  it('reads whether a source is past its threshold or blocked, when the node says', () => {
+    answer(JSON.stringify([{ source: 'one', tool: 'claude', env: {}, overThreshold: true, blocked: false }, { source: 'two', tool: 'claude', env: {}, overThreshold: 'yes' }]))
+    const [one, two] = agencyFundingLister({ command: [program()] })()
+    assert.deepEqual([one?.overThreshold, one?.blocked, two?.overThreshold, two?.blocked], [true, false, undefined, undefined])
+  })
+
   it('throws for something that is not a list, a source without a name or a known tool, or an env that sets anything else', () => {
     for (const bad of ['{}', '[{"tool":"claude","env":{}}]', '[{"source":"a","tool":"gemini","env":{}}]', '[{"source":"a","tool":"claude","env":{"PATH":"/x"}}]']) {
       answer(bad)
@@ -310,5 +316,13 @@ describe('the funding sources\' directories join the ones the harness reads', ()
       if (before === undefined) delete process.env.SCRUM_STATE_DIR
       else process.env.SCRUM_STATE_DIR = before
     }
+  })
+})
+
+describe('the Claude Code launcher continues a session', () => {
+  it('puts --resume <session> after the name, and the note as the first message', () => {
+    const argv = claudeCodeLauncher({ name: 'SWE1', spec: { model: 'm' }, brief: 'carry on', resume: 'sess-1' })
+    assert.deepEqual(argv, ['claude', '-n', 'SWE1', '--resume', 'sess-1', '--model', 'm', 'carry on'])
+    assert.deepEqual(claudeCodeLauncher({ name: 'SWE1', spec: {}, brief: '' }), ['claude', '-n', 'SWE1'])
   })
 })

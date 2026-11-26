@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { claudeTranscriptIn } from './adapters/claude-code/transcript-in.ts'
 import { claudeHooksInstalled } from './adapters/claude-code/hooks-check.ts'
 import { claudeConfigDirs, projectsDirs, sessionsDirs } from './adapters/claude-code/config-dirs.ts'
 import { settingsTargets as claudeSettingsTargets } from './adapters/claude-code/settings-targets.ts'
@@ -68,5 +69,5 @@ export function buildPorts(config: Config): Ports {
   const codexHomes = [...new Set([undefined, ...fundingDirsOf(config).codex.map(expandHome)])]
   // A board module, when the configuration names one, replaces the GitHub adapters it provides; the rest stays GitHub. A module that cannot be loaded throws: reading GitHub instead would read the wrong system.
   const board = { ...githubPorts(config), ...(config.adapters === undefined ? {} : adapterPorts(config.adapters, config)) }
-  return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: composeTranscripts([claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), ...codexHomes.map((home) => codexTranscripts(home))]), members: tmuxHost(), hasHooksIn: claudeHooksInstalled, funding: config.launch?.funding === undefined ? null : agencyFundingPicker(config.launch.funding), fundingSources: config.launch?.funding === undefined ? null : agencyFundingLister(config.launch.funding), launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher }, notify: buildNotifier() }
+  return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: composeTranscripts([claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), ...codexHomes.map((home) => codexTranscripts(home))]), members: tmuxHost(), hasHooksIn: claudeHooksInstalled, hasTranscriptIn: claudeTranscriptIn, funding: config.launch?.funding === undefined ? null : agencyFundingPicker(config.launch.funding), fundingSources: config.launch?.funding === undefined ? null : agencyFundingLister(config.launch.funding), launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher }, notify: buildNotifier() }
 }

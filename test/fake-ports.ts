@@ -33,6 +33,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     funding: null,
     fundingSources: null,
     hasHooksIn: () => true,
+    hasTranscriptIn: () => true,
     launchers: { 'claude-code': () => ['claude'], codex: () => ['codex'] },
     sessions: { find: () => ({ name: null, pid: null }), signals: (): readonly SessionSignal[] => [] },
     transcripts: { files: () => [], names: () => new Map(), scan: unused('transcripts.scan') as () => never },
