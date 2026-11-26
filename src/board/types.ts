@@ -42,6 +42,9 @@ export type OpenIssue = {
   readonly repo: string
   readonly number: number
   readonly author: string | null
+  /** The labels and assignees (read only when the off-board scope filters on them) */
+  readonly labels?: readonly string[]
+  readonly assignees?: readonly string[]
 }
 
 export type Snapshot = {
