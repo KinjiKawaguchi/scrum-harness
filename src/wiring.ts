@@ -4,8 +4,10 @@ import { settingsTargets } from './adapters/claude-code/settings-targets.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
+import { commandPorts } from './adapters/command/ports.ts'
 import { checkBoardModule } from './adapters/module/check.ts'
-import { loadModulePorts } from './adapters/module/load.ts'
+import { loadModulePorts, type ModulePorts } from './adapters/module/load.ts'
+import { isCommandConfig, type AdaptersConfig } from './adapter-module.ts'
 import { tmuxHost } from './adapters/tmux/host.ts'
 import { linuxNotifier } from './adapters/linux/notify.ts'
 import { realRun } from './adapters/run.ts'
@@ -34,9 +36,14 @@ export function buildScheduler(platform: NodeJS.Platform = process.platform): Sc
  * Builds, from the config, the ports handed to the core. The core code does not import adapters and receives only what is built here.
  * The board and code are GitHub, sessions and transcripts are Claude Code, and notifications depend on the platform.
  */
+/** The ports of the board module or the tracker program the configuration names. */
+function adapterPorts(spec: AdaptersConfig, config: Config): ModulePorts {
+  return isCommandConfig(spec) ? commandPorts(spec, config) : loadModulePorts(spec, config)
+}
+
 export function buildPorts(config: Config): Ports {
   const dirs = claudeConfigDirs(config.claudeConfigDirs)
   // A board module, when the configuration names one, replaces the GitHub adapters it provides; the rest stays GitHub. A module that cannot be loaded throws: reading GitHub instead would read the wrong system.
-  const board = { ...githubPorts(config), ...(config.adapters === undefined ? {} : loadModulePorts(config.adapters, config)) }
+  const board = { ...githubPorts(config), ...(config.adapters === undefined ? {} : adapterPorts(config.adapters, config)) }
   return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), notify: buildNotifier() }
 }

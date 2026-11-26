@@ -87,7 +87,7 @@ export function checkModulePorts(returned: unknown, path: string): ModulePorts {
 }
 
 /** The board's snapshot with the check that every item can be judged: a module whose item does not fit the reference rule fails at the read, with the item named. */
-function withCheckedRefs(ports: ModulePorts): ModulePorts {
+export function withCheckedRefs(ports: ModulePorts): ModulePorts {
   const board = ports.board
   if (board === undefined) return ports
   return { ...ports, board: { ...board, fetchSnapshot: (now) => { const snapshot = board.fetchSnapshot(now); assertItemRefs(snapshot); return snapshot } } }

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
 import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
-import { parseAdapterModule, type AdapterModuleConfig } from './adapter-module.ts'
+import { parseAdapterModule, type AdaptersConfig } from './adapter-module.ts'
 import { parseOffBoardScope, type OffBoardScope } from './board/off-board-scope.ts'
 import { parseTeamScope, type TeamScope } from './board/team-scope.ts'
 import { parseLaunch, type LaunchConfig } from './members/config.ts'
@@ -127,7 +127,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig; readonly adapters?: AdapterModuleConfig; readonly hookTools?: readonly string[] }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig; readonly adapters?: AdaptersConfig; readonly hookTools?: readonly string[] }
 
 /** The lead and the members, each name once (the lead may also be listed in `members`). */
 export const teamNamesOf = (config: Config): readonly string[] => [...new Set([config.techlead, ...config.members])]
