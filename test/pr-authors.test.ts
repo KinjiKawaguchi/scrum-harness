@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { boardEvents } from '../src/activity/board-events.ts'
 import { bashActionReader } from '../src/adapters/github/action-reader.ts'
 import { handleHook, type HookDeps } from '../src/hooks/handlers.ts'
-import { openedPullRequest, readPrAuthors, recordPrAuthor, trimPrAuthors } from '../src/team/pr-authors.ts'
+import { openedPullRequest, readPrAuthorRecords, readPrAuthors, recordPrAuthor, trimPrAuthors } from '../src/team/pr-authors.ts'
 import { paths, type Paths } from '../src/store.ts'
 import { fakePorts } from './fake-ports.ts'
 import { config, NOW, pr, snapshot } from './helpers.ts'
@@ -16,22 +16,22 @@ const URL = 'https://github.com/acme/app/pull/42'
 
 describe('openedPullRequest', () => {
   it('names the pull request a `gh pr create` opened from the URL in its result', () => {
-    assert.equal(openedPullRequest(bash('gh pr create --title "fix" --body "x"', `Creating pull request\n${URL}\n`)), 'app#42')
+    assert.deepEqual(openedPullRequest(bash('gh pr create --title "fix" --body "x"', `Creating pull request\n${URL}\n`)), { ref: 'app#42', repo: 'acme/app', number: 42 })
   })
 
   it('reads the command in a chain, with options before the subcommand, and a result that is plain text', () => {
-    assert.equal(openedPullRequest(bash('git push -u origin feat/x && gh pr create --fill', URL)), 'app#42')
-    assert.equal(openedPullRequest(bash('gh -R acme/app pr create --fill', URL)), 'app#42')
-    assert.equal(openedPullRequest({ tool: 'Bash', input: { command: 'gh pr create --fill' }, response: URL }), 'app#42')
+    assert.equal(openedPullRequest(bash('git push -u origin feat/x && gh pr create --fill', URL))?.ref, 'app#42')
+    assert.equal(openedPullRequest(bash('gh -R acme/app pr create --fill', URL))?.ref, 'app#42')
+    assert.equal(openedPullRequest({ tool: 'Bash', input: { command: 'gh pr create --fill' }, response: URL })?.ref, 'app#42')
   })
 
   it('reads the URL on a GitHub Enterprise host', () => {
-    assert.equal(openedPullRequest(bash('gh pr create --fill', 'https://git.example.test/acme/app/pull/7')), 'app#7')
+    assert.equal(openedPullRequest(bash('gh pr create --fill', 'https://git.example.test/acme/app/pull/7'))?.ref, 'app#7')
   })
 
   it('names the pull request a GitHub MCP tool opened', () => {
     const call = { tool: 'mcp__github__create_pull_request', input: {}, response: { content: [{ type: 'text', text: JSON.stringify({ number: 5, html_url: 'https://github.com/acme/app/pull/5' }) }] } }
-    assert.equal(openedPullRequest(call), 'app#5')
+    assert.equal(openedPullRequest(call)?.ref, 'app#5')
   })
 
   it('is null for any other command, even one that prints a pull request URL, and for a result with no URL', () => {
@@ -86,6 +86,7 @@ describe('the hook', () => {
     handleHook('PostToolUse', input('gh pr create --fill', URL), deps('SWE1'))
     handleHook('PostToolUse', input('gh pr create --fill', 'https://github.com/acme/app/pull/43'), deps('TechLead'))
     assert.deepEqual([...readPrAuthors(p.prAuthors)], [['app#42', 'SWE1'], ['app#43', 'TechLead']])
+    assert.deepEqual(readPrAuthorRecords(p.prAuthors).map((one) => [one.repo, one.number]), [['acme/app', 42], ['acme/app', 43]])
   })
 
   it('records nothing for another command, or for a session outside the team', () => {

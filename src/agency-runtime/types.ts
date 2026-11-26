@@ -69,4 +69,50 @@ export type Activity = {
   readonly truncated: boolean
 }
 
-export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest
+/**
+ * The optional op `participantMetrics`: what the runtime knows of each participant's days, and whose pull requests were whose. Written here from the
+ * contract the node team published (`participantmetrics.sample.json` and "Participant metrics" in the protocol) until the generated bindings have it.
+ * `utcOffsetMinutes`, when the node gives it, is the time zone to cut days in; the report says which one it used.
+ */
+export const MIN_UTC_OFFSET_MINUTES = -720
+export const MAX_UTC_OFFSET_MINUTES = 840
+
+export type ParticipantMetricsRequest = {
+  readonly runtime: string
+  readonly org: string
+  readonly team: string
+  readonly op: 'participantMetrics'
+  readonly days: number
+  readonly utcOffsetMinutes?: number
+}
+
+export type ParticipantDay = {
+  /** YYYY-MM-DD in the time zone that cut the days */
+  readonly date: string
+  /** At least one session was working */
+  readonly busySeconds: number
+  /** No session was working and at least one waited for a decision of a human */
+  readonly waitingSeconds: number
+  /** Sessions were alive and none worked or waited */
+  readonly idleSeconds: number
+  /** Estimated cost in USD at API prices, as in `TokenUsage` */
+  readonly costUsd: number
+  readonly tokens: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number }
+}
+
+export type ParticipantDays = { readonly name: string; readonly byDay: readonly ParticipantDay[] }
+
+/** A pull request and the participant whose session made it. Only those whose author is known are listed. */
+export type PullRequestAuthor = { readonly repo: string; readonly number: number; readonly by: string }
+
+export type ParticipantMetrics = {
+  readonly org: string
+  readonly team: string
+  readonly days: number
+  readonly generatedAt: string
+  readonly utcOffsetMinutes: number
+  readonly participants: readonly ParticipantDays[]
+  readonly pullRequests: readonly PullRequestAuthor[]
+}
+
+export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest | ParticipantMetricsRequest

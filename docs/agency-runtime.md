@@ -12,15 +12,16 @@ The node runs `scrum runtime` with no further arguments and `SCRUM_STATE_DIR` se
 → {"error":{"status":503,"message":"..."}}                exit code 1
 ```
 
-The op (`describe`, `view`, `decide`, or the optional `tokenUsage` and `activity`) is in the request. Fields the harness does not know are ignored.
+The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, and `participantMetrics`) is in the request. Fields the harness does not know are ignored.
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity"],"label":"<team label>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics"],"label":"<team label>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
 | `tokenUsage` | a TokenUsage (below) |
 | `activity` | an Activity (below) |
+| `participantMetrics` | a ParticipantMetrics (below) |
 
 Errors use the specification's statuses: 400 for malformed input (not JSON, wrong runtime version, unknown op, an id that is not an id, a decision without text or a choice), 404 for a target that does not exist or is not waiting for a decision, and 503 when the harness cannot act now (not configured, no board read yet, a script or `gh` failed). The node does not retry 400 and 404.
 
@@ -88,6 +89,25 @@ The node calls `decide` only after it has verified the decision. The harness che
 - 404 means no session of the team has recorded usage. 503 means the first read of the transcripts has not finished.
 
 The numbers come from the agents' Claude Code transcripts, read through the `TranscriptSource` port (`src/ports/usage.ts`; the adapter is `src/adapters/claude-code/`), and from Codex session records (`<CODEX_HOME>/sessions`, default `~/.codex`; the adapter is `src/adapters/codex/`). A Codex session is counted under the member whose name the harness's identity record gives it (the member's hook writes it from `SCRUM_NAME`), and only the folders where a team session ran are read: each rollout's directory is its project. A Codex response is counted from its `token_count` event: the cached part of the input is a cache read, and the output includes the reasoning tokens. **Costs of a Codex member are 0**: no price of another product is listed here, and a plan login (the owner's) pays no per-token price anyway, so only the tokens are reported; prices for API-key logins are added when an OpenAI price list is cited. Reading the first time can take minutes, so the call never waits for it: when the index (`<state dir>/cache/usage-index.json`) is missing or older than 5 minutes, `tokenUsage` starts `scrum usage-index` in the background and answers from what the index holds. The index remembers how far each transcript was read, counts every response once, and only the projects that hold a session of the team are read. To count again from scratch, delete the index.
+
+## `participantMetrics`: each participant's days, and whose pull requests were whose
+
+`{"runtime":"agency-runtime/1","org":"acme","team":"app","op":"participantMetrics","days":7,"utcOffsetMinutes":540}` (`days` is a whole number from 1 to 90; `utcOffsetMinutes`, optional, is a whole number from -720 to 840) returns
+
+```
+{ "org", "team", "days", "generatedAt", "utcOffsetMinutes",
+  "participants": [ { "name", "byDay": [ { "date": "YYYY-MM-DD", "busySeconds", "waitingSeconds", "idleSeconds", "costUsd", "tokens": { "input", "output", "cacheRead", "cacheWrite" } } ] } ],
+  "pullRequests": [ { "repo": "owner/name", "number", "by" } ] }
+```
+
+The shape is the one the node team published (`participantmetrics.sample.json` and "Participant metrics" in Agency's protocol). It carries only what GitHub does not have: the times of pull requests and issues are GitHub's, and a work item's type and epic are in the team view.
+
+- **Days** are cut at `utcOffsetMinutes` when the node gives it (its own time zone, so a day here is a day of its evaluation), else at the runtime's own (`runtime.utcOffset`). The answer says which it used. Days with nothing in them are left out, and so is a participant with none in the range.
+- **Time** comes from the state log (`<state dir>/log/member-states.jsonl`, one line for each change of a session's state, written by the hooks; see `src/team/state-time.ts`). `busySeconds` is the time at least one session of the participant was working; `waitingSeconds` is the rest of the time at least one waited for approval; `idleSeconds` is the rest of the time sessions were alive. Overlapping sessions count once, and a moment that is both busy and waiting is busy. Time when no session was alive is in none of them, so a day's three numbers can add up to less than the day (never more). A session counts until its next line, and the last until now while it runs and until its last heartbeat when it does not; a session with no heartbeat counts for nothing. The log starts when the hooks that write it were installed: earlier days have no time, though they can have a cost.
+- **Cost and tokens** are the participant's sessions added up, from the same index of the transcripts as `tokenUsage` (an estimate at API prices, in cents). As there, the call answers from what the index holds and starts `scrum usage-index` in the background when it is stale; until the first read it answers 503.
+- **Participants** are the team's TechLead and members, named as in `view` and `tokenUsage`. A second session that took a name counts as the member.
+- **Pull requests** are listed only when the hooks saw a session of the team open them: `gh pr create` in a Bash command, or an MCP server's `create_pull_request` (`<state dir>/log/pr-authors.jsonl`, kept 90 days; see `src/team/pr-authors.ts`). The repository (`owner/name`) and number are the ones in the pull request's own URL, which the tool printed. A pull request opened any other way is not listed; nothing is guessed from a title or a branch. `by` is the member's name.
+- `scrum metrics [--days N] [--json]` prints the same report for people (`--json` prints the op's answer).
 
 ## `activity`: what the team did
 

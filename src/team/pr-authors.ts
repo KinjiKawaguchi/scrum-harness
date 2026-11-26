@@ -8,7 +8,18 @@ import { baseName } from '../usage/attribution.ts'
 export const PR_AUTHORS_DAYS = 90
 
 /** The member whose session opened a pull request, at the time its hook saw the tool result. `ref` is the pull request's reference on the board. */
-export type PrAuthor = { readonly at: string; readonly name: string; readonly sessionId: string; readonly ref: string }
+export type PrAuthor = {
+  readonly at: string
+  readonly name: string
+  readonly sessionId: string
+  readonly ref: string
+  /** The pull request's repository as `owner/name` and its number, from the URL in the result. A record written before they were kept has neither. */
+  readonly repo?: string
+  readonly number?: number
+}
+
+/** A pull request a tool call opened, as its own URL names it. */
+export type OpenedPullRequest = { readonly ref: string; readonly repo: string; readonly number: number }
 
 const PULL_URL = /https?:\/\/[^\s/"']+\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/
 const GH_PR_CREATE = /(^|[\s;&|(])gh\s+(?:[^\s;&|]+\s+)*?pr\s+create(\s|$)/
@@ -28,12 +39,14 @@ function textOf(response: unknown): string {
  * own URL in the result (which names its repository and number, so nothing is guessed from a title or a branch). Null for any other call, and for a
  * result without such a URL.
  */
-export function openedPullRequest(call: ToolCall): string | null {
+export function openedPullRequest(call: ToolCall): OpenedPullRequest | null {
   const command = call.input.command
   const isCreate = call.tool === 'Bash' ? typeof command === 'string' && GH_PR_CREATE.test(command) : MCP_CREATE.test(call.tool)
   if (!isCreate || call.response === undefined) return null
   const match = PULL_URL.exec(textOf(call.response))
-  return match === null ? null : `${shortRepo(`${match[1]}/${match[2]}`)}#${match[3]}`
+  if (match === null) return null
+  const repo = `${match[1]}/${match[2]}`
+  return { ref: `${shortRepo(repo)}#${match[3]}`, repo, number: Number(match[3]) }
 }
 
 export function recordPrAuthor(path: string, author: PrAuthor): void {
