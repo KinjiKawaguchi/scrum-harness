@@ -59,7 +59,7 @@ Agents file requests to the owner with `scrum request add --from <name>` (JSON o
 
 ## `decide`
 
-The node calls `decide` only after it has verified the decision.
+The node calls `decide` only after it has verified the decision. The harness checks the decider again, by `byParticipant` (the decider's name in this team, which the node sends with every decision, in the same name space as a request's `to`). A decision is applied only when `byParticipant` is the request's addressee (`to`, else `owner`) or `owner`: the owner may decide a request for someone else, because the node sends a `to` it does not know to the owner and the runtime cannot see that map. A pending decision has no `to`, so a `judge` is applied only from `owner`. Any other decider gets the same 404 as an unknown target and nothing is recorded. A decision without `byParticipant` (a node that does not send it) is refused with 400, which the node does not retry. This needs no configuration.
 
 - `kind: "answer"` answers a request in the store, by its id. The answer is a message from `owner` (with `choice` when one of the options was chosen, and the decider's id as `by`), the turn moves to the team, and R-ANSWERED reaches the lead. A closed request reopens, so a late answer still reaches the team. An unknown id is 404; a `choice` that is not an option key, or an answer with neither text nor a choice, is 400. Applying the same answer again (a retry after a lost reply) changes nothing.
 - `kind: "judge"` answers an item blocked on a decision. The harness first reads the board again if its copy is older than `refreshSeconds` (this can take several seconds on a large board; the node stops a call after 20 seconds). Then:

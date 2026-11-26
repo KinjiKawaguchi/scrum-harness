@@ -2,6 +2,7 @@
 import type { RuntimeDecision } from "./RuntimeDecision.js";
 
 /**
- * The operation and its input. `usage` is reserved for a later version.
+ * The operation and its input. `describe`, `view`, and `decide` are required; `tokenUsage` is optional,
+ * and the node calls it only when `Describe::ops` lists it.
  */
-export type RuntimeCall = { "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, };
+export type RuntimeCall = { "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, } | { "op": "tokenUsage", days: number, };
