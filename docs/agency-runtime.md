@@ -105,6 +105,7 @@ The numbers come from the agents' Claude Code transcripts, read through the `Tra
   - `prMerged`: the same, and `leadSeconds?` (opened to merged).
   - `message`: `from` (a participant's name), `to` (a plain name), `summary` (at most 120 characters). It is the short label the sender gave the message, empty when it gave none, and never taken from the body.
 - The log keeps the last 24 hours (`cache/activity.jsonl` in the state directory). A `since` older than that answers what the log has. The call only reads the log, so it is as cheap as `view`; it starts the board refresh and the transcript reader in the background when they are due, as `view` and `tokenUsage` do. An empty list means nothing happened, or the log has not been filled yet (`generatedAt` says when the answer was made).
+- **Board events** are written by the board refresh (`scrum refresh`, which the watch, the scheduler, and `view` and `activity` start when the copy is stale). `itemAdded` is at the time the item was added to the board; `prOpened` and `prMerged` are at the pull request's own times, for pull requests that are items of the board, and `leadSeconds` is the difference; `issue` is the first issue the pull request closes (`Closes #N`). `statusChanged` is at the time the refresh first saw the new Status, so it can be late by one refresh interval (5 minutes by default). `epic` is the item's parent: the harness reads parents only when `runtime.activity` is true (or `dispatch` or `alerts` is on), because it adds a field to every issue the board read asks for, which an older GitHub Enterprise Server may not have. A title is cut at 200 characters.
 
 ## Configuration
 
@@ -118,7 +119,7 @@ An optional `runtime` section:
 }
 ```
 
-`label` is the team's display name (default: the team id the node sends). `utcOffset` is the time zone `tokenUsage` cuts days in. `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
+`label` is the team's display name (default: the team id the node sends). `activity` (true or false, default false) makes the board read ask for each issue's parent, so the events of `activity` carry their `epic`. `utcOffset` is the time zone `tokenUsage` cuts days in. `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
 
 ## Keeping in step with Agency
 
