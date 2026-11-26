@@ -24,4 +24,4 @@ A `refactor` is listed in the changelog, but it does not call for a release by i
 
 - Settings, Actions, General: **Allow GitHub Actions to create and approve pull requests** is on (release-please opens its pull request with the workflow's own token). The default token permissions stay read-only; the workflow asks for what it needs.
 - A pull request made with the workflow's own token does not start other workflows, so the release pull request has no CI run. It changes only the version and the changelog.
-- The first release is 0.1.0 and lists the pull requests merged after `bootstrap-sha` in `release-please-config.json` (the history before it is in `git log`). Remove `bootstrap-sha` once the first release is made.
+- The first release, 0.1.0, counted the pull requests merged from the day releases were set up; the history before it is in `git log`.
