@@ -32,6 +32,7 @@ import { resolveIdentity } from './team/identity.ts'
 import type { Ports } from './ports/index.ts'
 import { watchFor } from './watch-role.ts'
 import { boardCommand } from './board/board-command.ts'
+import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
 import { buildPorts, buildScheduler } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
@@ -52,6 +53,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum dispatch --once [<name>...] for idle members, pick the next work once, write it to the board, and print the text to send (for members already idle right after enabling dispatch)
   scrum checkpoint                  record the last checkpoint not yet recorded (the watch also records it)
   scrum board <add|move>              Add an issue to the board, or hand an item to another team (when the board is shared). Run it with no arguments for the shape
+  scrum member list                 the configured members, whether each runs, and what runs but is not listed
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
   scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
   scrum init --project-id <id> --status-field-id <id> --repos <owner/name,...> --owner-user <@login> [...]
@@ -155,6 +157,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return runWatchCommand(p)
     case 'board':
       return needConfig((cfg, prt) => boardCommand(p, cfg, prt, positional, flags))
+    case 'member':
+      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional))
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'init': {
