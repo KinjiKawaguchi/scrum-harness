@@ -4,6 +4,7 @@ import { settingsTargets } from './adapters/claude-code/settings-targets.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
+import { claudeCodeLauncher } from './adapters/claude-code/launch.ts'
 import { commandPorts } from './adapters/command/ports.ts'
 import { checkBoardModule } from './adapters/module/check.ts'
 import { loadModulePorts, type ModulePorts } from './adapters/module/load.ts'
@@ -45,5 +46,5 @@ export function buildPorts(config: Config): Ports {
   const dirs = claudeConfigDirs(config.claudeConfigDirs)
   // A board module, when the configuration names one, replaces the GitHub adapters it provides; the rest stays GitHub. A module that cannot be loaded throws: reading GitHub instead would read the wrong system.
   const board = { ...githubPorts(config), ...(config.adapters === undefined ? {} : adapterPorts(config.adapters, config)) }
-  return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), notify: buildNotifier() }
+  return { ...board, sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), launchers: { 'claude-code': claudeCodeLauncher }, notify: buildNotifier() }
 }
