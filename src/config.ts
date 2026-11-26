@@ -152,7 +152,9 @@ export function stateDir(): string {
   return process.env.SCRUM_STATE_DIR ?? join(homedir(), '.claude', 'scrum')
 }
 
-const REQUIRED_STRINGS = ['projectId', 'defaultRepo', 'statusFieldId', 'reasonNone', 'reasonJudge', 'ownerUser', 'techlead'] as const
+const REQUIRED_STRINGS = ['defaultRepo', 'reasonNone', 'reasonJudge', 'ownerUser', 'techlead'] as const
+/** The ids of a GitHub Project. A board module for another tracker does not have them, so they are required only without one. */
+const GITHUB_BOARD_STRINGS = ['projectId', 'statusFieldId'] as const
 const REQUIRED_LISTS = ['repos', 'excludeAuthors', 'members'] as const
 const REQUIRED_OBJECTS = ['fields', 'statuses'] as const
 
@@ -231,6 +233,7 @@ export function parseConfig(raw: unknown): Config | null {
   const record = withConfigAliases(raw as Record<string, unknown>)
   const isValid =
     REQUIRED_STRINGS.every((key) => typeof record[key] === 'string') &&
+    GITHUB_BOARD_STRINGS.every((key) => (record.adapters !== undefined && record[key] === undefined) || typeof record[key] === 'string') &&
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
     isValidWorkTypeField(record.fields)
@@ -251,6 +254,7 @@ export function parseConfig(raw: unknown): Config | null {
   return {
     ...DEFAULT_TUNING,
     ...DEFAULT_ADAPTERS,
+    ...(adapters === undefined ? {} : { projectId: '', statusFieldId: '' }),
     ...rest,
     ...(sprint === undefined ? {} : { sprint }),
     ...(dispatch === undefined ? {} : { dispatch }),

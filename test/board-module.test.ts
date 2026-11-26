@@ -149,6 +149,23 @@ describe('a board module that cannot be used, on the command line', () => {
   })
 })
 
+describe('the parts of a port a module may leave out', () => {
+  const writer = { canAssign: true, canSetReason: true, assign: () => undefined, setStatus: () => undefined, setReason: () => undefined, writeOverrun: () => [] }
+  const issues = { comments: () => [], addComment: () => undefined }
+  const bodySide = { openIssues: () => [], read: () => ({ isOpen: true, body: '' }), writeBody: () => undefined }
+
+  it('accepts a writer without addToBoard and setTeam, and an issue thread without the body side', () => {
+    assert.deepEqual(Object.keys(checkModulePorts({ writer, issues }, 'm')), ['writer', 'issues'])
+    assert.deepEqual(Object.keys(checkModulePorts({ writer: { ...writer, addToBoard: () => undefined, setTeam: () => undefined }, issues: { ...issues, ...bodySide } }, 'm')), ['writer', 'issues'])
+  })
+
+  it('refuses part of the body side, an optional function that is not one, and a flag that is not a boolean', () => {
+    assert.throws(() => checkModulePorts({ issues: { ...issues, openIssues: () => [] } }, 'm'), /only part of openIssues, read, writeBody \(all three or none\)/)
+    assert.throws(() => checkModulePorts({ writer: { ...writer, setTeam: 'yes' } }, 'm'), /writer whose setTeam is not a function/)
+    assert.throws(() => checkModulePorts({ writer: { ...writer, canAssign: 'yes' } }, 'm'), /writer whose canAssign is not true or false/)
+  })
+})
+
 describe('the action reader a module provides', () => {
   it('has to read tool calls (actionsOf), and a reader with the older commandsOf is refused by name', () => {
     assert.deepEqual(Object.keys(checkModulePorts({ actions: { actionsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) } }, 'm')), ['actions'])

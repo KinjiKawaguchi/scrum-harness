@@ -42,6 +42,9 @@ export function githubIssueThread(run: GhRun): IssueThread {
     openIssues: (repo) => listOpenIssues(run, repo),
     read: (repo, number) => readIssue(run, repo, number),
     writeBody: (repo, number, body) => writeIssueBody(run, repo, number, body),
-    addComment: (repo, number, body) => postComment(run, repo, number, body),
+    addComment: (item, body) => {
+      if (item.number === null) throw new Error('cannot comment on an item without a number')
+      postComment(run, item.repo, item.number, body)
+    },
   }
 }

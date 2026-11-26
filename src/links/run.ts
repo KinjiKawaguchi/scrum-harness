@@ -1,5 +1,6 @@
 import type { Config } from '../config.ts'
-import type { CodeHost, IssueBody, IssueThread } from '../ports/index.ts'
+import type { BodyThread, CodeHost, IssueBody, IssueThread } from '../ports/index.ts'
+import { bodyThreadOf } from './body-thread.ts'
 import { appendLine, logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { linksOf, type LinksConfig } from './config.ts'
 import { isSkipped, referencedNumbers, type OpenPr } from './extract.ts'
@@ -64,7 +65,7 @@ const EMPTY_RESULT: LinkResult = { planned: [], applied: [], skipped: [], broken
  * Rewrites one issue. Just before writing, re-reads the body, and if it differs from the body when the plan was made (a person edited it), does not write.
  * The body before writing is kept in log/links-before.jsonl.
  */
-function apply(p: Paths, issues: IssueThread, plan: LinkPlan, now: Date): SkipReason | null {
+function apply(p: Paths, issues: BodyThread, plan: LinkPlan, now: Date): SkipReason | null {
   const at = now.toISOString()
   try {
     const current = issues.read(plan.repo, plan.issue)
@@ -83,7 +84,7 @@ function apply(p: Paths, issues: IssueThread, plan: LinkPlan, now: Date): SkipRe
   }
 }
 
-function linkRepo(p: Paths, repo: string, ports: LinkPorts, links: LinksConfig, now: Date, options: { readonly dryRun: boolean; readonly budget: number }): LinkResult {
+function linkRepo(p: Paths, repo: string, ports: { readonly code: LinkPorts['code']; readonly issues: BodyThread }, links: LinksConfig, now: Date, options: { readonly dryRun: boolean; readonly budget: number }): LinkResult {
   const { plans, broken } = planLinks(repo, ports.code.openPullRequests(repo), ports.issues.openIssues(repo), links)
   broken.forEach((issue) => appendLine(p.events, JSON.stringify({ at: now.toISOString(), type: 'link-broken', repo, issue })))
   const targets = options.dryRun ? [] : plans.slice(0, options.budget)
@@ -103,10 +104,13 @@ function linkRepo(p: Paths, repo: string, ports: LinkPorts, links: LinksConfig, 
  */
 export function linkPullRequests(p: Paths, config: Config, now: Date, ports: LinkPorts, options: { readonly dryRun: boolean }): LinkResult {
   const links = linksOf(config)
+  // A tracker that cannot rewrite issue bodies has nothing to link into.
+  const issues = bodyThreadOf(ports.issues)
+  if (issues === null) return EMPTY_RESULT
   const results = config.repos.reduce<readonly LinkResult[]>((done, repo) => {
     const budget = links.maxEditsPerRun - done.reduce((total, result) => total + result.applied.length + result.skipped.length, 0)
     try {
-      return [...done, linkRepo(p, repo, ports, links, now, { ...options, budget })]
+      return [...done, linkRepo(p, repo, { code: ports.code, issues }, links, now, { ...options, budget })]
     } catch (error) {
       logError(p, `link-prs ${repo}`, error)
       return [...done, EMPTY_RESULT]

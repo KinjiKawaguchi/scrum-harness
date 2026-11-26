@@ -15,6 +15,13 @@ The module is ES modules code that exports:
 - `portsVersion`: the number `1`. Another number is refused, so a module and a harness that disagree fail at load.
 - `createPorts(config, options)` (or a default export of the same shape): returns an object with any of `board`, `writer`, `actions`, `issues`, and `code`. What it leaves out stays the GitHub adapter, so a module can keep GitHub as the code host. The types are `BoardSource`, `BoardWriter`, `ActionReader`, `IssueThread`, and `CodeHost` in `src/ports/`. The action reader gets every tool call an agent makes (`actionsOf({ tool, input, response? })`: a Bash command, or an `mcp__<server>__<tool>` call, with the tool's answer after it ran), so a team whose agents write the board through MCP tools lists those tools in `hookTools`, and the module's reader turns the calls into the harness's board commands. `config` is a copy of the harness's configuration; changing it changes nothing.
 
+What a port may leave out:
+
+- `writer`: `addToBoard` and `setTeam` are optional (`scrum board add` and `move` then say the board cannot do it). `canAssign` and `canSetReason` are required flags that say which writes the module supports.
+- `issues`: `comments` and `addComment` are required, and both take the item itself, so a tracker whose ids are not a repository and a number can serve them. `openIssues`, `read`, and `writeBody` serve one feature, linking PRs into issue bodies; give all three or none. Without them `links` does nothing.
+
+The GitHub Project ids (`projectId`, `statusFieldId`) are required in the configuration only when no module is named. `repos` and `defaultRepo` stay required: a module's team names its own repository key there.
+
 Each port is checked when the module is loaded: a name that is not a port (a typo), or a port without one of its functions, fails with the name.
 
 ## Trust
