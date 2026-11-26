@@ -94,7 +94,7 @@ export type StateTimeInput = {
 
 /**
  * How long each member was busy, waiting for approval, and idle on each of the last `days` calendar days, from the hooks' state marks.
- * Time is counted only while a session is known to have run; the seconds are rounded to whole seconds.
+ * Time is counted only while a session is known to have run; the seconds are cut down to whole seconds, so that the three of a day never add up to more than the day.
  */
 export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes, recordedSince = null }: StateTimeInput): readonly MemberStateSeconds[] {
   const dates = lastDates(days, now, offsetMinutes)
@@ -112,7 +112,7 @@ export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes
         name,
         byDay: dates.map((date) => {
           const day = totals.get(date) ?? { busy: 0, waiting: 0, idle: 0 }
-          return { date, busySeconds: Math.round(day.busy), idleSeconds: Math.round(day.idle), waitingSeconds: Math.round(day.waiting) }
+          return { date, busySeconds: Math.floor(day.busy), idleSeconds: Math.floor(day.idle), waitingSeconds: Math.floor(day.waiting) }
         }),
       }
     })
