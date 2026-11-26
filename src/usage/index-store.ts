@@ -1,6 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { Tokens, TranscriptFile, TranscriptSource, UsageRow } from '../ports/index.ts'
+import type { SentMessage, Tokens, TranscriptFile, TranscriptSource, UsageRow } from '../ports/index.ts'
 import { readJson } from '../store.ts'
 
 /**
@@ -64,12 +64,16 @@ function compactRows(rows: readonly UsageRow[], session: number, models: readonl
  * A file shorter than where it was read to was rewritten. Its earlier rows stay, and only what follows its present end is read,
  * because reading from the start again would count the same responses twice.
  */
-export function scanInto(index: UsageIndex, file: TranscriptFile, source: TranscriptSource): UsageIndex {
+/** What a scan found besides token use: the messages a file's session sent, passed on as they are read (the index does not keep them). */
+export type OnMessages = (file: TranscriptFile, messages: readonly SentMessage[]) => void
+
+export function scanInto(index: UsageIndex, file: TranscriptFile, source: TranscriptSource, onMessages?: OnMessages): UsageIndex {
   const mark = index.files[file.path]
   if (mark !== undefined && file.size <= mark.offset) {
     return file.size === mark.offset ? index : { ...index, files: { ...index.files, [file.path]: { ...mark, offset: file.size, size: file.size } } }
   }
   const scan = source.scan(file, mark?.offset ?? 0, new Set(mark?.lastRequestId ? [mark.lastRequestId] : []))
+  if (scan.messages.length > 0) onMessages?.(file, scan.messages)
   const session = indexOf(index.sessionIds, file.sessionId)
   const compact = compactRows(scan.rows, session.index, index.models)
   const lastRequestId = scan.rows.at(-1)?.requestId ?? mark?.lastRequestId ?? null
@@ -92,8 +96,8 @@ function writeCompact(path: string, value: UsageIndex): void {
   renameSync(tmp, path)
 }
 
-export function updateIndex(path: string, files: readonly TranscriptFile[], source: TranscriptSource, now: Date): UsageIndex {
-  const updated = files.reduce((index, file) => scanInto(index, file, source), readIndex(path) ?? EMPTY_INDEX)
+export function updateIndex(path: string, files: readonly TranscriptFile[], source: TranscriptSource, now: Date, onMessages?: OnMessages): UsageIndex {
+  const updated = files.reduce((index, file) => scanInto(index, file, source, onMessages), readIndex(path) ?? EMPTY_INDEX)
   const result = { ...updated, updatedAt: now.toISOString() }
   writeCompact(path, result)
   return result
