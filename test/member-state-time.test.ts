@@ -123,6 +123,20 @@ describe('stateSecondsByMember', () => {
     assert.deepEqual(swe1?.byDay.at(-1), { date: '2026-11-26', busySeconds: 14_400, idleSeconds: 0, waitingSeconds: 0 })
   })
 
+  it('cuts the seconds down, so the three of a day never add up to more than the day', () => {
+    // busy and waiting end on half seconds: rounding each up would make 86401 seconds in a day of 86400
+    const marks = [
+      mark('2026-11-25T00:00:00Z', 's1', 'busy'),
+      mark('2026-11-25T08:00:00.500Z', 's1', 'waiting'),
+      mark('2026-11-25T16:00:01.000Z', 's1', 'idle'),
+      mark('2026-11-26T00:00:00Z', 's1', 'ended'),
+    ]
+    const [swe1] = today(marks, { s1: gone('2026-11-26T00:00:00Z') })
+    const day = swe1?.byDay.find((one) => one.date === '2026-11-25')
+    assert.ok(day)
+    assert.ok(day.busySeconds + day.waitingSeconds + day.idleSeconds <= 86_400)
+  })
+
   it('keeps members apart and ignores what is before the range', () => {
     const marks = [mark('2026-11-01T09:00:00Z', 's1', 'busy'), mark('2026-11-01T10:00:00Z', 's1', 'idle'), mark('2026-11-26T09:00:00Z', 's2', 'busy', 'SWE2')]
     const result = today(marks, { s1: gone('2026-11-01T10:00:00Z'), s2: gone('2026-11-26T09:20:00Z') })
