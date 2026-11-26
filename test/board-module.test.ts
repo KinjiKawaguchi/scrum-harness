@@ -148,3 +148,10 @@ describe('a board module that cannot be used, on the command line', () => {
     assert.match(spawnSync('cat', [join(state, 'log', 'errors.log')], { encoding: 'utf8' }).stdout, /hook: the board module does not exist/)
   })
 })
+
+describe('the action reader a module provides', () => {
+  it('has to read tool calls (actionsOf), and a reader with the older commandsOf is refused by name', () => {
+    assert.deepEqual(Object.keys(checkModulePorts({ actions: { actionsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) } }, 'm')), ['actions'])
+    assert.throws(() => checkModulePorts({ actions: { commandsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) } }, 'm'), /actions without: actionsOf/)
+  })
+})

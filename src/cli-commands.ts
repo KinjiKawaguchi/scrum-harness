@@ -139,10 +139,10 @@ export function statuslineCommand(p: Paths, config: Config, input: Record<string
   return formatStatusline(lintAll(loadContext(p, config, now, sessions)).active)
 }
 
-export function installCommand(p: Paths, isInstall: boolean, targets: readonly string[]): string {
+export function installCommand(p: Paths, isInstall: boolean, targets: readonly string[], tools: readonly string[] = []): string {
   const bin = fileURLToPath(new URL('../bin/scrum', import.meta.url))
   const lines = targets.map((path) => {
-    const backup = updateSettings(path, (settings) => (isInstall ? withHooks(settings, bin) : withoutHooks(settings)))
+    const backup = updateSettings(path, (settings) => (isInstall ? withHooks(settings, bin, tools) : withoutHooks(settings)))
     return `${isInstall ? 'Added' : 'Removed'}: the hooks in ${path} (${backup === null ? 'a new file' : `backup: ${backup}`})`
   })
   const created = isInstall && ensureConfig(p)

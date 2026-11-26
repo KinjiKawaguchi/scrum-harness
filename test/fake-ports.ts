@@ -26,7 +26,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
       setTeam: () => undefined,
       writeOverrun: () => [],
     },
-    actions: { commandsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) },
+    actions: { actionsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) },
     issues: { comments: unused('issues.comments'), openIssues: unused('issues.openIssues'), read: unused('issues.read'), writeBody: unused('issues.writeBody'), addComment: unused('issues.addComment') },
     code: { openPullRequests: unused('code.openPullRequests'), referencedIssues: () => null, prepareBranch: () => null, activity: () => null },
     members: { windows: () => null },

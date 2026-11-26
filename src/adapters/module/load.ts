@@ -16,7 +16,7 @@ export type ModulePorts = Partial<Pick<Ports, 'board' | 'writer' | 'actions' | '
 const REQUIRED: Readonly<Record<keyof ModulePorts, readonly string[]>> = {
   board: ['fetchSnapshot', 'statusEvents'],
   writer: ['assign', 'setStatus', 'setReason', 'addToBoard', 'setTeam', 'writeOverrun'],
-  actions: ['commandsOf', 'shellPatterns'],
+  actions: ['actionsOf', 'shellPatterns'],
   issues: ['comments', 'openIssues', 'read', 'writeBody', 'addComment'],
   code: ['openPullRequests', 'referencedIssues', 'prepareBranch', 'activity'],
 }

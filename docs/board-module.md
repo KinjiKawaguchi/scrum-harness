@@ -13,7 +13,7 @@ A team whose issues live in another tracker can plug that tracker in without a c
 The module is ES modules code that exports:
 
 - `portsVersion`: the number `1`. Another number is refused, so a module and a harness that disagree fail at load.
-- `createPorts(config, options)` (or a default export of the same shape): returns an object with any of `board`, `writer`, `actions`, `issues`, and `code`. What it leaves out stays the GitHub adapter, so a module can keep GitHub as the code host. The types are `BoardSource`, `BoardWriter`, `ActionReader`, `IssueThread`, and `CodeHost` in `src/ports/`. `config` is a copy of the harness's configuration; changing it changes nothing.
+- `createPorts(config, options)` (or a default export of the same shape): returns an object with any of `board`, `writer`, `actions`, `issues`, and `code`. What it leaves out stays the GitHub adapter, so a module can keep GitHub as the code host. The types are `BoardSource`, `BoardWriter`, `ActionReader`, `IssueThread`, and `CodeHost` in `src/ports/`. The action reader gets every tool call an agent makes (`actionsOf({ tool, input, response? })`: a Bash command, or an `mcp__<server>__<tool>` call, with the tool's answer after it ran), so a team whose agents write the board through MCP tools lists those tools in `hookTools`, and the module's reader turns the calls into the harness's board commands. `config` is a copy of the harness's configuration; changing it changes nothing.
 
 Each port is checked when the module is loaded: a name that is not a port (a typo), or a port without one of its functions, fails with the name.
 
