@@ -22,6 +22,6 @@ waitingOn?: WaitingOn,
  */
 status: string, 
 /**
- * Work item refs (`repo#N`) assigned to them.
+ * The item references of the work items assigned to them.
  */
 holding: Array<string>, };
