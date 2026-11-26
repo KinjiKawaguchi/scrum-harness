@@ -123,7 +123,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string }
 
 export function dispatchOf(config: Config): DispatchConfig {
   return config.dispatch ?? DEFAULT_DISPATCH
@@ -207,6 +207,11 @@ const isValidWorkTypeField = (fields: unknown): boolean => {
   return name === undefined || (typeof name === 'string' && name.trim() !== '')
 }
 
+const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/
+
+/** The GitHub host name for gh (GH_HOST). Absent is fine; a value that is not a host name is not used, because a call would then go to another host. */
+export const isHostName = (value: unknown): value is string => typeof value === 'string' && HOST.test(value)
+
 /** The config file is a system boundary, so a missing value is not used. */
 export function parseConfig(raw: unknown): Config | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -216,7 +221,7 @@ export function parseConfig(raw: unknown): Config | null {
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
     isValidWorkTypeField(record.fields)
-  if (!isValid) return null
+  if (!isValid || (record.host !== undefined && !isHostName(record.host))) return null
   const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, ...rest } = record
   const sprint = parseSprint(rawSprint)
   const dispatch = parseDispatch(rawDispatch)

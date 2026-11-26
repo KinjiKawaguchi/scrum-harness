@@ -43,6 +43,7 @@ The main settings in the configuration (`config.json`):
 
 | Setting | Meaning |
 |---|---|
+| `host` | The GitHub host name when the board is on GitHub Enterprise (for example `ghe.example.com`). Every `gh` call and every board script the harness runs gets `GH_HOST=<host>`. Optional; without it `gh`'s own default host applies. See [GitHub Enterprise](#github-enterprise) |
 | `projectId`, `repos`, `defaultRepo` | The board and the repositories to check |
 | `fields`, `statuses`, `reasonNone`, `reasonJudge`, `statusFieldId` | The names of the board's fields and options. `fields.workType` (optional) names a single-select field that says what kind of work an item is (for example New feature, Improvement, Maintenance, Debt, Incident); when set, the harness reads it into each item |
 | `ownerUser`, `ownerLabel` | The Owner value of the person who decides, and the name used for them in messages |
@@ -66,6 +67,20 @@ Each team keeps its own harness (its own state directory and configuration). To 
 The harness reads the whole board and narrows it to the items whose field has the team's value, so every check, the dispatch, the links, and the runtime view see only the team's work. An issue that is on the board under another team is not reported as off the board. Exactly one team sets `adoptsUnassigned`: it also owns the items with no value and the issues that are not on the board, so no two teams fight over one item. Without a `team` section the whole board is the team's. A `team` section of the wrong shape makes the whole configuration unusable (it never falls back to the whole board), and a `value` that is not an option of the field fails the board read with that message.
 
 To move an existing single team: add the field, set it on the existing items, then add the section with `adoptsUnassigned: true`. The behavior is the same at every step.
+
+### GitHub Enterprise
+
+The harness does not name github.com anywhere; it reaches GitHub through `gh`, which picks its host from `GH_HOST` or its own default. On a machine that is signed in to more than one host, or when a scheduled job runs without your shell's environment, that default may be the wrong one, so set `host` in the configuration:
+
+```json
+"host": "ghe.example.com"
+```
+
+- `repos` and `defaultRepo` stay `owner/repo`; the host is not part of them.
+- Sign `gh` in to the host first: `gh auth login --hostname ghe.example.com`, then `gh auth status --hostname ghe.example.com`. For single sign-on, authorize the token for the organization (the link `gh` prints, or the token's settings); a failure about SAML or SSO is logged in `errors.log` with that hint.
+- A scheduled job (launchd or a systemd user timer) needs to reach the token. On macOS the keychain works from a launchd agent. On Linux there may be no keyring in a systemd user session; set `GH_ENTERPRISE_TOKEN` in the unit's environment, or sign in with `gh auth login --insecure-storage`.
+- The fix text that runs `gh` itself starts with `GH_HOST=<host>`, and a board command you type with `GH_HOST=...` in front, or with `-R <host>/owner/repo`, is read as usual.
+- The dispatch and alerts features read an issue's parent (sub-issues). An older GitHub Enterprise Server may not have that field; if the board read fails with an unknown field, leave `dispatch` and `alerts` disabled there.
 
 To use sprint checkpoints and story points (optional), add two Number fields to the board (story points and overrun) and write `sprint` in the configuration:
 
