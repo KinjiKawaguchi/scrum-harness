@@ -30,6 +30,7 @@ export type { WorkStatus } from './bindings/WorkStatus.js'
 
 export const RUNTIME_VERSION = 'agency-runtime/1'
 
+import type { ActivityEvent } from '../activity/types.ts'
 import type { RuntimeRequest } from './bindings/RuntimeRequest.js'
 
 /**
@@ -51,4 +52,21 @@ export type TokenUsage = {
 }
 
 /** What the runtime accepts: the request the generated bindings define, and the optional ops written above. */
-export type RuntimeInput = RuntimeRequest | TokenUsageRequest
+export const MAX_ACTIVITY_LIMIT = 500
+
+/**
+ * The optional op `activity` (agency#204): what the team did since a time, for the live view. Oldest first; every `at` is strictly after `since`;
+ * `truncated` is true when `limit` cut the list (the client asks again from the last `at`). Written here from the contract agreed with the node
+ * and web teams until the generated bindings have it.
+ */
+export type ActivityRequest = { readonly runtime: string; readonly org: string; readonly team: string; readonly op: 'activity'; readonly since: string; readonly limit: number }
+
+export type Activity = {
+  readonly org: string
+  readonly team: string
+  readonly generatedAt: string
+  readonly events: readonly ActivityEvent[]
+  readonly truncated: boolean
+}
+
+export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest

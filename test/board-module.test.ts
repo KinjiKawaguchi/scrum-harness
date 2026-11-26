@@ -165,3 +165,10 @@ describe('the parts of a port a module may leave out', () => {
     assert.throws(() => checkModulePorts({ writer: { ...writer, canAssign: 'yes' } }, 'm'), /writer whose canAssign is not true or false/)
   })
 })
+
+describe('the action reader a module provides', () => {
+  it('has to read tool calls (actionsOf), and a reader with the older commandsOf is refused by name', () => {
+    assert.deepEqual(Object.keys(checkModulePorts({ actions: { actionsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) } }, 'm')), ['actions'])
+    assert.throws(() => checkModulePorts({ actions: { commandsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) } }, 'm'), /actions without: actionsOf/)
+  })
+})

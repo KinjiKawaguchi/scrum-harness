@@ -94,10 +94,10 @@ function withCheckedRefs(ports: ModulePorts): ModulePorts {
 }
 
 /**
- * Loads the board module the configuration names. It is loaded synchronously (a module is ES modules code, read with `require`), so building the ports
- * stays synchronous. Throws, with a message that says what to fix, when the module cannot be trusted, loaded, or used.
+ * Loads the module and returns the ports it provides, as they are (the reference rule is not applied). Throws, with a message that says what to fix,
+ * when the module cannot be trusted, loaded, or used.
  */
-export function loadModulePorts(spec: AdapterModuleConfig, config: Config): ModulePorts {
+export function loadRawModulePorts(spec: AdapterModuleConfig, config: Config): ModulePorts {
   const path = assertTrustedFile(expandHome(spec.module))
   let exported: Exported
   try {
@@ -106,5 +106,13 @@ export function loadModulePorts(spec: AdapterModuleConfig, config: Config): Modu
     throw new Error(`the board module ${path} could not be loaded: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`)
   }
   const returned = factoryOf(exported, path)(structuredClone(config), structuredClone(spec.options))
-  return withCheckedRefs(checkModulePorts(returned, path))
+  return checkModulePorts(returned, path)
+}
+
+/**
+ * Loads the board module the configuration names. It is loaded synchronously (a module is ES modules code, read with `require`), so building the ports
+ * stays synchronous. Items it returns are checked against the reference rule at every read.
+ */
+export function loadModulePorts(spec: AdapterModuleConfig, config: Config): ModulePorts {
+  return withCheckedRefs(loadRawModulePorts(spec, config))
 }

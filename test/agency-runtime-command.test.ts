@@ -22,7 +22,7 @@ describe('agency-runtime/1 describe', () => {
   it('reports the version, the operations (tokenUsage included), and the team label', () => {
     const output = runRuntime(call('describe'), deps())
     assert.equal(output.exitCode, 0)
-    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage'], label: 'app' } })
+    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage', 'activity'], label: 'app' } })
   })
 
   it('is one JSON line on stdout', () => {

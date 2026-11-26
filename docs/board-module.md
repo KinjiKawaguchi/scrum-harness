@@ -13,7 +13,7 @@ A team whose issues live in another tracker can plug that tracker in without a c
 The module is ES modules code that exports:
 
 - `portsVersion`: the number `1`. Another number is refused, so a module and a harness that disagree fail at load.
-- `createPorts(config, options)` (or a default export of the same shape): returns an object with any of `board`, `writer`, `actions`, `issues`, and `code`. What it leaves out stays the GitHub adapter, so a module can keep GitHub as the code host. The types are `BoardSource`, `BoardWriter`, `ActionReader`, `IssueThread`, and `CodeHost` in `src/ports/`. `config` is a copy of the harness's configuration; changing it changes nothing.
+- `createPorts(config, options)` (or a default export of the same shape): returns an object with any of `board`, `writer`, `actions`, `issues`, and `code`. What it leaves out stays the GitHub adapter, so a module can keep GitHub as the code host. The types are `BoardSource`, `BoardWriter`, `ActionReader`, `IssueThread`, and `CodeHost` in `src/ports/`. The action reader gets every tool call an agent makes (`actionsOf({ tool, input, response? })`: a Bash command, or an `mcp__<server>__<tool>` call, with the tool's answer after it ran), so a team whose agents write the board through MCP tools lists those tools in `hookTools`, and the module's reader turns the calls into the harness's board commands. `config` is a copy of the harness's configuration; changing it changes nothing.
 
 What a port may leave out:
 
@@ -35,3 +35,14 @@ Every item has a reference (today `<repo>#<number>`): it names the item in findi
 ## When the module cannot be used
 
 A hook records the reason in `errors.log` and finishes without stopping the session. `scrum runtime` answers 503 with the reason, which the node retries. Any other command prints it and exits 1. None of them reads GitHub instead.
+
+## Checking a module
+
+`scrum adapter check [--module <path>] [--calls <file>]` loads the module (the one in the configuration, or the one at `--module`) and checks what can be checked without writing to the tracker. It lists every problem, not only the first one a read would stop at:
+
+- the module loads, is trusted, and its ports have their functions;
+- the snapshot its board reads: the shape of each item (`itemId`, `kind`, `repo`, `number`, `title`, `state`, the date in `since`), every Status being one the configuration names, every reference fitting the rule and being unique;
+- the patterns of its action reader are valid;
+- with `--calls`, what its action reader makes of tool calls. The file is a JSON list of `{ "call": { "tool", "input", "response"? }, "expect": [ ...board commands ]? }`, and a case that differs from `expect` is reported.
+
+The writes (assign, set Status, comments) are not exercised, because they would change the tracker. The exit code is 0 when there is no problem and 1 otherwise, so a module's own tests can run it.

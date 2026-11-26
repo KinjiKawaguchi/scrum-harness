@@ -31,10 +31,18 @@ export type BoardWriter = {
   readonly writeOverrun: (marks: readonly Mark[]) => readonly string[]
 }
 
+/** One call of an agent's tool, as the hooks see it. `response` is there only after the call (PostToolUse). */
+export type ToolCall = {
+  /** The tool's name: `Bash`, or for a tool of an MCP server `mcp__<server>__<tool>` */
+  readonly tool: string
+  readonly input: Readonly<Record<string, unknown>>
+  readonly response?: unknown
+}
+
 /** Reads writes to the board from an agent's tool calls. */
 export type ActionReader = {
-  /** Reads, from a Bash command string, the command that rewrites the board */
-  readonly commandsOf: (command: string) => readonly BoardCommand[]
-  /** Patterns (grep -E) that decide whether bin/scrum starts node. post is checked after a tool call, pre before a write. If pre is empty, nothing is checked */
+  /** Reads, from one tool call (a Bash command, or an MCP tool call), the commands that rewrite the board. An empty list when the call does not touch the board */
+  readonly actionsOf: (call: ToolCall) => readonly BoardCommand[]
+  /** Patterns (grep -E) over the raw hook input that decide whether bin/scrum starts node. post is checked after a tool call, pre before a write. If pre is empty, nothing is checked. A pattern may name a tool (`mcp__<server>__<tool>`) */
   readonly shellPatterns: () => { readonly post: string; readonly pre: string }
 }

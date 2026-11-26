@@ -5,7 +5,7 @@ import type { MemberHost } from './members.ts'
 import type { SessionDirectory } from './sessions.ts'
 import type { TranscriptSource } from './usage.ts'
 
-export type { ActionReader, BoardSource, BoardWriter } from './board.ts'
+export type { ActionReader, BoardSource, BoardWriter, ToolCall } from './board.ts'
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { BodyThread, IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'

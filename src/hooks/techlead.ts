@@ -6,6 +6,7 @@ import { formatList, formatSummary } from '../findings/format.ts'
 import { lintAll, loadContext, type LintResult } from '../findings/lint.ts'
 import { decideStop, remember, unseen } from '../findings/notify.ts'
 import type { Finding } from '../findings/types.ts'
+import type { ToolCall } from '../ports/index.ts'
 import { appendLine, readJson, writeJson } from '../store.ts'
 import type { HookDeps } from './handlers.ts'
 
@@ -68,9 +69,9 @@ function mergeNotes(deps: HookDeps, commands: readonly BoardCommand[]): readonly
   })
 }
 
-/** After a command that touches the board: corrects the board copy and injects the findings for the touched issue and the merge guidance. */
-export function techleadAfterBash(deps: HookDeps, command: string): string {
-  const commands = deps.ports.actions.commandsOf(command)
+/** After a tool call that touches the board (a Bash command, or an MCP tool): corrects the board copy and injects the findings for the touched issue and the merge guidance. */
+export function techleadAfterTool(deps: HookDeps, call: ToolCall): string {
+  const commands = deps.ports.actions.actionsOf(call)
   if (commands.length === 0) return techleadDiff(deps)
   const snapshot = loadSnapshot(deps.p)
   if (snapshot !== null) saveSnapshot(deps.p, applyCommands(snapshot, commands, deps.config, deps.now.toISOString().slice(0, 10)))

@@ -114,5 +114,9 @@ export function parseBoardCommands(command: string, config: Config): readonly Bo
 
 /** Reads what is done when Bash rewrites the board with gh and the configured scripts. */
 export function bashActionReader(config: Config): ActionReader {
-  return { commandsOf: (command) => parseBoardCommands(command, config), shellPatterns: () => shellPatterns(config) }
+  return {
+    // The GitHub side writes the board with `gh` and the configured scripts, so only Bash calls are read.
+    actionsOf: (call) => (call.tool === 'Bash' && typeof call.input.command === 'string' ? parseBoardCommands(call.input.command, config) : []),
+    shellPatterns: () => shellPatterns(config),
+  }
 }
