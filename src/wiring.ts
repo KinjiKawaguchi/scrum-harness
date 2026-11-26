@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { claudeConfigDirs, projectsDirs, sessionsDirs } from './adapters/claude-code/config-dirs.ts'
+import { settingsTargets } from './adapters/claude-code/settings-targets.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
@@ -11,6 +12,9 @@ import { launchdScheduler } from './adapters/macos/launchd.ts'
 import { macosNotify } from './adapters/macos/notify.ts'
 import { stateDir, type Config } from './config.ts'
 import type { Notifier, Ports, Scheduler } from './ports/index.ts'
+
+/** The settings files `scrum install` writes the hooks into (Claude Code's). */
+export { settingsTargets }
 
 /** Notifies on macOS with a desktop notification. Everywhere else, with `notify-send` or a line in the state directory's log. */
 export function buildNotifier(platform: NodeJS.Platform = process.platform, dir: string = stateDir()): Notifier {

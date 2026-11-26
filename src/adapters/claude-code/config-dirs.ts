@@ -1,15 +1,8 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { expandHome } from '../../paths.ts'
 
 /** Where Claude Code keeps its files when no configuration directory is set. */
 const DEFAULT_DIR = '~/.claude'
-
-/** A configuration directory as written in the configuration: an absolute path, or one under the home directory (`~/...`). */
-export const isConfigDirPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
-
-export function expandHome(dir: string): string {
-  return dir.startsWith('~/') ? join(homedir(), dir.slice(2)) : dir
-}
 
 /** The Claude Code configuration directories (each `CLAUDE_CONFIG_DIR` a team's sessions may run under). `~/.claude` when none is configured. */
 export function claudeConfigDirs(configured: readonly string[] | undefined): readonly string[] {

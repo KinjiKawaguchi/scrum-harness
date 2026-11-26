@@ -5,8 +5,8 @@ import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
 import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
 import { parseTeamScope, type TeamScope } from './board/team-scope.ts'
-import { isConfigDirPath } from './adapters/claude-code/config-dirs.ts'
 import { parseLaunch, type LaunchConfig } from './members/config.ts'
+import { isConfigPath } from './paths.ts'
 import { withConfigAliases } from './compat.ts'
 
 export type StatusNames = {
@@ -215,7 +215,7 @@ const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/
 export const isHostName = (value: unknown): value is string => typeof value === 'string' && HOST.test(value)
 
 /** The Claude Code configuration directories, when given, are a non-empty list of absolute paths (or `~/...`); a relative one would mean a different place in every process. */
-const isValidConfigDirs = (value: unknown): boolean => value === undefined || (Array.isArray(value) && value.length > 0 && value.every(isConfigDirPath))
+const isValidConfigDirs = (value: unknown): boolean => value === undefined || (Array.isArray(value) && value.length > 0 && value.every(isConfigPath))
 
 /** The config file is a system boundary, so a missing value is not used. */
 export function parseConfig(raw: unknown): Config | null {

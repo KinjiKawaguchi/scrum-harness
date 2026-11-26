@@ -8,7 +8,6 @@ import {
   pointsCommand,
   acksCommand,
   installCommand,
-  settingsTargets,
   lintCommand,
   parseFlags,
   reportCommand,
@@ -34,7 +33,7 @@ import { watchFor } from './watch-role.ts'
 import { boardCommand } from './board/board-command.ts'
 import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
-import { buildPorts, buildScheduler } from './wiring.ts'
+import { buildPorts, buildScheduler, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
 const DEFAULT_STATE_DIR = join(homedir(), '.claude', 'scrum')

@@ -6,7 +6,6 @@ import { localClock } from './sprint/checkpoints.ts'
 import { loadCompletions } from './sprint/completion.ts'
 import { formatPoints } from './sprint/report.ts'
 import { loadCountingHistory } from './sprint/counting-history.ts'
-import { claudeConfigDirs, expandHome, isConfigDirPath, settingsPaths } from './adapters/claude-code/config-dirs.ts'
 import type { Config } from './config.ts'
 import { addAck, OVERRUN_RULE, parseDuration, type Ack } from './findings/acks.ts'
 import { formatFinding, formatStatusline } from './findings/format.ts'
@@ -138,13 +137,6 @@ export function statuslineCommand(p: Paths, config: Config, input: Record<string
   const identity = sessionId === '' ? null : resolveIdentity(p, sessionId, now, config, sessions)
   if (identity === null || roleOf(identity.name, config) !== 'techlead') return ''
   return formatStatusline(lintAll(loadContext(p, config, now, sessions)).active)
-}
-
-/** The settings files `scrum install` writes: `--dir <configuration directory>`, `--all` for every directory in the configuration, otherwise `~/.claude` (SCRUM_SETTINGS replaces it). */
-export function settingsTargets(flags: Flags, config: Config | null): readonly string[] | string {
-  if (typeof flags.dir === 'string') return isConfigDirPath(flags.dir) ? settingsPaths([expandHome(flags.dir)], {}) : '--dir must be an absolute path, or one under ~/'
-  if (flags.all === true) return config === null ? '--all reads the configured directories, and there is no configuration yet' : settingsPaths(claudeConfigDirs(config.claudeConfigDirs))
-  return settingsPaths(claudeConfigDirs(undefined))
 }
 
 export function installCommand(p: Paths, isInstall: boolean, targets: readonly string[]): string {
