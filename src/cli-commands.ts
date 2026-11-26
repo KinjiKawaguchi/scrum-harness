@@ -26,7 +26,7 @@ import type { ActionReader, IssueThread, Ports, SessionDirectory } from './ports
 export type Flags = Readonly<Record<string, string | true>>
 
 /** Flags that take no value. The next word is not taken as the value but stays a positional argument (so that the name in scrum dispatch --once <name> does not become the flag's value). */
-const SWITCH_FLAGS: ReadonlySet<string> = new Set(['once', 'json', 'refresh', 'dry-run', 'unassigned'])
+const SWITCH_FLAGS: ReadonlySet<string> = new Set(['once', 'json', 'refresh', 'dry-run', 'unassigned', 'adopts-unassigned'])
 
 export function parseFlags(args: readonly string[]): { readonly positional: readonly string[]; readonly flags: Flags } {
   const positional: string[] = []

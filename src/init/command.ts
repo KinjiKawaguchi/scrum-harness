@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_ADAPTERS, DEFAULT_TUNING, parseConfig } from '../config.ts'
+import { DEFAULT_ADAPTERS, DEFAULT_TUNING, isHostName, parseConfig } from '../config.ts'
 import { writeJson } from '../store.ts'
 
 export const INIT_USAGE = `Usage: scrum init --project-id <PVT_...> --status-field-id <PVTSSF_...> --repos <owner/name[,owner/name]> --owner-user <@login>
                   [--techlead <name>] [--members <a,b>] [--liaison <name>] [--owner-label <text>] [--default-repo <owner/name>]
                   [--exclude-authors <a,b>] [--state-dir <dir>] [--force]
+                  [--team <option> [--team-field <name>] [--adopts-unassigned]]   share the board with other teams (the team field's option; field defaults to Team)
+                  [--work-type-field <name>] [--host <github host>]               read a work type field; use a GitHub Enterprise host
 Writes a minimal team configuration (config.json) and the state directory. It asks nothing.
 The board's ids: gh project list --owner <owner>; gh project field-list <number> --owner <owner> --format json (the id of the Status field).`
 
@@ -39,16 +41,22 @@ export function configFromFlags(flags: InitFlags): { readonly config: Record<str
     repos.includes(defaultRepo) ? null : '--default-repo must be one of --repos',
     ownerUser.startsWith('@') && ownerUser.length > 1 ? null : '--owner-user must be a GitHub login written with @',
     [techlead, ...members, ...(liaison === undefined ? [] : [liaison])].every((name) => NAME.test(name)) ? null : 'session names may hold letters, digits, spaces, dots, dashes, and underscores',
+    text(flags, 'host') === undefined || isHostName(text(flags, 'host')) ? null : '--host must be a host name such as ghe.example.com',
+    flags.team === undefined || text(flags, 'team')?.trim() !== '' && text(flags, 'team') !== undefined ? null : '--team needs the name of the team\'s option in the board\'s team field',
+    flags['team-field'] === undefined && flags['adopts-unassigned'] === undefined || text(flags, 'team') !== undefined ? null : '--team-field and --adopts-unassigned need --team',
     new Set([techlead, ...members, ...(liaison === undefined ? [] : [liaison])]).size === members.length + 1 + (liaison === undefined ? 0 : 1) ? null : 'the lead, the members, and the liaison need different names',
   ].filter((problem): problem is string => problem !== null)
   if (problems.length > 0) return { problems }
   const excludeAuthors = list(text(flags, 'exclude-authors'))
+  const team = text(flags, 'team')
+  const workType = text(flags, 'work-type-field')
+  const host = text(flags, 'host')
   return {
     config: {
       projectId,
       repos,
       defaultRepo,
-      fields: { status: 'Status', reason: 'Blocked reason', since: 'Blocked since', owner: 'Owner', assignee: 'Assigned to' },
+      fields: { status: 'Status', reason: 'Blocked reason', since: 'Blocked since', owner: 'Owner', assignee: 'Assigned to', ...(workType === undefined ? {} : { workType }) },
       statusFieldId,
       statuses: { backlog: 'Backlog', next: 'Next', doing: 'In Progress', release: 'Release', done: 'Done' },
       reasonNone: 'None',
@@ -61,6 +69,8 @@ export function configFromFlags(flags: InitFlags): { readonly config: Record<str
       scripts: {},
       ...DEFAULT_TUNING,
       ...(liaison === undefined ? {} : { alerts: { enabled: true, liaison } }),
+      ...(team === undefined ? {} : { team: { field: text(flags, 'team-field') ?? 'Team', value: team.trim(), adoptsUnassigned: flags['adopts-unassigned'] === true } }),
+      ...(host === undefined ? {} : { host }),
     },
   }
 }
