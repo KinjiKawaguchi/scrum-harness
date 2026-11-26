@@ -18,6 +18,8 @@ export type BoardItem = {
   /** The date it started being blocked (YYYY-MM-DD) */
   readonly since: string | null
   readonly owner: string | null
+  /** The team field's value (fetched only when the team is scoped). null when the item has none */
+  readonly team?: string | null
   readonly assignee: string | null
   /** Story points (fetched only when there is a sprint config) */
   readonly points?: number | null

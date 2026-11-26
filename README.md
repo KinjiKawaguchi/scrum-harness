@@ -53,7 +53,20 @@ The main settings in the configuration (`config.json`):
 | `links` | Lists open PRs in the body of the issue each one points to, between the markers (`<!-- scrum-harness:prs -->` and `<!-- /scrum-harness:prs -->`) (optional; it runs only when `enabled` is true). `intervalMinutes`, `maxEditsPerRun`, `skipAuthors`, `skipBranchPrefixes`. See "Linking PRs and issues" in docs/rules.md |
 | `alerts` | Stall detection and notifying the owner (optional; it runs only when `enabled` is true). `liaison` (the liaison session's name), `epicStallMinutes`, `emptyEscalateMinutes`, `isDesktopEnabled`, `parkedLabels` (labels that mark a parked Epic), `epicPushMinutes` (how often the owner is notified about the same Epic), `emptyPushMinutes` (how often the owner is notified about the same member with nothing to hand over). See "Detecting stalls and notifying the owner" in docs/rules.md |
 | `dispatch` | Hands the next work to an idle member (optional; it runs only when `enabled` is true). `baseBranch`, `skipLabels`, `orderField`, `members`, `scriptDir`, `linkedBranchPrefix` (creates a branch linked to the issue when handing over), `notes`. See "Handing the next work to idle members" in docs/rules.md |
+| `team` | Several teams on one board (optional). `field` (the board's single-select field that tells teams apart, for example `Team`), `value` (this team's option), `adoptsUnassigned` (the team also owns items with no value and issues not on the board; at most one team on a board). See [Several teams on one board](#several-teams-on-one-board) |
 | `runtime` | The team's display name, the time zone of the usage report, and the names of the board's blocked reasons, for `scrum runtime` (optional). See docs/agency-runtime.md |
+
+### Several teams on one board
+
+Each team keeps its own harness (its own state directory and configuration). To share one board, add a single-select field such as `Team` with one option per team, and give each team its section:
+
+```json
+"team": { "field": "Team", "value": "node", "adoptsUnassigned": true }
+```
+
+The harness reads the whole board and narrows it to the items whose field has the team's value, so every check, the dispatch, the links, and the runtime view see only the team's work. An issue that is on the board under another team is not reported as off the board. Exactly one team sets `adoptsUnassigned`: it also owns the items with no value and the issues that are not on the board, so no two teams fight over one item. Without a `team` section the whole board is the team's. A `team` section of the wrong shape makes the whole configuration unusable (it never falls back to the whole board), and a `value` that is not an option of the field fails the board read with that message.
+
+To move an existing single team: add the field, set it on the existing items, then add the section with `adoptsUnassigned: true`. The behavior is the same at every step.
 
 ### GitHub Enterprise
 

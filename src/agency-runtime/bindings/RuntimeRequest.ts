@@ -6,4 +6,4 @@ export type RuntimeRequest = {
 /**
  * Always `agency-runtime/1` (`RUNTIME_VERSION`).
  */
-runtime: string, org: Id, team: Id, } & ({ "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, });
+runtime: string, org: Id, team: Id, } & ({ "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, } | { "op": "tokenUsage", days: number, });

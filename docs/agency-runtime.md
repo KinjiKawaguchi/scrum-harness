@@ -45,7 +45,7 @@ People:
 
 The owner is `owner`, a human, with state `unknown` and a one-line count of waiting requests. A person is named by the harness's own name (the session name), and `holding` lists the unfinished open items assigned to them. An idle member named in a request's `blocks` is reported as waiting on the owner, with the question in `status`. A request without `to` goes to the owner.
 
-A question or a proposal keeps its id (`r-<date>-<time>-<4 characters>`), its options (`isRecommended` is always present; `detail` only when given), its `document` (a proposal's Markdown), and `answerWith` of `{"kind":"answer","target":"<id>"}`. Once the owner has answered, it is no longer reported until the team replies and the turn returns to the owner; then `thread` carries the earlier messages, oldest first. A request that is closed is not reported.
+A question or a proposal keeps its id (`r-<date>-<time>-<4 characters>`), its options (`isRecommended` is always present; `detail` only when given), its `document` (a proposal's Markdown), and `answerWith` of `{"kind":"answer","target":"<id>"}`. The owner's words appear in a thread as `owner` only when they came through a verified `decide`, which records the decider's id. `scrum request add` and `reply` refuse the names `owner`, `board`, and `unverified` for `--from`, and a stored message that claims to be the owner's without a recorded decider is reported as `unverified`. Once the owner has answered, it is no longer reported until the team replies and the turn returns to the owner; then `thread` carries the earlier messages, oldest first. A request that is closed is not reported.
 
 A pending decision uses the issue's ref (`app#14`) as its id, `from` is `board`, `createdAt` is the day the block began, and `answerWith` is `{"kind":"judge","target":"app#14"}`.
 
@@ -59,11 +59,11 @@ Agents file requests to the owner with `scrum request add --from <name>` (JSON o
 
 ## `decide`
 
-The node calls `decide` only after it has verified the decision.
+The node calls `decide` only after it has verified the decision. The harness checks the decider again, by `byParticipant` (the decider's name in this team, which the node sends with every decision, in the same name space as a request's `to`). A decision is applied only when `byParticipant` is the request's addressee (`to`, else `owner`) or `owner`: the owner may decide a request for someone else, because the node sends a `to` it does not know to the owner and the runtime cannot see that map. A pending decision has no `to`, so a `judge` is applied only from `owner`. Any other decider gets the same 404 as an unknown target and nothing is recorded. A decision without `byParticipant` (a node that does not send it) is refused with 400, which the node does not retry. This needs no configuration.
 
 - `kind: "answer"` answers a request in the store, by its id. The answer is a message from `owner` (with `choice` when one of the options was chosen, and the decider's id as `by`), the turn moves to the team, and R-ANSWERED reaches the lead. A closed request reopens, so a late answer still reaches the team. An unknown id is 404; a `choice` that is not an option key, or an answer with neither text nor a choice, is 400. Applying the same answer again (a retry after a lost reply) changes nothing.
 - `kind: "judge"` answers an item blocked on a decision. The harness first reads the board again if its copy is older than `refreshSeconds` (this can take several seconds on a large board; the node stops a call after 20 seconds). Then:
-  1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then `Decision by <person>.`, the choice if there is one, and the text. If the same comment is already there (a retry), it does not post it again.
+  1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then a line saying the rest is quoted data relayed by the node, then the choice (if there is one) and the text inside a fenced block, so no mention, link, image, or HTML in it takes effect. If the same comment is already there (a retry), it does not post it again.
   2. It clears the blocked reason with the configured `scripts.setReason` script (`<number> <reasonNone>`), and updates its board copy.
 
   The comment comes first, so a failure in between is retried without losing the answer. `judge` needs `scripts.setReason`; without it the answer is 503. An id that is not a pending decision is 404.

@@ -1,4 +1,4 @@
-import { OWNER, type OwnerRequest, type RequestKind, type RequestOption } from './types.ts'
+import { OWNER, UNVERIFIED, type OwnerRequest, type RequestMessage, type RequestKind, type RequestOption } from './types.ts'
 
 const KINDS: readonly RequestKind[] = ['question', 'proposal']
 const LABEL = /^[A-Za-z0-9._-]+#\d+$/
@@ -11,6 +11,19 @@ export type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok
 const fail = (message: string): Parsed<never> => ({ ok: false, message })
 
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.trim() !== '' && value.length <= max
+
+const RESERVED_NAMES = [OWNER, 'board', UNVERIFIED]
+
+/** Names that stand for a person or for the board, not for a team session. A session cannot file or reply under one of them. */
+export function isReservedName(name: string): boolean {
+  return RESERVED_NAMES.includes(name.normalize('NFKC').trim().toLowerCase())
+}
+
+/** A message the owner sent through a verified decision: the harness records the decider only then. */
+export const isVerifiedOwnerMessage = (message: RequestMessage): boolean => message.from === OWNER && message.by !== undefined
+
+/** The author the team view reports. A message that says it is the owner's without a recorded decider is not shown as the owner's. */
+export const authorOf = (message: RequestMessage): string => (message.from === OWNER && !isVerifiedOwnerMessage(message) ? UNVERIFIED : message.from)
 
 export function isRequestId(id: string): boolean {
   return ID.test(id)
@@ -94,10 +107,10 @@ export function parseAnswer(raw: unknown, request: OwnerRequest): Parsed<AnswerI
   return { ok: true, value: { text: body, ...(typeof choice === 'string' ? { choice } : {}) } }
 }
 
-/** The owner answered (`by` is the id of the person who answered). The turn moves to the team, and a closed request reopens so a late answer still reaches the team. */
-export function answer(request: OwnerRequest, input: AnswerInput, now: Date, by?: string): OwnerRequest {
+/** The owner answered through a verified decision (`by` is the id of the member who decided). The turn moves to the team, and a closed request reopens so a late answer still reaches the team. */
+export function answer(request: OwnerRequest, input: AnswerInput, now: Date, by: string): OwnerRequest {
   const { closedAt: _closedAt, closeNote: _closeNote, ...open } = request
-  const message = { from: OWNER, text: input.text, ...(input.choice === undefined ? {} : { choice: input.choice }), ...(by === undefined ? {} : { by }), at: now.toISOString() }
+  const message = { from: OWNER, text: input.text, ...(input.choice === undefined ? {} : { choice: input.choice }), by, at: now.toISOString() }
   return { ...open, waiting: 'team', messages: [...request.messages, message] }
 }
 
@@ -119,11 +132,10 @@ export function isSameAnswer(request: OwnerRequest, input: AnswerInput, by?: str
   return request.waiting === 'team' && isOpen(request) && last?.from === OWNER && last.text === input.text && last.choice === input.choice && last.by === by
 }
 
-/** The owner's latest answer as one line: the chosen option and the text. */
-export function describeAnswer(request: OwnerRequest): string {
-  const last = request.messages.findLast((one) => one.from === OWNER)
-  if (last === undefined) return ''
+/** The owner's latest verified answer: the option chosen, described in the team's own words, and the text the answerer wrote. */
+export function answerOf(request: OwnerRequest): { readonly chosen: string; readonly text: string } {
+  const last = request.messages.findLast(isVerifiedOwnerMessage)
+  if (last === undefined) return { chosen: '', text: '' }
   const option = request.options.find((one) => one.key === last.choice)
-  const chosen = option === undefined ? '' : `Chose "${option.key}: ${option.text}"`
-  return [chosen, last.text].filter((part) => part !== '').join('. ')
+  return { chosen: option === undefined ? '' : `chose "${option.key}: ${option.text}"`, text: last.text }
 }

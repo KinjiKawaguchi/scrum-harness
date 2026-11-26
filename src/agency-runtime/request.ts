@@ -3,6 +3,10 @@ import { MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeErro
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 /** GitHub rejects comment bodies above 65536 characters; stay well below so the added header fits. */
 const MAX_TEXT_LENGTH = 60_000
+/** A choice is the key of an option, so it is short. */
+const MAX_CHOICE_LENGTH = 200
+/** A participant's runtime name. */
+const MAX_NAME_LENGTH = 80
 
 type Obj = Record<string, unknown>
 const isObj = (value: unknown): value is Obj => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -10,15 +14,16 @@ const malformed = (message: string): RuntimeError => ({ status: 400, message })
 
 function parseDecision(raw: unknown): RuntimeDecision | RuntimeError {
   if (!isObj(raw)) return malformed('decision must be an object')
-  const { kind, target, by, payload } = raw
+  const { kind, target, by, byParticipant, payload } = raw
   if (kind !== 'answer' && kind !== 'judge') return malformed('decision.kind must be "answer" or "judge"')
   if (typeof target !== 'string' || target === '') return malformed('decision.target must be a non-empty string')
   if (typeof by !== 'string' || !ID.test(by)) return malformed('decision.by must be an id')
+  if (byParticipant !== undefined && !(typeof byParticipant === 'string' && byParticipant.trim() !== '' && byParticipant.length <= MAX_NAME_LENGTH)) return malformed('decision.byParticipant must be a name')
   if (!isObj(payload) || typeof payload.text !== 'string') return malformed('decision.payload.text must be a string')
   const choice = payload.choice
   if (choice !== undefined && typeof choice !== 'string') return malformed('decision.payload.choice must be a string')
-  if (payload.text.length > MAX_TEXT_LENGTH || (choice?.length ?? 0) > MAX_TEXT_LENGTH) return malformed('decision text is too long')
-  return { kind, target, by, payload: { text: payload.text, ...(choice === undefined ? {} : { choice }) } }
+  if (payload.text.length > MAX_TEXT_LENGTH || (choice?.length ?? 0) > MAX_CHOICE_LENGTH) return malformed('decision text or choice is too long')
+  return { kind, target, by, ...(byParticipant === undefined ? {} : { byParticipant }), payload: { text: payload.text, ...(choice === undefined ? {} : { choice }) } }
 }
 
 /** Reads the one JSON request the node writes to stdin. Anything that does not fit is a 400. */

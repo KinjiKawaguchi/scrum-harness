@@ -1,10 +1,12 @@
 import type { Config } from '../../config.ts'
 import type { BoardSource } from '../../ports/index.ts'
 import { FetchError } from '../../board/fetch-log.ts'
+import { scopeToTeam } from '../../board/team-scope.ts'
 import type { BoardItem, OpenIssue, Snapshot } from '../../board/types.ts'
 import type { GhRun } from './gh.ts'
 import { itemNodeSelection, normalizeNodes, type RawNode } from './item-node.ts'
 import { readMissingItems } from './off-board.ts'
+import { assertTeamValue } from './team-field.ts'
 import { statusEventsFor, withStatusHistory } from './status-history.ts'
 
 export function itemsQuery(config: Config): string {
@@ -85,6 +87,7 @@ function listOpen(run: GhRun, kind: 'issue' | 'pr', config: Config): readonly Op
 }
 
 export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
+  assertTeamValue(run, config)
   const pagedItems = parseOrCarry(
     run(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${itemsQuery(config)}`, '-F', `projectId=${config.projectId}`]),
   )
@@ -92,8 +95,10 @@ export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
   // A PR is not a target of B-OFF-BOARD, so it is not put into the board copy's openIssues and is used only as a candidate to read and add.
   const openPullRequests = listOpen(run, 'pr', config)
   // An item on the board may appear neither in the list nor in the total (it can last for hours after it is added). Before flagging it as not on the board, read it one by one and add it.
-  const items = [...pagedItems, ...readMissingItems(pagedItems, openIssues, config, run, openPullRequests)]
-  return { fetchedAt: now.toISOString(), items: withStatusHistory(items, config, run), openIssues }
+  const wholeBoard = [...pagedItems, ...readMissingItems(pagedItems, openIssues, config, run, openPullRequests)]
+  // The whole board is read and checked first, then narrowed to the team, so a failed read is caught and another team's issues are not reported as off the board.
+  const scoped = scopeToTeam(wholeBoard, openIssues, config.team)
+  return { fetchedAt: now.toISOString(), items: withStatusHistory(scoped.items, config, run), openIssues: scoped.openIssues }
 }
 
 /** Reads the GitHub Project board with gh. */
