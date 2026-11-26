@@ -1,5 +1,5 @@
 import type { LaunchPlan, Ports } from '../ports/index.ts'
-import type { MemberSpec } from './config.ts'
+import type { MemberSpec, Product } from './config.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
 import { CODEX_TRUST_QUESTION, screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
 
@@ -63,7 +63,7 @@ const EXIT_SECONDS = 15
  * After a member was asked to exit: waits for its session to end (its window going away, or its hook recording the end), and closes a window that is
  * left over (Codex shows its list of sessions after one ends). A member that does not end in time is left running.
  */
-export function finishExit(ports: Ports, session: string, name: string, deps: WatchdogDeps): ExitResult {
+export function finishExit(ports: Ports, session: string, name: string, deps: WatchdogDeps, product: Product = 'claude-code'): ExitResult {
   const since = deps.now()
   const isGone = (): boolean => !(ports.members.windows(session) ?? []).includes(name)
   const ended = waitUntil(() => isGone() || showsEnd(deps.signals(), name, since), EXIT_SECONDS, deps)
@@ -74,5 +74,5 @@ export function finishExit(ports: Ports, session: string, name: string, deps: Wa
   } catch {
     // A window that is already gone needs no closing.
   }
-  return { isExited: true, text: 'exited; the window Codex left open is closed' }
+  return { isExited: true, text: product === 'codex' ? 'exited; the window Codex left open is closed' : 'exited; its window was still open and is closed' }
 }

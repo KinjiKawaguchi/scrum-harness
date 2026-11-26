@@ -21,7 +21,7 @@ function adoptOne(ports: Ports, row: MemberRow | undefined, name: string, source
   if (deps.memberSourcesPath === undefined) return `${name}: nowhere to keep the record`
   const known = readMemberSources(deps.memberSourcesPath).find((one) => one.name === name && one.state !== 'refused' && one.source !== '')
   if (known !== undefined) return `${name}: already recorded on ${known.source}; left alone`
-  recordMemberSource(deps.memberSourcesPath, { name, source, state: 'ok', at: deps.now().toISOString() })
+  recordMemberSource(deps.memberSourcesPath, { name, source, state: 'ok', at: deps.now().toISOString(), sessionId: session.sessionId })
   return `${name}: adopted on ${source} (it keeps running; nothing was restarted)`
 }
 

@@ -31,6 +31,8 @@ describe('members that run, and members that start again', () => {
     readonly members?: Record<string, Record<string, unknown>>
     readonly running?: readonly string[]
     readonly signals?: readonly SessionSignal[]
+    /** What the hooks' heartbeats say, which stay after a session exits (the session records of the sessions directory do not) */
+    readonly heartbeats?: readonly SessionSignal[]
     readonly sources?: readonly FundingSource[]
     readonly hasTranscript?: boolean
     readonly pickEnv?: Record<string, string>
@@ -49,7 +51,8 @@ describe('members that run, and members that start again', () => {
       hasTranscriptIn: () => world.hasTranscript ?? true,
       launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
     })
-    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => NOW, sleep: () => undefined, signals: () => [] }
+    const heard = world.heartbeats ?? world.signals ?? [signal('SWE1'), signal('SWE2')]
+    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => NOW, sleep: () => undefined, signals: () => heard }
     return { text: memberCommand(config, ports, args, flags, deps), started }
   }
 
@@ -102,6 +105,25 @@ describe('members that run, and members that start again', () => {
       assert.match(argv.at(-1) ?? '', /^You were started again\./)
     })
 
+    it('finds a stopped member by the hooks\' heartbeat, which stays after Claude Code removes the session record', () => {
+      const { started } = run({ ...stopped, signals: [], heartbeats: [signal('SWE1', { sessionId: 'sess-beat-0001', state: 'ended', isAlive: false })] }, ['start', 'SWE1'], { resume: true, 'no-wait': true })
+      assert.equal(started[0]?.argv[(started[0]?.argv.indexOf('--resume') ?? -1) + 1], 'sess-beat-0001')
+    })
+
+    it('finds an adopted member by the session kept when it was adopted, after its record and heartbeat are gone', () => {
+      run({ signals: [signal('SWE1', { sessionId: 'sess-adopted-0001' }), signal('SWE2')] }, ['adopt', 'SWE1'])
+      assert.equal(readMemberSources(p.memberSources)[0]?.sessionId, 'sess-adopted-0001')
+      const { started } = run({ ...stopped, signals: [] }, ['start', 'SWE1'], { resume: true, 'no-wait': true })
+      assert.equal(started[0]?.argv[(started[0]?.argv.indexOf('--resume') ?? -1) + 1], 'sess-adopted-0001')
+    })
+
+    it('prefers a newer session over the one kept at adoption', () => {
+      run({ signals: [signal('SWE1', { sessionId: 'sess-adopted-0001' }), signal('SWE2')] }, ['adopt', 'SWE1'])
+      const newer = signal('SWE1', { sessionId: 'sess-newer-0001', updatedAt: ago(10), state: 'ended', isAlive: false })
+      const { started } = run({ ...stopped, signals: [newer] }, ['start', 'SWE1'], { resume: true, 'no-wait': true })
+      assert.equal(started[0]?.argv[(started[0]?.argv.indexOf('--resume') ?? -1) + 1], 'sess-newer-0001')
+    })
+
     it('starts a new conversation without --resume', () => {
       const { started } = run({ ...stopped, signals: [signal('SWE1', { state: 'ended', isAlive: false })] }, ['start', 'SWE1'], { 'no-wait': true })
       assert.equal(started[0]?.argv.includes('--resume'), false)
@@ -125,7 +147,7 @@ describe('members that run, and members that start again', () => {
         hasTranscriptIn: (configDir: string) => (seen.push(configDir), true),
         launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
       })
-      memberCommand(config, ports, ['start', 'SWE1'], { resume: true, 'no-wait': true }, { startFailuresPath: p.startFailures, now: () => NOW, sleep: () => undefined, signals: () => [] })
+      memberCommand(config, ports, ['start', 'SWE1'], { resume: true, 'no-wait': true }, { startFailuresPath: p.startFailures, now: () => NOW, sleep: () => undefined, signals: () => [signal('SWE1', { state: 'ended', isAlive: false })] })
       assert.deepEqual(seen, ['/accounts/two'])
     })
   })

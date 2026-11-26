@@ -211,18 +211,18 @@ describe('stopping a member and what it leaves behind', () => {
   beforeEach(() => {
     p = paths(mkdtempSync(join(tmpdir(), 'scrum-exit-')))
   })
-  const config = { ...base, members: ['CodexA'], launch: parseLaunch({ tmuxSession: 'team', members: {}, ignoreWindows: ['home'] }) }
+  const config = { ...base, members: ['CodexA', 'ClaudeA'], launch: parseLaunch({ tmuxSession: 'team', members: { CodexA: { product: 'codex' } }, ignoreWindows: ['home'] }) }
 
   /** A member that is idle in a window; `after` says what happens in the window and the signals once it is asked to exit. */
-  function run(after: { readonly windowCloses?: boolean; readonly endsSession?: boolean }) {
+  function run(after: { readonly windowCloses?: boolean; readonly endsSession?: boolean }, name = 'CodexA') {
     const time = clock()
     const stops: string[] = []
     let asked = false
-    const windows = () => (asked && after.windowCloses === true ? ['home'] : ['home', 'CodexA'])
-    const idle = signal('CodexA', new Date(NOW.getTime() - 60_000))
+    const windows = () => (asked && after.windowCloses === true ? ['home'] : ['home', name])
+    const idle = signal(name, new Date(NOW.getTime() - 60_000))
     const ports = fakePorts({ members: { windows, start: () => undefined, stop: (_s: string, name: string, how: 'graceful' | 'kill') => { stops.push(`${name}:${how}`); if (how === 'graceful') asked = true }, screen: () => null, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [idle] } })
-    const signals = () => (asked && after.endsSession === true ? [signal('CodexA', time.now(), { state: 'ended' })] : [idle])
-    const text = memberCommand(config, ports, ['stop', 'CodexA'], {}, { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals })
+    const signals = () => (asked && after.endsSession === true ? [signal(name, time.now(), { state: 'ended' })] : [idle])
+    const text = memberCommand(config, ports, ['stop', name], {}, { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals })
     return { text, stops }
   }
 
@@ -236,6 +236,13 @@ describe('stopping a member and what it leaves behind', () => {
     const { text, stops } = run({ endsSession: true })
     assert.match(text, /CodexA: exited; the window Codex left open is closed/)
     assert.deepEqual(stops, ['CodexA:graceful', 'CodexA:kill'])
+  })
+
+  it('words the closing of a left-over window by the product: Codex shows its sessions, a Claude Code member only has its window left', () => {
+    const claude = run({ endsSession: true }, 'ClaudeA')
+    assert.match(claude.text, /ClaudeA: exited; its window was still open and is closed$/)
+    assert.doesNotMatch(claude.text, /Codex/)
+    assert.deepEqual(claude.stops, ['ClaudeA:graceful', 'ClaudeA:kill'])
   })
 
   it('leaves a member that has not ended in 15 seconds running, and says how to close it', () => {

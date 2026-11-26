@@ -13,6 +13,8 @@ export type MemberSource = {
   readonly state: FundingPick['state'] | 'refused'
   readonly at: string
   readonly reason?: string
+  /** The session the member was running when it was adopted, so that `start --resume` can find it after it exits */
+  readonly sessionId?: string
 }
 
 export const readMemberSources = (path: string): readonly MemberSource[] => readJson<readonly MemberSource[]>(path, [])
