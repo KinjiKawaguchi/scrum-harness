@@ -61,7 +61,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum board <add|move>              Add an issue to the board, or hand an item to another team (when the board is shared). Run it with no arguments for the shape
   scrum member list|start|stop      the configured members, whether each runs, and what runs but is not listed; start or stop them from the launch section
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
-  scrum metrics [--days N] [--json]  each participant's busy, waiting, and idle time, cost, and tokens by day, and the pull requests whose author is known (what the op participantMetrics answers)
+  scrum metrics [--days N] [--utc-offset +09:00] [--json]  each participant's busy, waiting, and idle time, cost, and tokens by day, and the pull requests whose author is known (what the op participantMetrics answers)
   scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
   scrum init --project-id <id> --status-field-id <id> --repos <owner/name,...> --owner-user <@login> [...]
                                     write a minimal team configuration and the state directory (scrum init with no flags shows the rest)

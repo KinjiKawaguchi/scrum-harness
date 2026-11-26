@@ -88,15 +88,19 @@ export type StateTimeInput = {
   readonly now: Date
   /** The time zone the days are cut in, as minutes east of UTC (the same as `tokenUsage`) */
   readonly offsetMinutes: number
+  /** When recording began. A state that began before it (a heartbeat file from before the log held it) is counted from then, since the time before is not known. */
+  readonly recordedSince?: Date | null
 }
 
 /**
  * How long each member was busy, waiting for approval, and idle on each of the last `days` calendar days, from the hooks' state marks.
  * Time is counted only while a session is known to have run; the seconds are cut down to whole seconds, so that the three of a day never add up to more than the day.
  */
-export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes }: StateTimeInput): readonly MemberStateSeconds[] {
+export function stateSecondsByMember({ marks, sessions, days, now, offsetMinutes, recordedSince = null }: StateTimeInput): readonly MemberStateSeconds[] {
   const dates = lastDates(days, now, offsetMinutes)
-  const bySession = Map.groupBy([...marks, ...unlogged(marks, sessions)], (mark) => mark.sessionId)
+  const floor = recordedSince === null ? -Infinity : recordedSince.getTime()
+  const counted = [...marks, ...unlogged(marks, sessions)].map((mark) => (Date.parse(mark.at) >= floor ? mark : { ...mark, at: new Date(floor).toISOString() }))
+  const bySession = Map.groupBy(counted, (mark) => mark.sessionId)
   const owned = [...bySession].flatMap(([sessionId, own]) => intervalsOf(own, sessions.get(sessionId), now.getTime()))
   const byMember = Map.groupBy(owned, (one) => one.name)
   return [...byMember]

@@ -1,6 +1,7 @@
 import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runRuntime, type RuntimeDeps } from '../src/agency-runtime/handle.ts'
@@ -77,6 +78,9 @@ describe('participantMetrics answers', () => {
   const today = '2026-10-08'
   beforeEach(() => {
     writeIndexForTest(p, index([row(1, '2026-10-08T01:00:00Z'), row(1, '2026-10-07T23:30:00Z'), row(2, '2026-10-08T02:00:00Z')]))
+    // recording began before the lines below, as the state log's marker says
+    mkdirSync(dirname(p.memberStates), { recursive: true })
+    writeFileSync(p.memberStates.replace(/\.jsonl$/, '.since'), '2026-10-01T00:00:00Z\n')
     mark('2026-10-08T00:00:00Z', 'h1', 'busy', 'SWE1')
     mark('2026-10-08T01:00:00Z', 'h1', 'waiting', 'SWE1')
     mark('2026-10-08T01:30:00Z', 'h1', 'idle', 'SWE1')
@@ -140,11 +144,18 @@ describe('participantMetrics pull requests', () => {
     assert.deepEqual(call(request()).response.result?.pullRequests, [{ repo: 'acme/app', number: 42, by: 'SWE1' }])
   })
 
-  it('finds the repository of an older record on the board, and leaves out a pull request it cannot place', () => {
-    saveSnapshot(p, snapshot([pr(9)]))
-    author('app#9', 'SWE1')
-    author('app#77', 'SWE2')
-    assert.deepEqual(call(request()).response.result?.pullRequests, [{ repo: 'example-org/app', number: 9, by: 'SWE1' }])
+  it('finds the repository of an older record on the board when no configured repository has that name, and leaves out a pull request it cannot place', () => {
+    saveSnapshot(p, snapshot([pr(9, { repo: 'acme/elsewhere' })]))
+    author('elsewhere#9', 'SWE1')
+    author('elsewhere#77', 'SWE2')
+    assert.deepEqual(call(request()).response.result?.pullRequests, [{ repo: 'acme/elsewhere', number: 9, by: 'SWE1' }])
+  })
+
+  it('names the repository of an older record, which holds only the short reference, from the configured repositories', () => {
+    // the lines the live logs hold before the repository was kept: only the reference
+    author('app#330', 'SWE1')
+    author('other#7', 'SWE2')
+    assert.deepEqual(call(request()).response.result?.pullRequests, [{ repo: 'example-org/app', number: 330, by: 'SWE1' }])
   })
 
   it('is empty when no author is known', () => {
@@ -168,5 +179,16 @@ describe('the report for people', () => {
     assert.match(text, /total +2h05 +10m +- +\$4\.50/)
     assert.match(text, /acme\/app#42 +SWE1/)
     assert.match(text, /overlapping sessions count once/)
+  })
+})
+
+describe('the time zone of the report for people', () => {
+  const now = new Date('2026-10-08T06:00:00.000Z')
+  it('is the one asked for, else the team\'s own setting, else this machine\'s', async () => {
+    const { reportOffset } = await import('../src/metrics/command.ts')
+    assert.equal(reportOffset(config, { 'utc-offset': '-05:30' }, now), -330)
+    assert.equal(reportOffset({ ...config, runtime: { utcOffset: '+09:00' } }, {}, now), 540)
+    assert.equal(reportOffset({ ...config, runtime: undefined, sprint: undefined }, {}, now), -now.getTimezoneOffset())
+    assert.equal(typeof reportOffset(config, { 'utc-offset': '9' }, now), 'string')
   })
 })

@@ -25,6 +25,13 @@ describe('openedPullRequest', () => {
     assert.equal(openedPullRequest({ tool: 'Bash', input: { command: 'gh pr create --fill' }, response: URL })?.ref, 'app#42')
   })
 
+  it('reads what a push and a pull request in one command print: the branch hint is not the pull request', () => {
+    // the shapes the sessions' own tool calls have: a chain with a heredoc body, and a result with the push's lines before the URL
+    const command = ['git push -q -u origin feat/x 2>&1 | tail -2; gh pr create --base main --title "feat(web): add it" --body "$(cat <<\'EOF\'', '## Why', '', 'Because.', 'EOF', ')"'].join('\n')
+    const response = { stdout: 'remote:      https://github.com/acme/app/pull/new/feat/x        \nremote: \nhttps://github.com/acme/app/pull/14', stderr: '', interrupted: false, isImage: false, noOutputExpected: false }
+    assert.deepEqual(openedPullRequest({ tool: 'Bash', input: { command }, response }), { ref: 'app#14', repo: 'acme/app', number: 14 })
+  })
+
   it('reads the URL on a GitHub Enterprise host', () => {
     assert.equal(openedPullRequest(bash('gh pr create --fill', 'https://git.example.test/acme/app/pull/7'))?.ref, 'app#7')
   })

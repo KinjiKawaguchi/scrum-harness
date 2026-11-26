@@ -1,4 +1,4 @@
-import { renameSync, writeFileSync } from 'node:fs'
+import { existsSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { baseName } from '../usage/attribution.ts'
 import { appendLine, readText } from '../store.ts'
 import type { ActivityState } from './types.ts'
@@ -17,7 +17,36 @@ function isMark(value: unknown): value is StateMark {
   return typeof mark.sessionId === 'string' && typeof mark.name === 'string' && typeof mark.state === 'string' && STATES.includes(mark.state) && typeof mark.at === 'string' && !Number.isNaN(Date.parse(mark.at))
 }
 
+/** Where the time recording began is kept, next to the log. */
+const startPathOf = (path: string): string => path.replace(/\.jsonl$/, '.since')
+
+/**
+ * When recording began in this state directory: what the marker beside the log says, else, for a log that began before the marker was kept, when the
+ * log file was made. Null when nothing has been recorded. A line may say a state began earlier than this (a heartbeat file from before the log held it);
+ * the time before it is not recorded and is not counted.
+ */
+export function recordingStart(path: string): Date | null {
+  const kept = Date.parse(readText(startPathOf(path)).trim())
+  if (!Number.isNaN(kept)) return new Date(kept)
+  try {
+    const { birthtimeMs, mtimeMs } = statSync(path)
+    return new Date(birthtimeMs > 0 ? birthtimeMs : mtimeMs)
+  } catch {
+    return null
+  }
+}
+
 export function appendStateMark(path: string, mark: StateMark): void {
+  const marker = startPathOf(path)
+  if (!existsSync(marker)) {
+    // The first line of a log that already exists keeps the time the log was made; the first line of a new log, now.
+    const start = recordingStart(path) ?? new Date()
+    try {
+      writeFileSync(marker, `${start.toISOString()}\n`, { flag: 'wx' })
+    } catch {
+      // another hook wrote it first
+    }
+  }
   appendLine(path, JSON.stringify({ at: mark.at, sessionId: mark.sessionId, name: baseName(mark.name), state: mark.state }))
 }
 
