@@ -23,6 +23,8 @@ export type RawNode = {
     /** Of a pull request: when it was opened and when it was merged, and the issues it closes (the board's own item has none of these) */
     readonly createdAt?: string | null
     readonly mergedAt?: string | null
+    /** Of an issue: when it was closed */
+    readonly closedAt?: string | null
     readonly closingIssuesReferences?: { readonly nodes?: readonly { readonly number?: number; readonly repository?: { readonly nameWithOwner?: string } }[] } | null
     readonly title?: string
     readonly state?: string
@@ -80,6 +82,7 @@ function normalizeNode(node: RawNode): BoardItem {
     points: node.points?.number ?? null,
     overrun: node.overrun?.number ?? null,
     ...(typeof node.createdAt === 'string' ? { addedAt: node.createdAt } : {}),
+    ...(typeof node.content?.closedAt === 'string' ? { closedAt: node.content.closedAt } : {}),
     ...pullRequestFields(node),
     ...dispatchFields(node),
   }
@@ -111,6 +114,7 @@ export function itemNodeSelection(config: Config): string {
   const single = (alias: string, field: string) =>
     `${alias}: fieldValueByName(name:"${field}"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }`
   const content = 'number title state author{login} repository{nameWithOwner}'
+  const issueContent = `${content} closedAt`
   const issueExtra = config.dispatch?.enabled === true || alertsOf(config).enabled || config.runtime?.activity === true ? ' labels(first:20){ nodes{ name } } parent{ number repository{ nameWithOwner } }' : ''
   return `id type createdAt
     ${single('status', config.fields.status)} ${single('reason', config.fields.reason)}
@@ -118,5 +122,5 @@ export function itemNodeSelection(config: Config): string {
     ${config.team === undefined ? '' : single('team', config.team.field)} ${config.fields.workType === undefined ? '' : single('workType', config.fields.workType)}
     since: fieldValueByName(name:"${config.fields.since}"){ ... on ProjectV2ItemFieldDateValue{ date } }
     ${sprintFields(config)} ${dispatchItemFields(config)}
-    content{ ... on Issue{ ${content}${issueExtra} } ... on PullRequest{ ${content} createdAt mergedAt closingIssuesReferences(first:3){ nodes{ number repository{ nameWithOwner } } } } ... on DraftIssue{ title } }`
+    content{ ... on Issue{ ${issueContent}${issueExtra} } ... on PullRequest{ ${content} createdAt mergedAt closingIssuesReferences(first:3){ nodes{ number repository{ nameWithOwner } } } } ... on DraftIssue{ title } }`
 }
