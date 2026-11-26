@@ -45,7 +45,7 @@ export function claudeTrustKey(screen: string | null, dir: string): 'Down' | 'En
   if (!asksClaudeTrust(text) || CLAUDE_TRUST_WITH_CODE.test(flat(text))) return null
   const folder = shownFolder(text)
   if (folder === null || !namesOf(dir).includes(folder)) return null
-  const focused = /^[ \t]*[❯›>][ \t]*(No, exit|Yes, I trust this folder)/m.exec(text)?.[1]
+  const focused = /^[ \t]*[\u276F\u203A>][ \t]*(No, exit|Yes, I trust this folder)/m.exec(text)?.[1]
   if (focused === undefined) return null
   return focused === 'No, exit' ? 'Down' : 'Enter'
 }

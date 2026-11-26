@@ -32,10 +32,10 @@ const question = (folder: string, focused: 'No, exit' | 'Yes, I trust this folde
     '',
     ' Security guide',
     '',
-    focused === 'No, exit' ? ' ❯ No, exit' : '   No, exit',
-    focused === 'Yes, I trust this folder' ? ' ❯ Yes, I trust this folder' : '   Yes, I trust this folder',
+    focused === 'No, exit' ? ' \u276F No, exit' : '   No, exit',
+    focused === 'Yes, I trust this folder' ? ' \u276F Yes, I trust this folder' : '   Yes, I trust this folder',
     '',
-    ' Enter to confirm · Esc to cancel',
+    ' Enter to confirm \u00B7 Esc to cancel',
   ].join('\n')
 
 const signal = (name: string, updatedAt: Date): SessionSignal => ({ sessionId: `s-${name}`, name, state: 'idle', since: updatedAt.toISOString(), updatedAt: updatedAt.toISOString(), isAlive: true, nameSince: null })
@@ -64,9 +64,9 @@ describe('which key Claude Code\'s question about a folder gets', () => {
     assert.equal(claudeTrustKey(question(`${dir}/sub`, 'No, exit'), dir), null)
     assert.equal(claudeTrustKey(question(dir, 'No, exit', ' This folder configures hooks that can run commands without asking, declared in .claude/settings.json'), dir), null)
     assert.equal(claudeTrustKey(question(dir, 'No, exit', ' This folder configures MCP servers: db'), dir), null)
-    assert.equal(claudeTrustKey('Do you trust the contents of this directory?\n› 1. Yes, continue', dir), null)
+    assert.equal(claudeTrustKey('Do you trust the contents of this directory?\n\u203A 1. Yes, continue', dir), null)
     assert.equal(claudeTrustKey(null, dir), null)
-    assert.equal(claudeTrustKey(question(dir, 'No, exit').replace('❯', ' '), dir), null)
+    assert.equal(claudeTrustKey(question(dir, 'No, exit').replace('\u276F', ' '), dir), null)
   })
 
   it('names the question a window waits at, for the failure message', () => {
