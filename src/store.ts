@@ -37,6 +37,8 @@ export function paths(dir: string = stateDir()) {
     /** The week the owner was last asked about the weekly budget (see budget/ask.ts) */
     budgetAsked: join(dir, 'cache', 'budget-asked.json'),
     heartbeats: join(dir, 'team'),
+    /** Each session's state changes, one per line, for the time a member was busy or idle (see team/state-log.ts) */
+    memberStates: join(dir, 'log', 'member-states.jsonl'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
     notified: join(dir, 'notify', 'notified.json'),

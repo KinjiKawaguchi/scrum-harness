@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { isPidAlive, readJson, writeJson, type Paths } from '../store.ts'
+import { appendStateMark } from './state-log.ts'
 import type { ActivityState, SessionSignal } from './types.ts'
 
 const THROTTLE_MS = 30_000
@@ -31,7 +32,10 @@ export function writeHeartbeat(
   const path = join(p.heartbeats, `${identity.sessionId}.json`)
   const prev = readJson<HeartbeatFile | null>(path, null)
   const next = nextHeartbeat(prev, identity.sessionId, identity.name, state, now)
-  if (next !== null) writeJson(path, { ...next, pid: identity.pid })
+  if (next === null) return
+  writeJson(path, { ...next, pid: identity.pid })
+  const isChange = prev === null || prev.state !== next.state || prev.name !== next.name
+  if (isChange) appendStateMark(p.memberStates, { at: next.updatedAt, sessionId: identity.sessionId, name: identity.name, state: next.state })
 }
 
 function isHeartbeatAlive(file: HeartbeatFile, now: Date): boolean {

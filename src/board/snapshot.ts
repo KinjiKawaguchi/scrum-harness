@@ -3,6 +3,7 @@ import type { BoardSource } from '../ports/index.ts'
 import { appendEvents, trimLog } from '../activity/log.ts'
 import { readDoneTimes, recordDone, writeDoneTimes } from '../agency-runtime/done-at.ts'
 import { boardEvents } from '../activity/board-events.ts'
+import { trimStateLog } from '../team/state-log.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
@@ -58,6 +59,7 @@ function noteActivity(p: Paths, previous: Snapshot | null, fresh: Snapshot, conf
   try {
     appendEvents(p.activityLog, boardEvents(previous, fresh, config), now)
     trimLog(p.activityLog, now)
+    trimStateLog(p.memberStates, now)
   } catch (error) {
     logError(p, 'activity', error)
   }
