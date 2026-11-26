@@ -6,7 +6,9 @@ import { planMember, specOf } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
 import { refreshFundingDirs } from './funding-dirs.ts'
 import { describePick, forgetMemberSource, pickFor, readMemberSources, recordMemberSource, type MemberSource } from './funding.ts'
+import { adoptCommand } from './adopt.ts'
 import { moveCommand } from './move.ts'
+import { RESTART_NOTE, resumeSession } from './resume.ts'
 import { finishExit, startWatched, type WatchdogDeps } from './lifecycle.ts'
 import { watchdogOf } from './watchdog.ts'
 
@@ -15,8 +17,9 @@ export type { WatchdogDeps }
 export const MEMBER_USAGE = `scrum member: the members of this team and where they run
   scrum member list                                  Each member in the configuration, whether it runs, and what runs but is not listed (or is listed and does not run)
   scrum member stop <name...> [--force]              Ask an idle member to exit. A busy member, or one at a permission prompt, only with --force, which closes its window
+  scrum member adopt <name...> | --all [--source <name>]   Record members that already run (started some other way) as on the default login, or on the source named, without restarting them; needed by "member move"
   scrum member move [<name>...] [--dry-run]          With launch.funding: restart ONE idle member that runs on a source past its threshold on the source the node picks, continuing its conversation. Without names, the members (not the lead)
-  scrum member start <name...> | --all [--dry-run] [--no-wait]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run. A member with a startup watchdog (a Codex member by default) is waited for, closed, and started again if it shows no sign of life; --no-wait skips that`
+  scrum member start <name...> | --all [--dry-run] [--no-wait] [--resume]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run. A member with a startup watchdog (a Codex member by default) is waited for, closed, and started again if it shows no sign of life; --no-wait skips that. --resume continues the member's latest recorded Claude Code conversation (claude --resume) with a short note instead of its brief`
 
 const shellWord = (word: string): string => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`)
 
@@ -35,7 +38,10 @@ function startOne(config: Config, ports: Ports, name: string, session: string, f
     if (flags['dry-run'] !== true) noteSource(sourcesPath, watchdogDeps, name, { source: '', state: 'refused', reason: outcome.reason })
     return `${name}: not started: ${outcome.reason}`
   }
-  const planned = planMember(config, name, stateDir(), process.env.PATH, ports.launchers, { pickedEnv: outcome.kind === 'picked' ? outcome.pick.env : {} })
+  const pickedEnv = outcome.kind === 'picked' ? outcome.pick.env : {}
+  const resumed = flags.resume === true ? resumeSession(ports, specOf(config, name), name, pickedEnv) : undefined
+  if (resumed !== undefined && 'problem' in resumed) return `${name}: not started: ${resumed.problem}`
+  const planned = planMember(config, name, stateDir(), process.env.PATH, ports.launchers, { pickedEnv, ...(resumed === undefined ? {} : { resume: { sessionId: resumed.sessionId, note: RESTART_NOTE } }) })
   if ('problem' in planned) return `${name}: ${planned.problem}`
   const { plan, brief } = planned
   const account = outcome.kind === 'picked' ? `\n${name}: ${describePick(outcome.pick)}` : outcome.kind === 'failed' ? `\n${name}: the account could not be picked (${outcome.reason}); it starts on its own settings` : ''
@@ -106,6 +112,8 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
       return formatReport(reportOf(config, ports), watchdogDeps?.memberSourcesPath === undefined ? [] : readMemberSources(watchdogDeps.memberSourcesPath))
     case 'stop':
       return stopCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
+    case 'adopt':
+      return adoptCommand(config, ports, positional, flags, watchdogDeps)
     case 'move':
       return moveCommand(config, ports, positional, flags, watchdogDeps)
     case 'start':

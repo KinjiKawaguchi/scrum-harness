@@ -188,6 +188,10 @@ The node's list of sources (`<command> list`) is read at each `scrum member star
 
 If the member does not exit within 15 seconds it is left running; if it does not come up on the new login it is started again on the old one. Members that were not started by `scrum member start` have no recorded source and are skipped, so start the team from its `launch` section.
 
+**Members that were started some other way.** `scrum member move` and the source shown by `scrum member list` need a record of where each member started, which `scrum member start` keeps. For members that already run (started by a script, say), `scrum member adopt <name>... | --all [--source <name>]` writes that record from the member's live session record, without restarting it: on the one Claude source the node lists for the default login, or on the source named with `--source` (the harness cannot tell which login a session runs under, so say so when it is not the default one). A member that is already recorded, does not run, or has no live session is left alone.
+
+`scrum member start <name> --resume` starts a stopped member with its latest recorded session (`claude --resume <id>` on the login the node picks) and a short note ("you were started again") instead of its brief. It refuses when the member has no recorded session, when that conversation is not visible under the login (see the shared `projects` below), and for a Codex member. Without `--resume` a start is a new conversation with the brief.
+
 **Setting up a second login (recommended).** A second Claude Code login needs its own `CLAUDE_CONFIG_DIR` (it holds the credentials), but the rest can be the first one's, by symlink, so that a member restarted on the other login keeps its instructions and memory and `claude --continue` finds its transcript:
 
 ```sh
