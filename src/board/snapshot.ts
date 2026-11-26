@@ -1,5 +1,7 @@
 import type { Config } from '../config.ts'
 import type { BoardSource } from '../ports/index.ts'
+import { appendEvents, trimLog } from '../activity/log.ts'
+import { boardEvents } from '../activity/board-events.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
@@ -50,6 +52,16 @@ function noteCompletions(p: Paths, previous: Snapshot | null, fresh: Snapshot, c
   }
 }
 
+/** Writes what the read shows the team did to the activity log. A failure is left in errors.log; it never fails the re-fetch. */
+function noteActivity(p: Paths, previous: Snapshot | null, fresh: Snapshot, config: Config, now: Date): void {
+  try {
+    appendEvents(p.activityLog, boardEvents(previous, fresh, config), now)
+    trimLog(p.activityLog, now)
+  } catch (error) {
+    logError(p, 'activity', error)
+  }
+}
+
 /** Re-fetches the board and writes it to the board copy. Does nothing if another process is re-fetching. */
 export function refreshSnapshot(p: Paths, config: Config, now: Date, source: BoardSource): Snapshot | null {
   if (!tryLock(p.refreshLock)) return null
@@ -60,6 +72,7 @@ export function refreshSnapshot(p: Paths, config: Config, now: Date, source: Boa
     const previous = loadFetchedSnapshot(p) ?? loadSnapshot(p)
     const snapshot = source.fetchSnapshot(now)
     saveSnapshot(p, snapshot)
+    noteActivity(p, previous, snapshot, config, now)
     if (noteCompletions(p, previous, snapshot, config, now, source)) writeJson(p.fetchedSnapshot, snapshot)
     return snapshot
   } catch (error) {

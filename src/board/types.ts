@@ -12,6 +12,12 @@ export type BoardItem = {
    * out and the reference is `<repo>#<number>`; a board module for another tracker sets it. See docs/board-module.md for the rule it has to fit.
    */
   readonly ref?: string
+  /** When the item was added to the board (ISO 8601), as the adapter knows it */
+  readonly addedAt?: string
+  /** Of a pull request: when it was opened and when it was merged, and the reference of the first issue it closes */
+  readonly openedAt?: string
+  readonly mergedAt?: string
+  readonly closes?: string
   readonly kind: ItemKind
   readonly repo: string
   readonly number: number | null
