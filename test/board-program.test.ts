@@ -41,8 +41,7 @@ describe('the command form of the adapters section', () => {
     const wrong = [{ command: [] }, { command: 'tracker' }, { command: ['relative/tracker'] }, { command: ['/x', ''] }, { command: ['/x'], capabilities: ['delete'] }, { command: ['/x'], timeoutSeconds: 0 }, { command: ['/x'], timeoutSeconds: 301 }, { command: ['/x'], timeoutSeconds: 1.5 }, { command: ['/x'], extra: 1 }, { command: ['/x'], module: '/y.mjs' }, { options: {} }]
     for (const raw of wrong) assert.equal(parseAdapterModule(raw), null, JSON.stringify(raw))
     assert.equal(parseConfig({ ...base, adapters: { command: ['x'] } }), null)
-    const { projectId: _project, statusFieldId: _status, ...withoutIds } = base
-    assert.equal(parseConfig({ ...withoutIds, adapters: { command: ['/x'] } })?.projectId, '')
+    assert.deepEqual(parseConfig({ ...base, adapters: { command: ['/x'] } })?.adapters, { command: ['/x'], capabilities: [], timeoutSeconds: 30, options: {} })
   })
 })
 
