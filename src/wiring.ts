@@ -4,6 +4,7 @@ import { settingsTargets } from './adapters/claude-code/settings-targets.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
+import { tmuxHost } from './adapters/tmux/host.ts'
 import { linuxNotifier } from './adapters/linux/notify.ts'
 import { realRun } from './adapters/run.ts'
 import { systemdScheduler } from './adapters/linux/systemd.ts'
@@ -33,5 +34,5 @@ export function buildScheduler(platform: NodeJS.Platform = process.platform): Sc
  */
 export function buildPorts(config: Config): Ports {
   const dirs = claudeConfigDirs(config.claudeConfigDirs)
-  return { ...githubPorts(config), sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), notify: buildNotifier() }
+  return { ...githubPorts(config), sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), members: tmuxHost(), notify: buildNotifier() }
 }
