@@ -1,6 +1,8 @@
 import { alertsOf } from '../alerts/config.ts'
 import type { Config } from '../config.ts'
+import type { SessionDirectory } from '../ports/index.ts'
 import type { SessionSignal } from '../team/types.ts'
+import { baseName } from '../usage/attribution.ts'
 import { aggregateMembers } from '../team/state.ts'
 import type { MemberSource } from './funding.ts'
 
@@ -51,8 +53,20 @@ function sourceNote(row: MemberRow, sources: readonly MemberSource[]): string {
   return row.isRunning && source.source !== '' ? ` [source ${source.source}]` : ''
 }
 
-export function formatReport(report: MemberReport, sources: readonly MemberSource[] = []): string {
-  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}`)
+/** The Claude Code version each running member's session runs (`name` to version), where the session's record says. */
+export function runningVersions(report: MemberReport, signals: readonly SessionSignal[], sessions: SessionDirectory): ReadonlyMap<string, string> {
+  const read = sessions.version
+  if (read === undefined) return new Map()
+  const versions = report.rows.flatMap((row): readonly (readonly [string, string])[] => {
+    const live = signals.filter((signal) => signal.isAlive && signal.state !== 'ended' && baseName(signal.name) === row.name).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+    const version = row.isRunning && live !== undefined ? read(live.sessionId) : null
+    return version === null ? [] : [[row.name, version]]
+  })
+  return new Map(versions)
+}
+
+export function formatReport(report: MemberReport, sources: readonly MemberSource[] = [], versions: ReadonlyMap<string, string> = new Map()): string {
+  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}${versions.has(row.name) ? ` [claude ${versions.get(row.name)}]` : ''}`)
   const drift = [
     ...report.unlisted.map((window) => `running but not in the configuration: ${window}`),
     ...report.rows.filter((row) => !row.isRunning).map((row) => `listed but not running: ${row.name}`),

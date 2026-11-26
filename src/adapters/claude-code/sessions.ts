@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import type { SessionDirectory } from '../../ports/index.ts'
 import { isPidAlive, readJson } from '../../store.ts'
 import type { ActivityState, SessionSignal } from '../../team/types.ts'
-import { claudeConfigDirs, sessionsDirs } from './config-dirs.ts'
+import { claudeConfigDirs, projectsDirs, sessionsDirs } from './config-dirs.ts'
+import { claudeCodeTurnError, claudeCodeVersion } from './turn-error.ts'
 
 type SessionRecord = { readonly pid?: unknown; readonly sessionId?: unknown; readonly name?: unknown }
 
@@ -56,8 +57,10 @@ export function parseSessionFile(raw: unknown, isAlive: (pid: number) => boolean
 }
 
 /** Re-reads Claude Code's session records (`sessions` in each configuration directory; SCRUM_SESSIONS_DIR replaces them with one folder) on every read. */
-export function claudeCodeSessions(dirs: readonly string[] = sessionsDirs(claudeConfigDirs(undefined))): SessionDirectory {
+export function claudeCodeSessions(dirs: readonly string[] = sessionsDirs(claudeConfigDirs(undefined)), projects: readonly string[] = projectsDirs(claudeConfigDirs(undefined))): SessionDirectory {
   return {
+    turnError: (sessionId) => claudeCodeTurnError(projects, sessionId),
+    version: (sessionId) => claudeCodeVersion(projects, sessionId),
     find: (sessionId) => {
       const records = readSessionRecordsIn(dirs)
       const record = records.find((one) => one.sessionId === sessionId)

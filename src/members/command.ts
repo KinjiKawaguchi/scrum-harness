@@ -1,7 +1,7 @@
 import type { Config } from '../config.ts'
 import type { Ports } from '../ports/index.ts'
 import { stateDir } from '../config.ts'
-import { formatReport, memberReport, type MemberReport } from './list.ts'
+import { formatReport, memberReport, runningVersions, type MemberReport } from './list.ts'
 import { planMember, specOf } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
 import { refreshFundingDirs } from './funding-dirs.ts'
@@ -113,7 +113,11 @@ function reportOf(config: Config, ports: Ports): MemberReport {
 export function memberCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags = {}, watchdogDeps?: WatchdogDeps): string {
   switch (positional[0]) {
     case 'list':
-      return formatReport(reportOf(config, ports), watchdogDeps?.memberSourcesPath === undefined ? [] : readMemberSources(watchdogDeps.memberSourcesPath))
+    {
+      const report = reportOf(config, ports)
+      const sources = watchdogDeps?.memberSourcesPath === undefined ? [] : readMemberSources(watchdogDeps.memberSourcesPath)
+      return formatReport(report, sources, runningVersions(report, watchdogDeps?.signals() ?? ports.sessions.signals(), ports.sessions))
+    }
     case 'stop':
       return stopCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
     case 'adopt':
