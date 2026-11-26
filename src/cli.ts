@@ -8,6 +8,7 @@ import {
   pointsCommand,
   acksCommand,
   installCommand,
+  settingsTargets,
   lintCommand,
   parseFlags,
   reportCommand,
@@ -58,7 +59,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum schedule <install|uninstall|status|print> [--name <team>]
                                     run the background loop under launchd (macOS) or a systemd user timer (Linux); print shows the files only
   scrum statusline                  short display for the statusline (the statusline JSON on stdin)
-  scrum install | uninstall         add or remove the hooks in ~/.claude/settings.json
+  scrum install | uninstall [--dir <config dir> | --all]   add or remove the hooks in ~/.claude/settings.json, in one Claude Code configuration directory, or in every configured one
   scrum hook <Event> | watch        called from Claude Code hooks`
 
 function identityOf(p: Paths, input: Record<string, unknown>, now: Date, config: Config, ports: Ports) {
@@ -212,8 +213,10 @@ async function main(argv: readonly string[]): Promise<number> {
       return config === null || ports === null ? 0 : print(statuslineCommand(p, config, input, ports.sessions))
     }
     case 'install':
-    case 'uninstall':
-      return print(installCommand(p, command === 'install'))
+    case 'uninstall': {
+      const targets = settingsTargets(flags, config)
+      return print(typeof targets === 'string' ? targets : installCommand(p, command === 'install', targets))
+    }
     default:
       return print(USAGE)
   }

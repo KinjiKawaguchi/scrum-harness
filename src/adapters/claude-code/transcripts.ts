@@ -1,15 +1,10 @@
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { TranscriptFile, TranscriptSource } from '../../ports/index.ts'
 import { readJson } from '../../store.ts'
-import { readSessionRecords } from './sessions.ts'
+import { claudeConfigDirs, projectsDirs, sessionsDirs } from './config-dirs.ts'
+import { readSessionRecordsIn } from './sessions.ts'
 import { scanFile } from './transcript-lines.ts'
-
-/** Where the transcripts are. It is Claude Code's internal layout and is not public. SCRUM_PROJECTS_DIR changes it. */
-export function projectsDir(): string {
-  return process.env.SCRUM_PROJECTS_DIR ?? join(homedir(), '.claude', 'projects')
-}
 
 const SESSION_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/
 
@@ -54,11 +49,17 @@ export function recordedNames(sessionRecords: readonly { readonly sessionId?: un
   return new Map([...fromTitles, ...fromSessions])
 }
 
-/** Reads the transcripts under ~/.claude/projects (SCRUM_PROJECTS_DIR). */
-export function claudeCodeTranscripts(): TranscriptSource {
+/**
+ * Reads the transcripts under `projects` of each configuration directory (SCRUM_PROJECTS_DIR replaces them with one folder). It is Claude Code's internal
+ * layout and is not public. The index remembers each transcript by its full path, so two directories never collide.
+ */
+export function claudeCodeTranscripts(
+  roots: readonly string[] = projectsDirs(claudeConfigDirs(undefined)),
+  sessionFolders: readonly string[] = sessionsDirs(claudeConfigDirs(undefined)),
+): TranscriptSource {
   return {
-    files: () => listDir(projectsDir()).flatMap((dir) => transcriptsIn(join(projectsDir(), dir))),
-    names: () => recordedNames(readSessionRecords(), projectsDir()),
+    files: () => roots.flatMap((root) => listDir(root).flatMap((dir) => transcriptsIn(join(root, dir)))),
+    names: () => new Map(roots.flatMap((root) => [...recordedNames(readSessionRecordsIn(sessionFolders), root)])),
     scan: (file, from, skipRequestIds) => scanFile(file.path, from, skipRequestIds),
   }
 }

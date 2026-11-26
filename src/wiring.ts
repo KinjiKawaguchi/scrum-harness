@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { claudeConfigDirs, projectsDirs, sessionsDirs } from './adapters/claude-code/config-dirs.ts'
 import { claudeCodeSessions } from './adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from './adapters/claude-code/transcripts.ts'
 import { githubPorts } from './adapters/github/index.ts'
@@ -27,5 +28,6 @@ export function buildScheduler(platform: NodeJS.Platform = process.platform): Sc
  * The board and code are GitHub, sessions and transcripts are Claude Code, and notifications depend on the platform.
  */
 export function buildPorts(config: Config): Ports {
-  return { ...githubPorts(config), sessions: claudeCodeSessions(), transcripts: claudeCodeTranscripts(), notify: buildNotifier() }
+  const dirs = claudeConfigDirs(config.claudeConfigDirs)
+  return { ...githubPorts(config), sessions: claudeCodeSessions(sessionsDirs(dirs)), transcripts: claudeCodeTranscripts(projectsDirs(dirs), sessionsDirs(dirs)), notify: buildNotifier() }
 }

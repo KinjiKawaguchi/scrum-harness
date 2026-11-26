@@ -1,4 +1,5 @@
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { writeJson, type Paths } from './store.ts'
 
 /** A mark that identifies the hooks that were added. It is included in the command's path. */
@@ -43,13 +44,18 @@ export function withHooks(settings: Settings, bin: string): Settings {
   return { ...settings, hooks }
 }
 
-/** Takes a copy of settings.json and then rewrites the hooks. */
-export function updateSettings(settingsPath: string, change: (settings: Settings) => Settings): string {
+/**
+ * Takes a copy of settings.json and then rewrites the hooks. A configuration directory that has no settings.json yet gets one (there is nothing to copy);
+ * the returned backup is null then.
+ */
+export function updateSettings(settingsPath: string, change: (settings: Settings) => Settings): string | null {
+  const isNew = !existsSync(settingsPath)
   const backup = `${settingsPath}.bak-scrum-harness`
-  copyFileSync(settingsPath, backup)
-  const current = JSON.parse(readFileSync(settingsPath, 'utf8')) as Settings
+  if (!isNew) copyFileSync(settingsPath, backup)
+  const current = isNew ? {} : (JSON.parse(readFileSync(settingsPath, 'utf8')) as Settings)
+  if (isNew) mkdirSync(dirname(settingsPath), { recursive: true })
   writeFileSync(settingsPath, `${JSON.stringify(change(current), null, 2)}\n`)
-  return backup
+  return isNew ? null : backup
 }
 
 /** If there is no config, copies the example. The example's values must be adjusted to match the board. */
