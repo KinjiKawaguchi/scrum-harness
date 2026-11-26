@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { claudeConfigDirs, isConfigDirPath, projectsDirs, sessionsDirs, settingsPaths } from '../src/adapters/claude-code/config-dirs.ts'
+import { claudeConfigDirs, projectsDirs, sessionsDirs, settingsPaths } from '../src/adapters/claude-code/config-dirs.ts'
+import { settingsTargets } from '../src/adapters/claude-code/settings-targets.ts'
+import { isConfigPath } from '../src/paths.ts'
 import { claudeCodeSessions } from '../src/adapters/claude-code/sessions.ts'
 import { claudeCodeTranscripts } from '../src/adapters/claude-code/transcripts.ts'
-import { installCommand, settingsTargets } from '../src/cli-commands.ts'
+import { installCommand } from '../src/cli-commands.ts'
 import { parseConfig } from '../src/config.ts'
 import { MARKER } from '../src/install.ts'
 import { paths } from '../src/store.ts'
@@ -29,8 +31,8 @@ describe('the Claude Code configuration directories', () => {
   })
 
   it('accepts only absolute paths, or paths under ~/, in the configuration; a relative one would mean a different place in every process', () => {
-    for (const ok of ['/data/claude', '~/.claude-work']) assert.equal(isConfigDirPath(ok), true, ok)
-    for (const bad of ['', '.claude', '../x', '~', '~other/x', 7]) assert.equal(isConfigDirPath(bad), false, String(bad))
+    for (const ok of ['/data/claude', '~/.claude-work']) assert.equal(isConfigPath(ok), true, ok)
+    for (const bad of ['', '.claude', '../x', '~', '~other/x', 7]) assert.equal(isConfigPath(bad), false, String(bad))
     assert.deepEqual(parseConfig({ ...base, claudeConfigDirs: ['~/.claude', '/data/claude'] })?.claudeConfigDirs, ['~/.claude', '/data/claude'])
     assert.equal(parseConfig({ ...base, claudeConfigDirs: ['relative/dir'] }), null)
     assert.equal(parseConfig({ ...base, claudeConfigDirs: [] }), null)
