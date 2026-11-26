@@ -9,7 +9,8 @@
     "reason": "Blocked reason",
     "since": "Blocked since",
     "owner": "Owner",
-    "assignee": "Assigned to"
+    "assignee": "Assigned to",
+    "workType": "Work type"
   },
   "statusFieldId": "PVTSSF_xxxxxxxxxxxxxxxxxxxx",
   "statuses": {

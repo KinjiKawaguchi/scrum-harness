@@ -44,7 +44,7 @@ The main settings in the configuration (`config.json`):
 | Setting | Meaning |
 |---|---|
 | `projectId`, `repos`, `defaultRepo` | The board and the repositories to check |
-| `fields`, `statuses`, `reasonNone`, `reasonJudge`, `statusFieldId` | The names of the board's fields and options |
+| `fields`, `statuses`, `reasonNone`, `reasonJudge`, `statusFieldId` | The names of the board's fields and options. `fields.workType` (optional) names a single-select field that says what kind of work an item is (for example New feature, Improvement, Maintenance, Debt, Incident); when set, the harness reads it into each item |
 | `ownerUser`, `ownerLabel` | The Owner value of the person who decides, and the name used for them in messages |
 | `techlead`, `members` | The names of the TechLead and member sessions (the names ListAgents shows) |
 | `scripts` | The names of the scripts that rewrite the board (optional). Used in the fix text; the hooks read their runs |
