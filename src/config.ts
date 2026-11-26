@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { parseLinks, type LinksConfig } from './links/config.ts'
 import { parseAlerts, type AlertsConfig } from './alerts/config.ts'
 import { parseRuntime, type RuntimeConfig } from './agency-runtime/config.ts'
+import { parseAdapterModule, type AdapterModuleConfig } from './adapter-module.ts'
 import { parseOffBoardScope, type OffBoardScope } from './board/off-board-scope.ts'
 import { parseTeamScope, type TeamScope } from './board/team-scope.ts'
 import { parseLaunch, type LaunchConfig } from './members/config.ts'
@@ -126,7 +127,7 @@ export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'm
 
 export type Config = ProjectConfig &
   Tuning &
-  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig; readonly hookTools?: readonly string[] }
+  Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[]; readonly offBoard?: OffBoardScope; readonly launch?: LaunchConfig; readonly adapters?: AdapterModuleConfig; readonly hookTools?: readonly string[] }
 
 /** The lead and the members, each name once (the lead may also be listed in `members`). */
 export const teamNamesOf = (config: Config): readonly string[] => [...new Set([config.techlead, ...config.members])]
@@ -234,7 +235,7 @@ export function parseConfig(raw: unknown): Config | null {
     REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
     isValidWorkTypeField(record.fields)
   if (!isValid || (record.host !== undefined && !isHostName(record.host)) || !isValidConfigDirs(record.claudeConfigDirs) || !isValidHookTools(record.hookTools)) return null
-  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, launch: rawLaunch, offBoard: rawOffBoard, ...rest } = record
+  const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, launch: rawLaunch, offBoard: rawOffBoard, adapters: rawAdapters, ...rest } = record
   const sprint = parseSprint(rawSprint)
   const dispatch = parseDispatch(rawDispatch)
   const links = parseLinks(rawLinks)
@@ -245,6 +246,8 @@ export function parseConfig(raw: unknown): Config | null {
   if (team === null) return null
   const offBoard = parseOffBoardScope(rawOffBoard)
   if (offBoard === null) return null
+  const adapters = parseAdapterModule(rawAdapters)
+  if (adapters === null) return null
   return {
     ...DEFAULT_TUNING,
     ...DEFAULT_ADAPTERS,
@@ -256,6 +259,7 @@ export function parseConfig(raw: unknown): Config | null {
     ...(runtime === undefined ? {} : { runtime }),
     ...(team === undefined ? {} : { team }),
     ...(offBoard === undefined ? {} : { offBoard }),
+    ...(adapters === undefined ? {} : { adapters }),
     ...(launch === undefined ? {} : { launch }),
   } as Config
 }

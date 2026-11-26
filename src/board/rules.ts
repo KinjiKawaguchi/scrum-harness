@@ -5,8 +5,8 @@ import type { BoardItem, Snapshot } from './types.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-export function label(item: { readonly repo: string; readonly number: number | null }): string {
-  return `${shortRepo(item.repo)}#${item.number ?? '?'}`
+export function label(item: { readonly repo: string; readonly number: number | null; readonly ref?: string }): string {
+  return item.ref ?? `${shortRepo(item.repo)}#${item.number ?? '?'}`
 }
 
 /**
