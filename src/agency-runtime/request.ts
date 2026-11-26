@@ -1,6 +1,8 @@
-import { MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
+import { MAX_ACTIVITY_LIMIT, MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
+/** RFC 3339 in UTC, ending in Z, as the protocol's `Timestamp` */
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 /** GitHub rejects comment bodies above 65536 characters; stay well below so the added header fits. */
 const MAX_TEXT_LENGTH = 60_000
 /** A choice is the key of an option, so it is short. */
@@ -45,7 +47,13 @@ export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError 
     const isDays = typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= MAX_USAGE_DAYS
     return isDays ? { ...base, op: 'tokenUsage', days } : malformed(`days must be a whole number from 1 to ${MAX_USAGE_DAYS}`)
   }
-  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", or "tokenUsage"')
+  if (raw.op === 'activity') {
+    const { since, limit } = raw
+    if (typeof since !== 'string' || !TIMESTAMP.test(since) || Number.isNaN(Date.parse(since))) return malformed('since must be a time such as 2026-11-24T12:00:00Z')
+    const isLimit = typeof limit === 'number' && Number.isInteger(limit) && limit >= 1 && limit <= MAX_ACTIVITY_LIMIT
+    return isLimit ? { ...base, op: 'activity', since, limit } : malformed(`limit must be a whole number from 1 to ${MAX_ACTIVITY_LIMIT}`)
+  }
+  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", or "activity"')
   const decision = parseDecision(raw.decision)
   return 'status' in decision ? decision : { ...base, op: 'decide', decision }
 }

@@ -12,14 +12,15 @@ The node runs `scrum runtime` with no further arguments and `SCRUM_STATE_DIR` se
 → {"error":{"status":503,"message":"..."}}                exit code 1
 ```
 
-The op (`describe`, `view`, `decide`, or the optional `tokenUsage`) is in the request. Fields the harness does not know are ignored.
+The op (`describe`, `view`, `decide`, or the optional `tokenUsage` and `activity`) is in the request. Fields the harness does not know are ignored.
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage"],"label":"<team label>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity"],"label":"<team label>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
 | `tokenUsage` | a TokenUsage (below) |
+| `activity` | an Activity (below) |
 
 Errors use the specification's statuses: 400 for malformed input (not JSON, wrong runtime version, unknown op, an id that is not an id, a decision without text or a choice), 404 for a target that does not exist or is not waiting for a decision, and 503 when the harness cannot act now (not configured, no board read yet, a script or `gh` failed). The node does not retry 400 and 404.
 
@@ -85,6 +86,25 @@ The node calls `decide` only after it has verified the decision. The harness che
 - 404 means no session of the team has recorded usage. 503 means the first read of the transcripts has not finished.
 
 The numbers come from the agents' Claude Code transcripts, read through the `TranscriptSource` port (`src/ports/usage.ts`; the adapter is `src/adapters/claude-code/`). Reading the first time can take minutes, so the call never waits for it: when the index (`<state dir>/cache/usage-index.json`) is missing or older than 5 minutes, `tokenUsage` starts `scrum usage-index` in the background and answers from what the index holds. The index remembers how far each transcript was read, counts every response once, and only the projects that hold a session of the team are read. To count again from scratch, delete the index.
+
+## `activity`: what the team did
+
+`{"runtime":"agency-runtime/1","org":"acme","team":"app","op":"activity","since":"2026-11-24T12:00:00Z","limit":100}` (`since` is a time in UTC ending in Z; `limit` is a whole number from 1 to 500) returns
+
+```
+{"result":{"org":"acme","team":"app","generatedAt":"<time>","truncated":false,
+  "events":[{"id":"b-3f2a9c01d4e7","at":"2026-11-24T12:03:10Z","kind":"itemAdded","ref":"app#41","title":"...","epic":"app#40"}]}}
+```
+
+- `events` are oldest first, and every `at` is strictly after `since` (so ask again with `since` one second before the last `at` you saw, and drop what you already have by `id`). `truncated` is true when `limit` cut the list: ask again from the last `at`.
+- `id` is stable and unique in the team: the same event always has the same id. Board events have `b-...`, messages `m-...`.
+- The kinds, and their fields (optional ones are left out, never null):
+  - `itemAdded`: `ref`, `title`, `epic?`. An issue or a task was added to the board.
+  - `statusChanged`: `ref`, `title`, `from`, `to` (a WorkStatus as in the TeamView), `epic?`.
+  - `prOpened`: `ref` (the pull request), `title`, `by?` (only when the PR's author is a participant's name), `issue?`, `epic?`.
+  - `prMerged`: the same, and `leadSeconds?` (opened to merged).
+  - `message`: `from` (a participant's name), `to` (a plain name), `summary` (at most 120 characters). It is the short label the sender gave the message, empty when it gave none, and never taken from the body.
+- The log keeps the last 24 hours (`cache/activity.jsonl` in the state directory). A `since` older than that answers what the log has. The call only reads the log, so it is as cheap as `view`; it starts the board refresh and the transcript reader in the background when they are due, as `view` and `tokenUsage` do. An empty list means nothing happened, or the log has not been filled yet (`generatedAt` says when the answer was made).
 
 ## Configuration
 
