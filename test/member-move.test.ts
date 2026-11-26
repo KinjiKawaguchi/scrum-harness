@@ -7,6 +7,7 @@ import { claudeCodeLauncher } from '../src/adapters/claude-code/launch.ts'
 import { codexLauncher } from '../src/adapters/codex/launch.ts'
 import type { Config } from '../src/config.ts'
 import { memberCommand, type WatchdogDeps } from '../src/members/command.ts'
+import { autoMove } from '../src/members/move.ts'
 import { parseLaunch } from '../src/members/config.ts'
 import { readMemberSources, recordMemberSource } from '../src/members/funding.ts'
 import type { FundingPick, FundingSource, LaunchPlan } from '../src/ports/index.ts'
@@ -34,6 +35,8 @@ type World = {
   readonly startThrows?: (plan: LaunchPlan) => boolean
   readonly flags?: Record<string, true>
   readonly signalsAtMove?: readonly SessionSignal[]
+  /** The automatic move at this time, instead of the command */
+  readonly auto?: { readonly at: Date; readonly enabled?: boolean }
 }
 
 describe('moving a member to the account the node picks', () => {
@@ -45,20 +48,20 @@ describe('moving a member to the account the node picks', () => {
   function run(world: World = {}, args: readonly string[] = ['move']) {
     const dir = mkdtempSync(join(tmpdir(), 'scrum-move-dir-'))
     const specs = Object.fromEntries(Object.entries(world.members ?? { SWE1: {}, SWE2: {} }).map(([name, spec]) => [name, { dir, ...spec }]))
-    const config: Config = { ...base, members: Object.keys(specs), launch: parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'] }, members: specs }) }
+    const config: Config = { ...base, members: Object.keys(specs), launch: parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'], ...(world.auto?.enabled === false ? {} : world.auto === undefined ? {} : { autoMove: true }) }, members: specs }) }
     for (const name of world.recorded ?? Object.keys(specs)) recordMemberSource(p.memberSources, { name, source: 'one', state: 'ok', at: ago(3600) })
     const calls: string[] = []
     const started: LaunchPlan[] = []
-    let asked = false
+    const asked = new Set<string>()
     const signals = world.signals ?? Object.keys(specs).map((name) => signal(name))
     const ports = fakePorts({
       members: {
-        windows: () => ['home', ...Object.keys(specs).filter((name) => name !== args[1] || world.windowStays === true || !asked)],
+        windows: () => ['home', ...Object.keys(specs).filter((name) => world.windowStays === true || !asked.has(name))],
         start: (_s: string, plan: LaunchPlan) => {
           if (world.startThrows?.(plan) === true) throw new Error('tmux refused')
           started.push(plan)
         },
-        stop: (_s: string, name: string, how: string) => void (calls.push(`${name}:${how}`), (asked = true)),
+        stop: (_s: string, name: string, how: string) => void (calls.push(`${name}:${how}`), asked.add(name)),
         screen: () => null,
         press: () => undefined,
       },
@@ -69,10 +72,11 @@ describe('moving a member to the account the node picks', () => {
       hasTranscriptIn: () => world.hasTranscript ?? true,
       launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
     })
-    let at = NOW.getTime()
-    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(at), sleep: (ms) => void (at += ms), signals: () => world.signalsAtMove ?? signals }
-    const text = memberCommand(config, ports, args, world.flags ?? {}, deps)
-    return { text, calls, started }
+    let at = (world.auto?.at ?? NOW).getTime()
+    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(at), sleep: (ms) => void (at += ms), signals: () => world.signalsAtMove ?? signals, memberMovesPath: p.memberMoves }
+    const autoText = world.auto === undefined ? null : autoMove(config, ports, deps)
+    const text = world.auto === undefined ? memberCommand(config, ports, args, world.flags ?? {}, deps) : ''
+    return { text, autoText, calls, started }
   }
 
   it('stops an idle member that runs on a source past its threshold, and starts it again on the picked one with --resume and a handoff note', () => {
@@ -153,6 +157,36 @@ describe('moving a member to the account the node picks', () => {
   it('says so when it comes up on neither login', () => {
     const { text } = run({ startThrows: () => true }, ['move', 'SWE1'])
     assert.match(text, /did not come up on two \(tmux refused\), and not on one either \(tmux refused\); look at the tmux session/)
+  })
+
+  describe('the automatic move', () => {
+    const at = (minutes: number): Date => new Date(NOW.getTime() + minutes * 60_000)
+
+    it('is off unless launch.funding.autoMove is true', () => {
+      const { autoText, calls } = run({ auto: { at: NOW, enabled: false } })
+      assert.deepEqual([autoText, calls], [null, []])
+    })
+
+    it('moves one member, says so, and then waits 30 minutes before it moves another', () => {
+      const first = run({ auto: { at: NOW } })
+      assert.match(first.autoText ?? '', /^automatic move: SWE1: moves: [\s\S]*SWE1: moved from one to two/)
+      assert.deepEqual(first.calls, ['SWE1:graceful'])
+      const soon = run({ auto: { at: at(29) }, recorded: [] })
+      assert.deepEqual([soon.autoText, soon.calls], [null, []])
+      const later = run({ auto: { at: at(31) }, recorded: ['SWE2'] })
+      assert.match(later.autoText ?? '', /SWE2: moved from one to two/)
+    })
+
+    it('says nothing, and keeps no time, when there is nothing to move', () => {
+      const idle = run({ auto: { at: NOW }, sources: [{ ...ONE, overThreshold: false }, TWO] })
+      assert.deepEqual([idle.autoText, idle.calls], [null, []])
+      assert.match(run({ auto: { at: NOW } }).autoText ?? '', /moved from one to two/)
+    })
+
+    it('counts a try that did not come up as a move', () => {
+      assert.match(run({ auto: { at: NOW }, startThrows: () => true }).autoText ?? '', /did not come up/)
+      assert.equal(run({ auto: { at: at(5) } }).autoText, null)
+    })
   })
 
   it('moves nothing when the node cannot be asked', () => {

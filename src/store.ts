@@ -30,6 +30,8 @@ export function paths(dir: string = stateDir()) {
     memberSources: join(dir, 'cache', 'member-source.json'),
     /** The login directories of the node's funding sources (see members/funding-dirs.ts) */
     fundingDirs: join(dir, 'cache', 'funding-dirs.json'),
+    /** When a member was last moved to another account by the automatic move (see members/move.ts) */
+    memberMoves: join(dir, 'cache', 'member-moved.json'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),

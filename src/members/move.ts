@@ -5,6 +5,7 @@ import { expandHome } from '../paths.ts'
 import type { FundingPick, FundingSource, Ports } from '../ports/index.ts'
 import type { SessionSignal } from '../team/types.ts'
 import { baseName } from '../usage/attribution.ts'
+import { readJson, writeJson } from '../store.ts'
 import { missingHooksReason, readMemberSources, recordMemberSource, type MemberSource } from './funding.ts'
 import { finishExit, startWatched, type WatchdogDeps } from './lifecycle.ts'
 import { memberReport, type MemberRow } from './list.ts'
@@ -112,23 +113,47 @@ function execute(facts: Facts, session: string, name: string, move: Move, deps: 
  * by restarting it with `--resume` on the new login. Without names it looks at the members (not the lead). Nothing is moved on --dry-run.
  */
 export function moveCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, deps: WatchdogDeps | undefined): string {
+  return runMove(config, ports, positional, flags, deps).text
+}
+
+type MoveRun = { readonly text: string; /** Whether a member was asked to exit (a move was tried) */ readonly isAttempted: boolean }
+
+function runMove(config: Config, ports: Ports, positional: readonly string[], flags: Flags, deps: WatchdogDeps | undefined): MoveRun {
+  const say = (text: string): MoveRun => ({ text, isAttempted: false })
   const launch = config.launch
-  if (launch === undefined || ports.funding === null || ports.fundingSources === null) return 'moving a member needs a launch section and launch.funding in the configuration'
+  if (launch === undefined || ports.funding === null || ports.fundingSources === null) return say('moving a member needs a launch section and launch.funding in the configuration')
   const report = memberReport(config, ports.members.windows(launch.tmuxSession), ports.sessions.signals())
   const named = positional.slice(1)
   const wanted = named.length > 0 ? named : report.rows.filter((row) => row.role === 'member' && launch.members[row.name] !== undefined).map((row) => row.name)
   const unknown = wanted.filter((name) => !report.rows.some((row) => row.name === name))
-  if (unknown.length > 0) return `not in the configuration (the lead, the members, or the liaison): ${unknown.join(', ')}`
+  if (unknown.length > 0) return say(`not in the configuration (the lead, the members, or the liaison): ${unknown.join(', ')}`)
   let facts: Facts
   try {
     facts = { config, ports, pick: ports.funding('claude'), sources: ports.fundingSources(), recorded: deps?.memberSourcesPath === undefined ? [] : readMemberSources(deps.memberSourcesPath), signals: ports.sessions.signals(), now: deps?.now() ?? new Date() }
   } catch (error) {
-    return `the node cannot be asked, so nothing is moved: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`
+    return say(`the node cannot be asked, so nothing is moved: ${(error instanceof Error ? error.message : String(error)).slice(0, 300)}`)
   }
   const judgements = wanted.map((name) => judge(facts, report.rows.find((row) => row.name === name), name))
   const first = judgements.find((one) => one.move !== undefined)
   const lines = judgements.map((one) => (one === first ? `${one.name}: ${flags['dry-run'] === true ? 'would move' : 'moves'}: ${one.reason}` : `${one.name}: stays: ${one.reason}${one.move === undefined ? '' : ' (one member is moved per call; this one is next)'}`))
-  if (first?.move === undefined || flags['dry-run'] === true) return [...lines, ...(first === undefined ? ['nothing to move'] : [])].join('\n')
-  if (deps === undefined) return [...lines, 'moving needs the clock and the session records, which only the command line has'].join('\n')
-  return [...lines, execute(facts, launch.tmuxSession, first.name, first.move, deps)].join('\n')
+  if (first?.move === undefined || flags['dry-run'] === true) return say([...lines, ...(first === undefined ? ['nothing to move'] : [])].join('\n'))
+  if (deps === undefined) return say([...lines, 'moving needs the clock and the session records, which only the command line has'].join('\n'))
+  return { text: [...lines, execute(facts, launch.tmuxSession, first.name, first.move, deps)].join('\n'), isAttempted: true }
+}
+
+/** At most one automatic move in this time: a restart costs a member its start-up, so a source that hovers near its threshold must not cause a string of them. */
+const AUTO_MOVE_GAP_MINUTES = 30
+
+/**
+ * The automatic move, called by `scrum refresh` when `launch.funding.autoMove` is true: the same one-member move as `scrum member move`, at most once every
+ * 30 minutes (the time of a try is kept, whether or not the member came up). Returns the text to print, or null when it was off, too soon, or had nothing to do.
+ */
+export function autoMove(config: Config, ports: Ports, deps: WatchdogDeps): string | null {
+  if (config.launch?.funding?.autoMove !== true || deps.memberMovesPath === undefined) return null
+  const last = readJson<{ readonly at?: string }>(deps.memberMovesPath, {}).at
+  if (last !== undefined && deps.now().getTime() - Date.parse(last) < AUTO_MOVE_GAP_MINUTES * 60_000) return null
+  const run = runMove(config, ports, ['move'], {}, deps)
+  if (!run.isAttempted) return null
+  writeJson(deps.memberMovesPath, { at: deps.now().toISOString() })
+  return `automatic move: ${run.text}`
 }

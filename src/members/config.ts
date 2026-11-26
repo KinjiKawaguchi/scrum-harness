@@ -44,6 +44,8 @@ export type FundingConfig = {
   readonly command: readonly string[]
   /** The node's data directory, when it is not the default */
   readonly dir?: string
+  /** `scrum refresh` moves one member that runs on a source past its threshold, at most every 30 minutes (see move.ts). Off unless true */
+  readonly autoMove?: boolean
 }
 
 export type LaunchConfig = {
@@ -92,11 +94,12 @@ function parseSpec(raw: unknown): MemberSpec | null {
 }
 
 function parseFunding(raw: unknown): FundingConfig | null {
-  if (!isObject(raw) || Object.keys(raw).some((key) => key !== 'command' && key !== 'dir')) return null
-  const { command, dir } = raw
+  if (!isObject(raw) || Object.keys(raw).some((key) => key !== 'command' && key !== 'dir' && key !== 'autoMove')) return null
+  const { command, dir, autoMove } = raw
   if (!Array.isArray(command) || command.length === 0 || !command.every((word) => typeof word === 'string' && word !== '') || !isPath(command[0])) return null
   if (dir !== undefined && !isPath(dir)) return null
-  return { command: command as readonly string[], ...(dir === undefined ? {} : { dir }) }
+  if (autoMove !== undefined && typeof autoMove !== 'boolean') return null
+  return { command: command as readonly string[], ...(dir === undefined ? {} : { dir }), ...(autoMove === undefined ? {} : { autoMove }) }
 }
 
 /** Reads the `launch` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */

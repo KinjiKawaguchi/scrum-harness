@@ -94,6 +94,12 @@ describe('the funding setting', () => {
     assert.equal(launch(undefined)?.funding, undefined)
   })
 
+  it('takes autoMove as a switch, off unless set', () => {
+    assert.equal(launch({ command: ['/a'], autoMove: true })?.funding?.autoMove, true)
+    assert.equal(launch({ command: ['/a'] })?.funding?.autoMove, undefined)
+    assert.equal(launch({ command: ['/a'], autoMove: 'yes' }), undefined)
+  })
+
   it('is refused when the program is not an absolute path, the list is empty, or something else is in it', () => {
     for (const bad of [{ command: ['agency'] }, { command: [] }, { command: ['/a', ''] }, { command: '/a' }, { command: ['/a'], dir: 'relative' }, { command: ['/a'], extra: 1 }, 'agency']) {
       assert.equal(launch(bad), undefined, JSON.stringify(bad))
