@@ -26,6 +26,8 @@ export type FundingSource = {
   readonly overThreshold?: boolean
   /** Whether a window of the source is at its limit, as the node says; absent when the node does not say */
   readonly blocked?: boolean
+  /** Whether the node cannot read the source's usage right now (then it says neither of the two above); absent when the node does not say */
+  readonly unknown?: boolean
 }
 
 /** Lists the node's funding sources. Throws, with the reason, when the node cannot be asked or does not answer. */
