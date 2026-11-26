@@ -3,6 +3,7 @@ import type { BoardSource } from '../ports/index.ts'
 import { appendEvents, trimLog } from '../activity/log.ts'
 import { readDoneTimes, recordDone, writeDoneTimes } from '../agency-runtime/done-at.ts'
 import { boardEvents } from '../activity/board-events.ts'
+import { readPrAuthors, trimPrAuthors } from '../team/pr-authors.ts'
 import { trimStateLog } from '../team/state-log.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
@@ -57,9 +58,10 @@ function noteCompletions(p: Paths, previous: Snapshot | null, fresh: Snapshot, c
 /** Writes what the read shows the team did to the activity log. A failure is left in errors.log; it never fails the re-fetch. */
 function noteActivity(p: Paths, previous: Snapshot | null, fresh: Snapshot, config: Config, now: Date): void {
   try {
-    appendEvents(p.activityLog, boardEvents(previous, fresh, config), now)
+    appendEvents(p.activityLog, boardEvents(previous, fresh, config, readPrAuthors(p.prAuthors)), now)
     trimLog(p.activityLog, now)
     trimStateLog(p.memberStates, now)
+    trimPrAuthors(p.prAuthors, now)
   } catch (error) {
     logError(p, 'activity', error)
   }

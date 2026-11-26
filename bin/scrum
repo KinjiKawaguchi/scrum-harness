@@ -3,7 +3,7 @@
 # to avoid starting node on every tool call, dispatch here by the session's role (the record that src/team/identity.ts
 # writes to ~/.claude/scrum/identity/<session_id>.json).
 #   Outside the team: do nothing
-#   Member: only write the turn-boundary heartbeat in the background. Do nothing on tool calls. Start node only when dispatch is enabled,
+#   Member: only write the turn-boundary heartbeat in the background. Do nothing on tool calls, except one that opens a pull request. Start node only when dispatch is enabled,
 #         for the Stop and SessionStart watch (waiting for the moment the next work is handed over once the member is free)
 #   Liaison: start node only when alerts is enabled, for the Stop and SessionStart watch (waiting for the notification text that stall detection decided).
 #         Do nothing on other hooks
@@ -19,6 +19,8 @@ export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-$STATE/cache/node-compile}"
 POST_PATTERN=$(sed -n 1p "$STATE/cache/shell-patterns" 2>/dev/null)
 PRE_PATTERN=$(sed -n 2p "$STATE/cache/shell-patterns" 2>/dev/null)
 [ -n "$POST_PATTERN" ] || POST_PATTERN='gh pr merge|gh issue close|gh project|ProjectV2'
+# Commands that open a pull request. node records which member's session ran them (src/team/pr-authors.ts), so it starts for them in every role.
+AUTHOR_PATTERN='gh .*pr +create|create_pull_request'
 
 if [ "$1" != hook ] && [ "$1" != watch ] && [ "$1" != statusline ]; then
   exec node --no-warnings "$CLI" "$@"
@@ -90,7 +92,10 @@ case "$role" in
     ;;
   member)
     case "$event" in
-      PostToolUse) exit 0 ;;
+      PostToolUse)
+        if printf '%s' "$input" | grep -Eq "$AUTHOR_PATTERN"; then run_detached "$@"; fi
+        exit 0
+        ;;
       watch)
         # Start the watch only when line 3 of shell-patterns (written by node from the config) is 1
         if [ "$(sed -n 3p "$STATE/cache/shell-patterns" 2>/dev/null)" = 1 ]; then
@@ -111,7 +116,7 @@ case "$role" in
     ;;
   techlead)
     if [ "$event" = PostToolUse ]; then
-      if printf '%s' "$input" | grep -Eq "$POST_PATTERN" || [ -e "$STATE/notify/pending" ]; then
+      if printf '%s' "$input" | grep -Eq "$POST_PATTERN|$AUTHOR_PATTERN" || [ -e "$STATE/notify/pending" ]; then
         run "$@"
       fi
       exit 0

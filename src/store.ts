@@ -39,6 +39,8 @@ export function paths(dir: string = stateDir()) {
     heartbeats: join(dir, 'team'),
     /** Each session's state changes, one per line, for the time a member was busy or idle (see team/state-log.ts) */
     memberStates: join(dir, 'log', 'member-states.jsonl'),
+    /** The member whose session opened each pull request, one per line (see team/pr-authors.ts) */
+    prAuthors: join(dir, 'log', 'pr-authors.jsonl'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
     notified: join(dir, 'notify', 'notified.json'),
