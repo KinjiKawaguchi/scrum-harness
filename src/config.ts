@@ -126,6 +126,9 @@ export type Config = ProjectConfig &
   Tuning &
   Adapters & { readonly sprint?: SprintConfig; readonly dispatch?: DispatchConfig; readonly links?: LinksConfig; readonly alerts?: AlertsConfig; readonly runtime?: RuntimeConfig; readonly team?: TeamScope; readonly host?: string; readonly claudeConfigDirs?: readonly string[] }
 
+/** The lead and the members, each name once (the lead may also be listed in `members`). */
+export const teamNamesOf = (config: Config): readonly string[] => [...new Set([config.techlead, ...config.members])]
+
 export function dispatchOf(config: Config): DispatchConfig {
   return config.dispatch ?? DEFAULT_DISPATCH
 }

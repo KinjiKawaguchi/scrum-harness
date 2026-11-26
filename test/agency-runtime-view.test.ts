@@ -76,6 +76,13 @@ describe('agency-runtime/1 view', () => {
     ])
   })
 
+  it('reports each participant once when the lead is also listed in members', () => {
+    const lead = config.techlead
+    const people = view({ config: { ...config, members: [lead, ...config.members] } }).people
+    assert.deepEqual(people.map((one) => one.id), [...new Set(people.map((one) => one.id))])
+    assert.equal(people.filter((one) => one.id === lead).length, 1)
+  })
+
   it('reports a permission prompt as working, waiting on the owner', () => {
     const swe1 = view().people.find((one) => one.id === 'SWE1')
     assert.deepEqual(swe1?.waitingOn, { kind: 'person', person: 'owner' })

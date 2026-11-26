@@ -1,5 +1,5 @@
 import { isRefreshDue, loadSnapshot } from '../board/snapshot.ts'
-import type { Config } from '../config.ts'
+import { teamNamesOf, type Config } from '../config.ts'
 import { collectSignals } from '../findings/lint.ts'
 import type { Ports } from '../ports/index.ts'
 import { readRequests } from '../requests/store.ts'
@@ -36,7 +36,7 @@ function view(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown
   const snapshot = loadSnapshot(p)
   if (isRefreshDue(p, config, now)) deps.spawnRefresh()
   if (snapshot === null) return fail(503, 'the board has not been read yet; a refresh was started')
-  const names = [config.techlead, ...config.members]
+  const names = teamNamesOf(config)
   const members = aggregateMembers(collectSignals(p, now, ports.sessions), names)
   const teamView = buildTeamView({ org: request.org, team: request.team, label: labelOf(request, config), config, snapshot, members, stored: readRequests(p), now })
   const problem = teamViewProblem(teamView)

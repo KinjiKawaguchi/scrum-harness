@@ -1,7 +1,7 @@
 import { lintBoard } from '../board/rules.ts'
 import { loadSnapshot } from '../board/snapshot.ts'
 import type { Snapshot } from '../board/types.ts'
-import type { Config } from '../config.ts'
+import { teamNamesOf, type Config } from '../config.ts'
 import type { SessionDirectory } from '../ports/index.ts'
 import { readJson, type Paths } from '../store.ts'
 import { readHeartbeats } from '../team/heartbeat.ts'
@@ -89,7 +89,7 @@ export function collectSignals(p: Paths, now: Date, sessions: SessionDirectory):
 }
 
 export function loadContext(p: Paths, config: Config, now: Date, sessions: SessionDirectory, snapshot?: Snapshot | null): LintContext {
-  const names = [config.techlead, ...config.members]
+  const names = teamNamesOf(config)
   return {
     snapshot: snapshot === undefined ? loadSnapshot(p) : snapshot,
     members: aggregateMembers(collectSignals(p, now, sessions), names),
