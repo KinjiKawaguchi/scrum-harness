@@ -114,14 +114,14 @@ describe('the tmux host', () => {
 
 describe('scrum member', () => {
   it('lists the report with the host\'s windows and the session records', () => {
-    const ports = fakePorts({ members: { windows: (session) => (session === 'team' ? ['TechLead', 'SWE1'] : null), start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [signal('SWE2', 'waiting')] } })
+    const ports = fakePorts({ members: { windows: (session) => (session === 'team' ? ['TechLead', 'SWE1'] : null), start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [signal('SWE2', 'waiting')] } })
     const text = memberCommand(config, ports, ['list'])
     assert.match(text, /SWE2\s+member\s+running \(waiting\) \[no window\]/)
     assert.match(text, /listed but not running: SWE3/)
   })
 
   it('does not ask the host without a launch section, and shows the usage for anything else', () => {
-    const ports = fakePorts({ members: { windows: () => assert.fail('the host must not be asked'), start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined } })
+    const ports = fakePorts({ members: { windows: () => assert.fail('the host must not be asked'), start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined } })
     assert.match(memberCommand(base, ports, ['list']), /could not be read/)
     assert.match(memberCommand(config, ports, []), /scrum member: /)
   })
@@ -139,7 +139,7 @@ describe('starting a member', () => {
     const launch = parseLaunch({ tmuxSession: 'team', defaults: { model: 'model-a', effort: 'high' }, members: { SWE1: { dir: swe1, brief: briefFile, ...extra }, SWE2: { dir: dir() } }, ignoreWindows: ['home'] })
     return { ...base, launch }
   }
-  const hostOf = (windows: readonly string[] | null, started: LaunchPlan[]) => ({ windows: () => windows, start: (_session: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, press: () => undefined })
+  const hostOf = (windows: readonly string[] | null, started: LaunchPlan[]) => ({ windows: () => windows, start: (_session: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined })
   const portsOf = (windows: readonly string[] | null, started: LaunchPlan[], signals: readonly SessionSignal[] = []) =>
     fakePorts({ members: hostOf(windows, started), launchers: LAUNCHERS, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } })
 
@@ -211,7 +211,7 @@ describe('starting a member', () => {
 
   it('says what the host refused, and goes on with the others', () => {
     const config: Config = { ...launchConfig(), members: ['SWE1', 'SWE2'] }
-    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') }, stop: () => undefined, screen: () => null, press: () => undefined }, launchers: LAUNCHERS })
+    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') }, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined }, launchers: LAUNCHERS })
     const text = memberCommand(config, refusing, ['start', 'SWE1', 'SWE2'], {})
     assert.match(text, /SWE1: could not start: no space for window/)
     assert.match(text, /SWE2: started/)
@@ -248,7 +248,7 @@ describe('stopping a member', () => {
   const config: Config = { ...base, launch: parseLaunch({ tmuxSession: 'team', members: {}, ignoreWindows: ['home'] }) }
   const live = (name: string, state: SessionSignal['state']): SessionSignal => ({ sessionId: `s-${name}`, name, state, since: '2026-10-08T05:00:00.000Z', updatedAt: '2026-10-08T05:00:00.000Z', isAlive: true, nameSince: '2026-10-08T04:00:00.000Z' })
   const run = (args: readonly string[], flags: Record<string, string | true>, windows: readonly string[], signals: readonly SessionSignal[], stops: Stop[], fail = false) =>
-    memberCommand(config, fakePorts({ members: { windows: () => windows, start: () => undefined, stop: (session: string, name: string, how: 'graceful' | 'kill') => { if (fail) throw new Error('no such window'); stops.push({ session, name, how }) }, screen: () => null, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } }), ['stop', ...args], flags)
+    memberCommand(config, fakePorts({ members: { windows: () => windows, start: () => undefined, stop: (session: string, name: string, how: 'graceful' | 'kill') => { if (fail) throw new Error('no such window'); stops.push({ session, name, how }) }, screen: () => null, say: () => undefined, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } }), ['stop', ...args], flags)
 
   it('asks an idle member to exit, and a member with no live session too', () => {
     const stops: Stop[] = []

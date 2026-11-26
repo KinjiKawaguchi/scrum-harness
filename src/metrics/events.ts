@@ -10,6 +10,8 @@ export type MetricsEvent =
   | { readonly at: string; readonly type: 'acked'; readonly rule: string; readonly subject: string; readonly until: string; readonly reason: string }
   /** A mark that a team session's hook writes once every 10 minutes to show it is working (bin/scrum) */
   | { readonly at: string; readonly type: 'activity'; readonly role: string }
+  /** A Codex member that had been idle at its prompt was told to go on (members/continue.ts); `items` are the issues it had In Progress */
+  | { readonly at: string; readonly type: 'continued'; readonly name: string; readonly items?: readonly string[]; readonly minutes: number; readonly isSubmitted: boolean }
 
 type OpenFinding = { readonly rule: string; readonly subject: string; readonly at: string }
 

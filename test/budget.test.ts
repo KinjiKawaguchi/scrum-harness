@@ -157,7 +157,7 @@ describe('a member starts as the weekly budget allows', () => {
   function run(cfg: Config, read: (() => BudgetStatus) | null, flags: Record<string, true> = {}) {
     const started: LaunchPlan[] = []
     const ports = fakePorts({
-      members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, press: () => undefined },
+      members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined },
       budget: read,
       launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
     })

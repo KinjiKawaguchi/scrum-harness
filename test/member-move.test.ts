@@ -63,7 +63,7 @@ describe('moving a member to the account the node picks', () => {
         },
         stop: (_s: string, name: string, how: string) => void (calls.push(`${name}:${how}`), asked.add(name)),
         screen: () => null,
-        press: () => undefined,
+        say: () => undefined, press: () => undefined,
       },
       sessions: { find: () => ({ name: null, pid: null }), signals: () => signals },
       funding: () => (typeof world.pick === 'function' ? world.pick() : (world.pick ?? PICK_TWO)),

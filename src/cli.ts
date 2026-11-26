@@ -38,6 +38,7 @@ import { requestCommand } from './requests/command.ts'
 import { askOwnerWhenOver } from './budget/ask.ts'
 import { currentBudget, readBudgetRecord, refreshBudget } from './budget/record.ts'
 import { refreshFundingDirs } from './members/funding-dirs.ts'
+import { continueIdle } from './members/continue.ts'
 import { autoMove } from './members/move.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
@@ -210,7 +211,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'board':
       return needConfig((cfg, prt) => boardCommand(p, cfg, prt, positional, flags))
     case 'member':
-      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, fundingDirsPath: p.fundingDirs, budgetPath: p.budget, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
+      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, fundingDirsPath: p.fundingDirs, budgetPath: p.budget, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'init': {
@@ -228,7 +229,8 @@ async function main(argv: readonly string[]): Promise<number> {
         const budgetProblem = refreshBudget(ports, p.budget, new Date())
         const asked = askOwnerWhenOver(p, currentBudget(readBudgetRecord(p.budget), new Date()), new Date())
         const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
-        const note = `${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}${asked === null ? '' : `\n${asked}`}`
+        const told = continueIdle(c, ports, { startFailuresPath: p.startFailures, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
+        const note = `${told.map((line) => `\n${line}`).join('')}${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}${asked === null ? '' : `\n${asked}`}`
         return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${note}`
       })
     }

@@ -78,7 +78,7 @@ describe('a Codex member in the launch section', () => {
     const brief = join(dir, 'brief.txt')
     writeFileSync(brief, 'You are CodexA.\n')
     const config: Config = { ...base, members: ['CodexA', 'ClaudeB'], launch: parseLaunch({ tmuxSession: 'team', members: { CodexA: { dir, brief, product: 'codex', model: 'gpt-x' }, ClaudeB: { dir, brief } } }) }
-    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
     const text = memberCommand(config, ports, ['start', 'CodexA', 'ClaudeB'], { 'dry-run': true })
     assert.match(text, /CodexA: in .*\n  env SCRUM_STATE_DIR=\S+ SCRUM_NAME=CodexA PATH=<this process's PATH> codex --dangerously-bypass-hook-trust -m gpt-x -c 'hooks\.SessionStart=.*<brief: 15 characters>/)
     assert.match(text, /ClaudeB: in .*\n  env .* claude -n ClaudeB/)

@@ -123,7 +123,7 @@ describe('a member starts on the account the node picked', () => {
     const started: LaunchPlan[] = []
     const asked: FundingTool[] = []
     const ports = fakePorts({
-      members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, press: () => undefined },
+      members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined },
       funding: picker === null ? null : (tool: FundingTool) => (asked.push(tool), picker(tool)),
       hasHooksIn: () => options.hasHooks ?? true,
       launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
@@ -201,7 +201,7 @@ describe('a member starts on the account the node picked', () => {
     const findings = lintAll({ ...lintContext(), memberSources: sources }).active.filter((finding) => finding.rule === 'M-SOURCE-REFUSED')
     assert.deepEqual(findings.map((finding) => finding.subject), ['SWE2'])
     assert.match(findings[0]?.message ?? '', /SWE2 was not started .*has no harness hooks/)
-    const list = memberCommand(config({ SWE1: {}, SWE2: {} }), fakePorts({ members: { windows: () => ['home', 'SWE1'], start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined } }), ['list'], {}, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => NOW, sleep: () => undefined, signals: () => [] })
+    const list = memberCommand(config({ SWE1: {}, SWE2: {} }), fakePorts({ members: { windows: () => ['home', 'SWE1'], start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined } }), ['list'], {}, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => NOW, sleep: () => undefined, signals: () => [] })
     assert.match(list, /SWE1 .*running.*\[source personal-2\]/)
     assert.match(list, /SWE2 .*not running.*\[start refused: source personal-2 .*has no harness hooks/)
   })
@@ -229,7 +229,7 @@ describe('the default login', () => {
 
   it('leaves a member\'s environment as it was, and is not recorded as a login directory', () => {
     const dir = mkdtempSync(join(tmpdir(), 'scrum-funding-default-'))
-    const ports = fakePorts({ funding: () => ({ state: 'ok', source: 'default', env: {} }), members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const ports = fakePorts({ funding: () => ({ state: 'ok', source: 'default', env: {} }), members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
     const launch = parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'] }, members: { SWE1: { dir } } })
     const text = memberCommand({ ...base, members: ['SWE1'], launch }, ports, ['start', 'SWE1'], { 'dry-run': true })
     assert.doesNotMatch(text, /CLAUDE_CONFIG_DIR/)
