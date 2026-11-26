@@ -11,6 +11,7 @@ export type RawNode = {
   readonly since?: { readonly date?: string } | null
   readonly owner?: { readonly name?: string } | null
   readonly assignee?: { readonly name?: string } | null
+  readonly team?: { readonly name?: string } | null
   readonly points?: { readonly number?: number } | null
   readonly overrun?: { readonly number?: number } | null
   readonly order?: { readonly number?: number } | null
@@ -55,6 +56,7 @@ function normalizeNode(node: RawNode): BoardItem {
     since: node.since?.date ?? null,
     owner: node.owner?.name ?? null,
     assignee: node.assignee?.name ?? null,
+    ...(node.team === undefined ? {} : { team: node.team?.name ?? null }),
     points: node.points?.number ?? null,
     overrun: node.overrun?.number ?? null,
     ...dispatchFields(node),
@@ -91,6 +93,7 @@ export function itemNodeSelection(config: Config): string {
   return `id type
     ${single('status', config.fields.status)} ${single('reason', config.fields.reason)}
     ${single('owner', config.fields.owner)} ${single('assignee', config.fields.assignee)}
+    ${config.team === undefined ? '' : single('team', config.team.field)}
     since: fieldValueByName(name:"${config.fields.since}"){ ... on ProjectV2ItemFieldDateValue{ date } }
     ${sprintFields(config)} ${dispatchItemFields(config)}
     content{ ... on Issue{ ${content}${issueExtra} } ... on PullRequest{ ${content} } ... on DraftIssue{ title } }`
