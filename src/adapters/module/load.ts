@@ -37,18 +37,18 @@ const FLAGS: Readonly<Partial<Record<keyof ModulePorts, readonly string[]>>> = {
  * A module is code that runs here with this process's privileges, so it has to be a regular file of the user that runs the harness, and not
  * writable by the group or by others (anyone who could write it could run code as the user).
  */
-export function assertTrustedFile(path: string): string {
+export function assertTrustedFile(path: string, what = 'board module'): string {
   const real = (() => {
     try {
       return realpathSync(path)
     } catch {
-      throw new Error(`the board module does not exist: ${path}`)
+      throw new Error(`the ${what} does not exist: ${path}`)
     }
   })()
   const stat = statSync(real)
-  if (!stat.isFile()) throw new Error(`the board module is not a regular file: ${real}`)
-  if (process.getuid !== undefined && stat.uid !== process.getuid()) throw new Error(`the board module is not owned by the user that runs the harness: ${real}`)
-  if ((stat.mode & 0o022) !== 0) throw new Error(`the board module can be written by the group or by others (mode ${(stat.mode & 0o777).toString(8)}): ${real}`)
+  if (!stat.isFile()) throw new Error(`the ${what} is not a regular file: ${real}`)
+  if (process.getuid !== undefined && stat.uid !== process.getuid()) throw new Error(`the ${what} is not owned by the user that runs the harness: ${real}`)
+  if ((stat.mode & 0o022) !== 0) throw new Error(`the ${what} can be written by the group or by others (mode ${(stat.mode & 0o777).toString(8)}): ${real}`)
   return real
 }
 

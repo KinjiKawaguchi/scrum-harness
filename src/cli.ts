@@ -204,7 +204,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'board':
       return needConfig((cfg, prt) => boardCommand(p, cfg, prt, positional, flags))
     case 'member':
-      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
+      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'init': {

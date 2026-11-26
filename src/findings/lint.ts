@@ -20,7 +20,8 @@ import type { DispatchRecord } from '../dispatch/types.ts'
 import { currentRuleName } from '../compat.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
 import { lintRequests } from '../requests/rules.ts'
-import { lintStartFailures } from '../members/rules.ts'
+import { readMemberSources, type MemberSource } from '../members/funding.ts'
+import { lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
 import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
 import { readRequests } from '../requests/store.ts'
 import type { OwnerRequest } from '../requests/types.ts'
@@ -46,6 +47,8 @@ export type LintContext = {
   readonly requests?: readonly OwnerRequest[]
   /** Members that were started and showed no sign of life (M-START-FAILED) */
   readonly startFailures?: readonly StartFailure[]
+  /** The account each member started on, or why its start was refused (M-SOURCE-REFUSED) */
+  readonly memberSources?: readonly MemberSource[]
 }
 
 export type LintResult = { readonly active: readonly Finding[]; readonly acked: readonly Finding[] }
@@ -82,6 +85,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...evaluateAlerts({ ...ctx, dispatches: ctx.dispatches ?? [], alerts: ctx.alerts ?? EMPTY_ALERT_STATE }).findings,
     ...lintRequests(ctx.requests ?? [], ctx.config),
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
+    ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
   ]
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
@@ -107,5 +111,6 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     seen: readSeen(p),
     requests: readRequests(p),
     startFailures: readStartFailures(p.startFailures),
+    memberSources: readMemberSources(p.memberSources),
   }
 }

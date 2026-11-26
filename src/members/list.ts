@@ -2,6 +2,7 @@ import { alertsOf } from '../alerts/config.ts'
 import type { Config } from '../config.ts'
 import type { SessionSignal } from '../team/types.ts'
 import { aggregateMembers } from '../team/state.ts'
+import type { MemberSource } from './funding.ts'
 
 export type MemberRow = {
   readonly name: string
@@ -42,8 +43,16 @@ export function memberReport(config: Config, windows: readonly string[] | null, 
   return { rows, unlisted, isHostKnown: windows !== null }
 }
 
-export function formatReport(report: MemberReport): string {
-  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}`)
+/** The account a member started on, or why it was refused: only for a member that runs, or whose last start was refused. */
+function sourceNote(row: MemberRow, sources: readonly MemberSource[]): string {
+  const source = sources.find((one) => one.name === row.name)
+  if (source === undefined) return ''
+  if (source.state === 'refused') return row.isRunning ? '' : ` [start refused: ${source.reason ?? 'no reason given'}]`
+  return row.isRunning && source.source !== '' ? ` [source ${source.source}]` : ''
+}
+
+export function formatReport(report: MemberReport, sources: readonly MemberSource[] = []): string {
+  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}`)
   const drift = [
     ...report.unlisted.map((window) => `running but not in the configuration: ${window}`),
     ...report.rows.filter((row) => !row.isRunning).map((row) => `listed but not running: ${row.name}`),

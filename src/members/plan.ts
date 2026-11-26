@@ -34,7 +34,7 @@ function briefOf(spec: MemberSpec): string | null {
  * sessions need to report to this team (`SCRUM_STATE_DIR`, `SCRUM_NAME`), the Claude Code configuration directory when the member has one, and this
  * process's PATH, because a terminal multiplexer's server may have a shorter one that lacks `gh`.
  */
-export function planMember(config: Config, name: string, stateDir: string, path: string | undefined, launchers: Readonly<Record<Product, ProductLauncher>>): Planned {
+export function planMember(config: Config, name: string, stateDir: string, path: string | undefined, launchers: Readonly<Record<Product, ProductLauncher>>, pickedEnv: Readonly<Record<string, string>> = {}): Planned {
   const spec = specOf(config, name)
   if (spec.dir === undefined) return { problem: `${name} has no directory: set launch.members.${name}.dir (or launch.defaults.dir)` }
   const dir = expandHome(spec.dir)
@@ -45,6 +45,8 @@ export function planMember(config: Config, name: string, stateDir: string, path:
   const env = {
     SCRUM_STATE_DIR: stateDir,
     SCRUM_NAME: name,
+    // The account the node picked, unless the member is pinned to its own configuration directory.
+    ...pickedEnv,
     ...(spec.configDir === undefined ? {} : { CLAUDE_CONFIG_DIR: expandHome(spec.configDir) }),
     ...(path === undefined ? {} : { PATH: path }),
   }
