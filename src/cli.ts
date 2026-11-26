@@ -36,6 +36,7 @@ import { collectSignals } from './findings/lint.ts'
 import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
 import { refreshFundingDirs } from './members/funding-dirs.ts'
+import { autoMove } from './members/move.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
@@ -220,7 +221,8 @@ async function main(argv: readonly string[]): Promise<number> {
       return needConfig((c, ports) => {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)
         const fundingProblem = refreshFundingDirs(ports, p.fundingDirs, new Date())
-        const note = fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`
+        const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
+        const note = `${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${moved === null ? '' : `\n${moved}`}`
         return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${note}`
       })
     }
