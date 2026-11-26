@@ -1,19 +1,22 @@
 import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, copyFileSync, mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { agencyFundingPicker } from '../src/adapters/agency/funding.ts'
+import { agencyFundingLister, agencyFundingPicker } from '../src/adapters/agency/funding.ts'
 import { claudeCodeLauncher } from '../src/adapters/claude-code/launch.ts'
+import { claudeHooksInstalled } from '../src/adapters/claude-code/hooks-check.ts'
 import { codexLauncher } from '../src/adapters/codex/launch.ts'
 import type { Config } from '../src/config.ts'
 import { lintAll } from '../src/findings/lint.ts'
 import { memberCommand, type WatchdogDeps } from '../src/members/command.ts'
 import { parseLaunch } from '../src/members/config.ts'
+import { readFundingDirs, refreshFundingDirs } from '../src/members/funding-dirs.ts'
 import { readMemberSources } from '../src/members/funding.ts'
 import type { FundingPick, FundingTool, LaunchPlan } from '../src/ports/index.ts'
 import { paths, type Paths } from '../src/store.ts'
+import { settingsTargets } from '../src/wiring.ts'
 import { fakePorts } from './fake-ports.ts'
 import { config as base, NOW } from './helpers.ts'
 
@@ -207,3 +210,105 @@ describe('a member starts on the account the node picked', () => {
 function lintContext() {
   return { snapshot: { items: [], openIssues: [] }, members: [], acks: [], config: base, now: NOW } as unknown as Parameters<typeof lintAll>[0]
 }
+
+const LIVE = JSON.stringify({ state: 'ok', source: 'personal-1', tool: 'claude', env: {}, sevenDayThreshold: 80, reason: 'personal-1 is at 72% of its 7-day window (threshold 80)' })
+
+describe('the default login', () => {
+  it('is an empty env, which changes nothing, and the answer\'s other fields are not an error', () => {
+    answer(LIVE)
+    const pick = agencyFundingPicker({ command: [program()] })('claude')
+    assert.deepEqual(pick.env, {})
+    assert.equal(pick.source, 'personal-1')
+  })
+
+  it('leaves a member\'s environment as it was, and is not recorded as a login directory', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scrum-funding-default-'))
+    const ports = fakePorts({ funding: () => ({ state: 'ok', source: 'default', env: {} }), members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const launch = parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'] }, members: { SWE1: { dir } } })
+    const text = memberCommand({ ...base, members: ['SWE1'], launch }, ports, ['start', 'SWE1'], { 'dry-run': true })
+    assert.doesNotMatch(text, /CLAUDE_CONFIG_DIR/)
+    assert.match(text, /on source default/)
+  })
+})
+
+describe('agencyFundingLister: the node\'s funding sources', () => {
+  it('reads the list the node answers', () => {
+    answer(JSON.stringify([{ source: 'one', tool: 'claude', env: {}, sevenDayThreshold: 80 }, { source: 'two', tool: 'claude', env: { CLAUDE_CONFIG_DIR: '/accounts/two' } }, { source: 'cx', tool: 'codex', env: { CODEX_HOME: '/accounts/cx' } }]))
+    assert.deepEqual(agencyFundingLister({ command: [program()] })().map((one) => [one.source, one.tool, one.env]), [['one', 'claude', {}], ['two', 'claude', { CLAUDE_CONFIG_DIR: '/accounts/two' }], ['cx', 'codex', { CODEX_HOME: '/accounts/cx' }]])
+  })
+
+  it('throws for something that is not a list, a source without a name or a known tool, or an env that sets anything else', () => {
+    for (const bad of ['{}', '[{"tool":"claude","env":{}}]', '[{"source":"a","tool":"gemini","env":{}}]', '[{"source":"a","tool":"claude","env":{"PATH":"/x"}}]']) {
+      answer(bad)
+      assert.throws(() => agencyFundingLister({ command: [program()] })(), /did not answer a list|no name|may be set/, bad)
+    }
+  })
+})
+
+describe('the login directories of the funding sources are kept', () => {
+  const file = (): string => join(mkdtempSync(join(tmpdir(), 'scrum-funding-dirs-')), 'cache', 'funding-dirs.json')
+  const lister = (sources: readonly { source: string; tool: 'claude' | 'codex'; env: Record<string, string> }[]) => fakePorts({ fundingSources: () => sources })
+
+  it('writes each tool\'s directories (the default login has none) and reads them back', () => {
+    const path = file()
+    const ports = lister([{ source: 'one', tool: 'claude', env: {} }, { source: 'two', tool: 'claude', env: { CLAUDE_CONFIG_DIR: '/accounts/two' } }, { source: 'cx', tool: 'codex', env: { CODEX_HOME: '/accounts/cx' } }])
+    assert.equal(refreshFundingDirs(ports, path, NOW), null)
+    assert.deepEqual(readFundingDirs(path), { at: NOW.toISOString(), claude: ['/accounts/two'], codex: ['/accounts/cx'] })
+  })
+
+  it('keeps what it had, and says why, when the node cannot be asked', () => {
+    const path = file()
+    refreshFundingDirs(lister([{ source: 'two', tool: 'claude', env: { CLAUDE_CONFIG_DIR: '/accounts/two' } }]), path, NOW)
+    const down = fakePorts({ fundingSources: () => { throw new Error('agency failed (exit 1)') } })
+    assert.match(refreshFundingDirs(down, path, NOW) ?? '', /agency failed/)
+    assert.deepEqual(readFundingDirs(path).claude, ['/accounts/two'])
+  })
+
+  it('is nothing without a funding command, and an empty record before the first read', () => {
+    assert.equal(refreshFundingDirs(fakePorts(), file(), NOW), null)
+    assert.deepEqual(readFundingDirs(file()), { at: '', claude: [], codex: [] })
+  })
+})
+
+describe('the hook check follows symlinks (a second login that shares the first one\'s settings)', () => {
+  const settings = (hooks: unknown) => JSON.stringify({ hooks })
+  const ours = { SessionStart: [{ hooks: [{ type: 'command', command: '/x/scrum-harness/bin/scrum hook SessionStart' }] }] }
+
+  it('finds the hooks through a symlinked settings.json, and not in a login that has none', () => {
+    const root = mkdtempSync(join(tmpdir(), 'scrum-funding-links-'))
+    const first = join(root, 'first')
+    const second = join(root, 'second')
+    const bare = join(root, 'bare')
+    for (const dir of [first, second, bare]) mkdirSync(dir)
+    writeFileSync(join(first, 'settings.json'), settings(ours))
+    symlinkSync(join(first, 'settings.json'), join(second, 'settings.json'))
+    writeFileSync(join(bare, 'settings.json'), settings({ Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] }))
+    assert.equal(claudeHooksInstalled(second), true)
+    assert.equal(claudeHooksInstalled(bare), false)
+    assert.equal(claudeHooksInstalled(join(root, 'missing')), false)
+  })
+
+  it('finds nothing through a symlink that points nowhere', () => {
+    const root = mkdtempSync(join(tmpdir(), 'scrum-funding-links-'))
+    symlinkSync(join(root, 'gone.json'), join(root, 'settings.json'))
+    assert.equal(claudeHooksInstalled(root), false)
+  })
+})
+
+describe('the funding sources\' directories join the ones the harness reads', () => {
+  it('are in `scrum install --all`, after the configured ones, and only when there is a funding command', () => {
+    const state = mkdtempSync(join(tmpdir(), 'scrum-funding-wiring-'))
+    const before = process.env.SCRUM_STATE_DIR
+    process.env.SCRUM_STATE_DIR = state
+    try {
+      mkdirSync(join(state, 'cache'))
+      writeFileSync(join(state, 'cache', 'funding-dirs.json'), JSON.stringify({ at: NOW.toISOString(), claude: ['/accounts/two'], codex: [] }))
+      const withFunding: Config = { ...base, claudeConfigDirs: ['/accounts/one'], launch: parseLaunch({ tmuxSession: 't', members: {}, funding: { command: ['/usr/local/bin/agency'] } }) }
+      assert.deepEqual(settingsTargets({ all: true }, withFunding), ['/accounts/one/settings.json', '/accounts/two/settings.json'])
+      assert.deepEqual(settingsTargets({ all: true }, { ...base, claudeConfigDirs: ['/accounts/one'] }), ['/accounts/one/settings.json'])
+    } finally {
+      if (before === undefined) delete process.env.SCRUM_STATE_DIR
+      else process.env.SCRUM_STATE_DIR = before
+    }
+  })
+})

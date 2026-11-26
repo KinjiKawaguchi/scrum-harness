@@ -5,6 +5,7 @@ import { stateDir } from '../config.ts'
 import { formatReport, memberReport, type MemberReport } from './list.ts'
 import { planMember, specOf } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
+import { refreshFundingDirs } from './funding-dirs.ts'
 import { describePick, forgetMemberSource, pickFor, readMemberSources, recordMemberSource, type MemberSource } from './funding.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
 import { CODEX_TRUST_QUESTION, screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
@@ -24,7 +25,7 @@ function describePlan(name: string, dir: string, env: Readonly<Record<string, st
 }
 
 /** What the watchdog needs: where the failures are kept, and the clock, the sleep, and the signs of life. */
-export type WatchdogDeps = WaitDeps & { readonly startFailuresPath: string; /** Where the account each member started on is kept (for `member list`) */ readonly memberSourcesPath?: string }
+export type WatchdogDeps = WaitDeps & { readonly startFailuresPath: string; /** Where the account each member started on is kept (for `member list`) */ readonly memberSourcesPath?: string; /** Where the login directories of the funding sources are kept; refreshed at each start */ readonly fundingDirsPath?: string }
 
 /**
  * Starts a member, and waits for its sign of life when it has a startup watchdog: a member that shows none in time has its window closed and is
@@ -96,8 +97,10 @@ function startCommand(config: Config, ports: Ports, positional: readonly string[
   if (wanted.length === 0) return 'name the members to start, or pass --all'
   const unknown = wanted.filter((name) => !known.includes(name))
   if (unknown.length > 0) return `not in the configuration (the lead, the members, or the liaison): ${unknown.join(', ')}`
+  // The login directories of the funding sources are kept for reading sessions and transcripts; a start is when a member may land on a new one.
+  const dirsProblem = flags['dry-run'] === true || watchdogDeps?.fundingDirsPath === undefined ? null : refreshFundingDirs(ports, watchdogDeps.fundingDirsPath, watchdogDeps.now())
   const lines = wanted.map((name) => (report.rows.find((row) => row.name === name)?.isRunning === true ? `${name}: already runs, left alone` : startOne(config, ports, name, launch.tmuxSession, flags, watchdogDeps)))
-  return lines.join('\n')
+  return [...lines, ...(dirsProblem === null ? [] : [`the funding sources could not be read, so their login directories are not updated: ${dirsProblem}`])].join('\n')
 }
 
 /** Stops the members named. An idle one is asked to exit; a busy one, or one waiting at a prompt, is left alone unless `--force`, which closes its window. */

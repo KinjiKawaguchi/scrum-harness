@@ -1,7 +1,7 @@
 import type { ActionReader, BoardSource, BoardWriter } from './board.ts'
 import type { CodeHost } from './code-host.ts'
 import type { IssueThread } from './issue-thread.ts'
-import type { FundingPicker } from './funding.ts'
+import type { FundingLister, FundingPicker } from './funding.ts'
 import type { ProductLauncher } from './launcher.ts'
 import type { MemberHost } from './members.ts'
 import type { Product } from '../members/config.ts'
@@ -12,7 +12,7 @@ export type { ActionReader, BoardSource, BoardWriter, ToolCall } from './board.t
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { BodyThread, IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'
-export type { FundingPick, FundingPicker, FundingTool } from './funding.ts'
+export type { FundingLister, FundingPick, FundingPicker, FundingSource, FundingTool } from './funding.ts'
 export type { LaunchPlan, MemberHost } from './members.ts'
 export type { LaunchRequest, ProductLauncher } from './launcher.ts'
 export type { SessionDirectory, SessionEntry } from './sessions.ts'
@@ -35,6 +35,8 @@ export type Ports = {
   readonly members: MemberHost
   /** Null when the team has no funding command */
   readonly funding: FundingPicker | null
+  /** Null when the team has no funding command */
+  readonly fundingSources: FundingLister | null
   /** Whether the harness's hooks are in a Claude Code configuration directory (a member under another login runs unguarded and unwatched without them) */
   readonly hasHooksIn: (configDir: string) => boolean
   readonly launchers: Readonly<Record<Product, ProductLauncher>>

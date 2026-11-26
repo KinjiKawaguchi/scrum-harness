@@ -28,6 +28,8 @@ export function paths(dir: string = stateDir()) {
     startFailures: join(dir, 'cache', 'member-start-failed.json'),
     /** The account each member started on, or why its start was refused (see members/funding.ts) */
     memberSources: join(dir, 'cache', 'member-source.json'),
+    /** The login directories of the node's funding sources (see members/funding-dirs.ts) */
+    fundingDirs: join(dir, 'cache', 'funding-dirs.json'),
     heartbeats: join(dir, 'team'),
     identity: join(dir, 'identity'),
     acks: join(dir, 'acks.json'),
