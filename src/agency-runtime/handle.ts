@@ -6,6 +6,7 @@ import { readRequests } from '../requests/store.ts'
 import type { Paths } from '../store.ts'
 import { aggregateMembers } from '../team/state.ts'
 import { runtimeOf } from './config.ts'
+import { readDoneTimes } from './done-at.ts'
 import { decide } from './decide.ts'
 import { isRuntimeError, parseRuntimeRequest } from './request.ts'
 import { activity } from './activity.ts'
@@ -39,7 +40,7 @@ function view(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown
   if (snapshot === null) return fail(503, 'the board has not been read yet; a refresh was started')
   const names = teamNamesOf(config)
   const members = aggregateMembers(collectSignals(p, now, ports.sessions), names)
-  const teamView = buildTeamView({ org: request.org, team: request.team, label: labelOf(request, config), config, snapshot, members, stored: readRequests(p), now })
+  const teamView = buildTeamView({ org: request.org, team: request.team, label: labelOf(request, config), config, snapshot, members, stored: readRequests(p), now, doneTimes: readDoneTimes(p.doneTimes) })
   const problem = teamViewProblem(teamView)
   return problem === null ? { result: teamView } : fail(503, `the team view is not valid: ${problem}`)
 }

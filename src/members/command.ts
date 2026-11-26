@@ -7,6 +7,7 @@ import type { Flags } from '../cli-commands.ts'
 
 export const MEMBER_USAGE = `scrum member: the members of this team and where they run
   scrum member list                                  Each member in the configuration, whether it runs, and what runs but is not listed (or is listed and does not run)
+  scrum member stop <name...> [--force]              Ask an idle member to exit. A busy member, or one at a permission prompt, only with --force, which closes its window
   scrum member start <name...> | --all [--dry-run]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run`
 
 const shellWord = (word: string): string => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`)
@@ -42,6 +43,28 @@ function startCommand(config: Config, ports: Ports, positional: readonly string[
   return lines.join('\n')
 }
 
+/** Stops the members named. An idle one is asked to exit; a busy one, or one waiting at a prompt, is left alone unless `--force`, which closes its window. */
+function stopCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport): string {
+  const launch = config.launch
+  if (launch === undefined) return 'there is no launch section in the configuration, so there is no tmux session to stop members in'
+  const wanted = positional.slice(1)
+  if (wanted.length === 0) return 'name the members to stop'
+  const lines = wanted.map((name) => {
+    const row = report.rows.find((one) => one.name === name)
+    if (row === undefined) return `${name}: not in the configuration (the lead, the members, or the liaison)`
+    if (!row.hasWindow) return `${name}: has no window in the tmux session ${launch.tmuxSession}${row.isRunning ? ' (it runs elsewhere, so it is not stopped from here)' : ''}`
+    const isBusy = row.state === 'busy' || row.state === 'waiting'
+    if (isBusy && flags.force !== true) return `${name}: is ${row.state === 'waiting' ? 'waiting at a prompt' : 'busy'}; not stopped (--force closes its window)`
+    try {
+      ports.members.stop(launch.tmuxSession, name, flags.force === true ? 'kill' : 'graceful')
+      return `${name}: ${flags.force === true ? 'window closed' : 'asked to exit'}`
+    } catch (error) {
+      return `${name}: could not stop: ${(error instanceof Error ? error.message : String(error)).slice(0, 200)}`
+    }
+  })
+  return lines.join('\n')
+}
+
 /** The report of what is configured against what runs: it asks the host, so it is made only for the commands that need it. */
 function reportOf(config: Config, ports: Ports): MemberReport {
   const windows = config.launch === undefined ? null : ports.members.windows(config.launch.tmuxSession)
@@ -53,6 +76,8 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
   switch (positional[0]) {
     case 'list':
       return formatReport(reportOf(config, ports))
+    case 'stop':
+      return stopCommand(config, ports, positional, flags, reportOf(config, ports))
     case 'start':
       return startCommand(config, ports, positional, flags, reportOf(config, ports))
     default:

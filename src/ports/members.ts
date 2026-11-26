@@ -2,6 +2,11 @@
 export type MemberHost = {
   /** The names of the windows in the host's session, or null when that session does not exist (or the host is not installed). */
   readonly windows: (session: string) => readonly string[] | null
+  /**
+   * Stops the window named `name`: `graceful` asks the program in it to exit (as a person would, by typing `/exit`), `kill` closes the window.
+   * Throws when the host refuses or has no such window.
+   */
+  readonly stop: (session: string, name: string, how: 'graceful' | 'kill') => void
   /** Starts a window named `plan.name` in the session (creating the session when it is not there). Throws when the host refuses. */
   readonly start: (session: string, plan: LaunchPlan) => void
 }

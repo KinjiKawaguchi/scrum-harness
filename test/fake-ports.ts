@@ -29,7 +29,7 @@ export function fakePorts(overrides: Partial<Ports> = {}): Ports {
     actions: { actionsOf: () => [], shellPatterns: () => ({ post: '', pre: '' }) },
     issues: { comments: unused('issues.comments'), openIssues: unused('issues.openIssues'), read: unused('issues.read'), writeBody: unused('issues.writeBody'), addComment: unused('issues.addComment') },
     code: { openPullRequests: unused('code.openPullRequests'), referencedIssues: () => null, prepareBranch: () => null, activity: () => null },
-    members: { windows: () => null, start: unused('members.start') as () => never },
+    members: { windows: () => null, start: unused('members.start') as () => never, stop: unused('members.stop') as () => never },
     launchers: { 'claude-code': () => ['claude'], codex: () => ['codex'] },
     sessions: { find: () => ({ name: null, pid: null }), signals: (): readonly SessionSignal[] => [] },
     transcripts: { files: () => [], names: () => new Map(), scan: unused('transcripts.scan') as () => never },
