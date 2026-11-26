@@ -15,6 +15,8 @@ export type MemberSpec = {
   readonly effort?: string
   /** `skip` starts the member without permission prompts; it is never a default and has to be written next to the member */
   readonly permissions?: Permissions
+  /** The Claude Code configuration directory (`CLAUDE_CONFIG_DIR`) the member runs under, for a team that uses more than one subscription */
+  readonly configDir?: string
 }
 
 export type LaunchConfig = {
@@ -32,7 +34,7 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/
 const SETTING = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PRODUCTS: readonly Product[] = ['claude-code']
 const PERMISSIONS: readonly Permissions[] = ['ask', 'skip']
-const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions'] as const
+const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'configDir'] as const
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
@@ -41,16 +43,17 @@ const isSetting = (value: unknown): value is string => typeof value === 'string'
 /** One member's settings, or null when a value is of the wrong shape or a key is not known (a misspelled key would otherwise be ignored). */
 function parseSpec(raw: unknown): MemberSpec | null {
   if (!isObject(raw) || Object.keys(raw).some((key) => !(KEYS as readonly string[]).includes(key))) return null
-  const { dir, brief, product, model, effort, permissions } = raw
+  const { dir, brief, product, model, effort, permissions, configDir } = raw
   const isValid =
     (dir === undefined || isPath(dir)) &&
+    (configDir === undefined || isPath(configDir)) &&
     (brief === undefined || isPath(brief)) &&
     (product === undefined || PRODUCTS.includes(product as Product)) &&
     (model === undefined || isSetting(model)) &&
     (effort === undefined || isSetting(effort)) &&
     (permissions === undefined || PERMISSIONS.includes(permissions as Permissions))
   if (!isValid) return null
-  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }) }
+  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(configDir === undefined ? {} : { configDir }) }
 }
 
 /** Reads the `launch` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */
