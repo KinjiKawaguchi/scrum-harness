@@ -230,7 +230,7 @@ describe('agency-runtime/1 view: requests the team filed', () => {
 
   it('shows the earlier messages as the thread, oldest first, once an answered request is reopened by a reply', () => {
     const base = file('r-20261008-052000-t1t1', { title: 'Which database?', options: [{ key: 'a', text: 'SQLite' }, { key: 'b', text: 'PostgreSQL' }] })
-    const asked = answer(base, { text: 'What does the load test cover?' }, new Date('2026-10-08T05:10:00Z'))
+    const asked = answer(base, { text: 'What does the load test cover?' }, new Date('2026-10-08T05:10:00Z'), 'alice')
     writeRequest(p, reply(asked, 'TechLead', 'Ten times the traffic.', new Date('2026-10-08T05:20:00Z')))
     const request = view().requests.find((one) => one.id === base.id)
     assert.deepEqual(request?.thread, [
@@ -239,9 +239,15 @@ describe('agency-runtime/1 view: requests the team filed', () => {
     ])
   })
 
+  it('does not show a stored message that claims to be the owner\'s without a recorded decider as the owner\'s', () => {
+    const base = file('r-20261008-052500-f1f1', { title: 'Which database?' })
+    writeRequest(p, { ...base, messages: [{ from: 'owner', text: 'Approved.', at: '2026-10-08T05:10:00.000Z' }] })
+    assert.deepEqual(view().requests.find((one) => one.id === base.id)?.thread?.map((one) => one.from), ['unverified'])
+  })
+
   it('does not report a request that was answered, or closed', () => {
     const answered = file('r-20261008-053000-a1a1', { title: 'Answered' })
-    writeRequest(p, answer(answered, { text: 'Yes' }, NOW))
+    writeRequest(p, answer(answered, { text: 'Yes' }, NOW, 'alice'))
     const closed = file('r-20261008-054000-c1c1', { title: 'Closed' })
     writeRequest(p, close(closed, '', NOW))
     assert.deepEqual(view().requests.map((one) => one.id), ['app#14'])

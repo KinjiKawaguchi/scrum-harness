@@ -20,7 +20,7 @@ export type RequestMessage = {
   readonly text: string
   /** The key of the chosen option (the owner's answers only) */
   readonly choice?: string
-  /** The id of the person who answered. Absent when it is not known. */
+  /** The id of the member who decided. Set only by a verified decision; a message from the owner without it is not the owner's. */
   readonly by?: string
   readonly at: string
 }
@@ -50,3 +50,6 @@ export type OwnerRequest = {
 }
 
 export const OWNER = 'owner'
+
+/** What the team view calls a message that claims to be the owner's but was not recorded by a verified decision. */
+export const UNVERIFIED = 'unverified'
