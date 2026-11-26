@@ -20,6 +20,7 @@ import type { DispatchRecord } from '../dispatch/types.ts'
 import { currentRuleName } from '../compat.ts'
 import { isValidIdleAck } from '../dispatch/idle-ack.ts'
 import { lintRequests } from '../requests/rules.ts'
+import { findTurnErrors, lintTurnErrors, type MemberTurnError } from '../members/api-errors.ts'
 import { currentBudget, readBudgetRecord } from '../budget/record.ts'
 import { lintBudget } from '../budget/rules.ts'
 import type { BudgetStatus } from '../ports/index.ts'
@@ -54,6 +55,8 @@ export type LintContext = {
   readonly memberSources?: readonly MemberSource[]
   /** The team's weekly budget as the node last said, when it is fresh (B-BUDGET-OVER, B-BUDGET-WARNING) */
   readonly budget?: BudgetStatus | null
+  /** Members whose last reply was an API error (M-API-ERROR) */
+  readonly turnErrors?: readonly MemberTurnError[]
 }
 
 export type LintResult = { readonly active: readonly Finding[]; readonly acked: readonly Finding[] }
@@ -92,10 +95,13 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintBudget(ctx.budget ?? null),
+    ...lintTurnErrors(ctx.turnErrors ?? []),
   ]
   // While the weekly budget is used the harness holds back new work on purpose, so an idle member is no finding.
   const isHeld = ctx.budget?.team.state === 'over'
-  const reported = isHeld ? findings.filter((finding) => finding.rule !== 'T-IDLE') : findings
+  const stuck = new Set((ctx.turnErrors ?? []).map((error) => error.name))
+  // A member stuck on an API error is reported as that, not as idle (assigning it work would not help).
+  const reported = findings.filter((finding) => !(finding.rule === 'T-IDLE' && (isHeld || stuck.has(finding.subject))))
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(reported, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
   return { active: active.toSorted(bySeverity), acked }
@@ -108,9 +114,10 @@ export function collectSignals(p: Paths, now: Date, sessions: SessionDirectory):
 
 export function loadContext(p: Paths, config: Config, now: Date, sessions: SessionDirectory, snapshot?: Snapshot | null): LintContext {
   const names = teamNamesOf(config)
+  const signals = collectSignals(p, now, sessions)
   return {
     snapshot: snapshot === undefined ? loadSnapshot(p) : snapshot,
-    members: aggregateMembers(collectSignals(p, now, sessions), names),
+    members: aggregateMembers(signals, names),
     acks: readJson<readonly Ack[]>(p.acks, []).map((ack) => ({ ...ack, rule: currentRuleName(ack.rule) })),
     config,
     now,
@@ -122,5 +129,6 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     startFailures: readStartFailures(p.startFailures),
     memberSources: readMemberSources(p.memberSources),
     budget: currentBudget(readBudgetRecord(p.budget), now),
+    turnErrors: findTurnErrors(signals, sessions, names, now),
   }
 }

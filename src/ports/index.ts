@@ -17,7 +17,7 @@ export type { BudgetLine, BudgetReader, BudgetState, BudgetStatus } from './budg
 export type { FundingLister, FundingPick, FundingPicker, FundingSource, FundingTool } from './funding.ts'
 export type { LaunchPlan, MemberHost } from './members.ts'
 export type { LaunchRequest, ProductLauncher } from './launcher.ts'
-export type { SessionDirectory, SessionEntry } from './sessions.ts'
+export type { SessionDirectory, SessionEntry, TurnError } from './sessions.ts'
 export type { SentMessage, Tokens, TranscriptFile, TranscriptScan, TranscriptSource, UsageRow } from './usage.ts'
 
 /** Notifies the owner. Throws on failure. */
