@@ -32,3 +32,14 @@ export function sourceOf(files: readonly TranscriptFile[], names: ReadonlyMap<st
 }
 
 export const fileOf = (path: string, sessionId: string, size: number, project = 'proj', isSubagent = false): TranscriptFile => ({ path, sessionId, project, isSubagent, size })
+
+/** The text of a message body in the tests, so a test can check that it never leaves the transcript. */
+export const BODY = 'SECRET-BODY-do-not-copy'
+
+type SendOptions = { readonly id?: string; readonly at?: string; readonly input?: Record<string, unknown> }
+
+/** One assistant line with a SendMessage call, in the shape Claude Code writes it (the body is in `message` and `content`). */
+export function sendMessageLine(options: SendOptions = {}): string {
+  const { id = 'toolu_1', at = '2026-11-24T10:00:00.000Z', input = { to: 'SWE1', summary: 'Asks for a review' } } = options
+  return JSON.stringify({ type: 'assistant', timestamp: at, requestId: 'req_x', message: { content: [{ type: 'tool_use', id, name: 'SendMessage', input: { message: BODY, content: BODY, ...input } }] } })
+}

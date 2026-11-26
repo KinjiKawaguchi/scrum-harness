@@ -11,6 +11,8 @@ export type RuntimeConfig = {
   readonly label?: string
   /** The time zone `tokenUsage` cuts days in, as an offset from UTC ("+09:00"). Defaults to the sprint's offset, then to UTC. */
   readonly utcOffset?: string
+  /** Reads the parent (epic) of every issue, so the events of the `activity` op carry their epic. Off by default: it adds a field to every issue the board read asks for, and an older GitHub Enterprise Server may not have it. */
+  readonly activity?: boolean
   readonly blockedReasons?: {
     readonly external?: string
     readonly waitingOnPrevious?: string
@@ -26,10 +28,11 @@ const isNonEmptyString = (value: unknown): value is string => typeof value === '
 /** Reads the `runtime` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */
 export function parseRuntime(raw: unknown): RuntimeConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
-  const { label, utcOffset, blockedReasons } = raw as Record<string, unknown>
+  const { label, utcOffset, activity, blockedReasons } = raw as Record<string, unknown>
   if (label !== undefined && !isNonEmptyString(label)) return undefined
   if (utcOffset !== undefined && !(typeof utcOffset === 'string' && OFFSET.test(utcOffset))) return undefined
-  const head = { ...(label === undefined ? {} : { label }), ...(utcOffset === undefined ? {} : { utcOffset }) }
+  if (activity !== undefined && typeof activity !== 'boolean') return undefined
+  const head = { ...(label === undefined ? {} : { label }), ...(utcOffset === undefined ? {} : { utcOffset }), ...(activity === undefined ? {} : { activity }) }
   if (blockedReasons === undefined) return head
   if (typeof blockedReasons !== 'object' || blockedReasons === null) return undefined
   const names = blockedReasons as Record<string, unknown>
