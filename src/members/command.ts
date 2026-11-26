@@ -1,11 +1,12 @@
 import type { Config } from '../config.ts'
 import type { LaunchPlan, Ports } from '../ports/index.ts'
+import type { MemberSpec } from './config.ts'
 import { stateDir } from '../config.ts'
 import { formatReport, memberReport, type MemberReport } from './list.ts'
 import { planMember } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
-import { waitForLife, watchdogOf, type WaitDeps } from './watchdog.ts'
+import { CODEX_TRUST_QUESTION, screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
 
 export const MEMBER_USAGE = `scrum member: the members of this team and where they run
   scrum member list                                  Each member in the configuration, whether it runs, and what runs but is not listed (or is listed and does not run)
@@ -28,23 +29,33 @@ export type WatchdogDeps = WaitDeps & { readonly startFailuresPath: string }
  * Starts a member, and waits for its sign of life when it has a startup watchdog: a member that shows none in time has its window closed and is
  * started again, up to its retries, and then recorded as a finding. Returns the line to print.
  */
-function startWatched(ports: Ports, session: string, plan: LaunchPlan, watchdog: NonNullable<ReturnType<typeof watchdogOf>>, deps: WatchdogDeps): string {
+function startWatched(ports: Ports, session: string, plan: LaunchPlan, spec: MemberSpec, watchdog: NonNullable<ReturnType<typeof watchdogOf>>, deps: WatchdogDeps): string {
   const tries = watchdog.retries + 1
+  let lastScreen: string | null = null
   for (let attempt = 1; attempt <= tries; attempt += 1) {
     const since = deps.now()
     ports.members.start(session, plan)
-    if (waitForLife(plan.name, since, watchdog.seconds, deps)) {
+    // Codex's one-time question about a directory is answered once, and only for a member that is set to have it answered.
+    let answered = false
+    const answerTrust = (): void => {
+      if (answered || spec.trustDirectory !== true || spec.product !== 'codex' || !CODEX_TRUST_QUESTION.test(ports.members.screen(session, plan.name) ?? '')) return
+      answered = true
+      ports.members.press(session, plan.name, 'Enter')
+    }
+    if (waitForLife(plan.name, since, watchdog.seconds, deps, answerTrust)) {
       clearStartFailure(deps.startFailuresPath, plan.name)
       return `${plan.name}: started in ${plan.dir}${attempt > 1 ? ` (try ${attempt})` : ''}, shows a sign of life`
     }
+    lastScreen = screenSummary(ports.members.screen(session, plan.name))
     try {
       ports.members.stop(session, plan.name, 'kill')
     } catch {
       // A window that is already gone needs no closing.
     }
   }
-  recordStartFailure(deps.startFailuresPath, { name: plan.name, at: deps.now().toISOString(), tries })
-  return `${plan.name}: no sign of life after ${tries} start${tries === 1 ? '' : 's'} of ${watchdog.seconds} seconds; its window is closed and it is reported as a finding (M-START-FAILED)`
+  recordStartFailure(deps.startFailuresPath, { name: plan.name, at: deps.now().toISOString(), tries, ...(lastScreen === null ? {} : { screen: lastScreen }) })
+  const seen = lastScreen === null ? '' : ` Its window showed: ${lastScreen}.`
+  return `${plan.name}: no sign of life after ${tries} start${tries === 1 ? '' : 's'} of ${watchdog.seconds} seconds; its window is closed and it is reported as a finding (M-START-FAILED).${seen}`
 }
 
 function startCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport, watchdogDeps: WatchdogDeps | undefined): string {
@@ -63,7 +74,7 @@ function startCommand(config: Config, ports: Ports, positional: readonly string[
     if (flags['dry-run'] === true) return describePlan(plan.name, plan.dir, plan.env, plan.argv, brief)
     try {
       const watchdog = watchdogOf(planned.spec)
-      if (watchdog !== null && watchdogDeps !== undefined && flags['no-wait'] !== true) return startWatched(ports, launch.tmuxSession, plan, watchdog, watchdogDeps)
+      if (watchdog !== null && watchdogDeps !== undefined && flags['no-wait'] !== true) return startWatched(ports, launch.tmuxSession, plan, planned.spec, watchdog, watchdogDeps)
       ports.members.start(launch.tmuxSession, plan)
       return `${name}: started in ${plan.dir}`
     } catch (error) {
@@ -74,7 +85,28 @@ function startCommand(config: Config, ports: Ports, positional: readonly string[
 }
 
 /** Stops the members named. An idle one is asked to exit; a busy one, or one waiting at a prompt, is left alone unless `--force`, which closes its window. */
-function stopCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport): string {
+/** How long a member that was asked to exit has to end its session. */
+const EXIT_SECONDS = 15
+
+/**
+ * After a member was asked to exit: waits for its session to end (its window going away, or its hook recording the end), and closes a window that is
+ * left over (Codex shows its list of sessions after one ends). A member that does not end in time is left running.
+ */
+function finishExit(ports: Ports, session: string, name: string, deps: WatchdogDeps): string {
+  const since = deps.now()
+  const isGone = (): boolean => !(ports.members.windows(session) ?? []).includes(name)
+  const ended = waitUntil(() => isGone() || showsEnd(deps.signals(), name, since), EXIT_SECONDS, deps)
+  if (!ended) return `asked to exit, and still runs after ${EXIT_SECONDS} seconds (--force closes its window)`
+  if (isGone()) return 'exited'
+  try {
+    ports.members.stop(session, name, 'kill')
+  } catch {
+    // A window that is already gone needs no closing.
+  }
+  return 'exited; the window Codex left open is closed'
+}
+
+function stopCommand(config: Config, ports: Ports, positional: readonly string[], flags: Flags, report: MemberReport, deps: WatchdogDeps | undefined): string {
   const launch = config.launch
   if (launch === undefined) return 'there is no launch section in the configuration, so there is no tmux session to stop members in'
   const wanted = positional.slice(1)
@@ -87,7 +119,8 @@ function stopCommand(config: Config, ports: Ports, positional: readonly string[]
     if (isBusy && flags.force !== true) return `${name}: is ${row.state === 'waiting' ? 'waiting at a prompt' : 'busy'}; not stopped (--force closes its window)`
     try {
       ports.members.stop(launch.tmuxSession, name, flags.force === true ? 'kill' : 'graceful')
-      return `${name}: ${flags.force === true ? 'window closed' : 'asked to exit'}`
+      if (flags.force === true) return `${name}: window closed`
+      return `${name}: ${deps === undefined ? 'asked to exit' : finishExit(ports, launch.tmuxSession, name, deps)}`
     } catch (error) {
       return `${name}: could not stop: ${(error instanceof Error ? error.message : String(error)).slice(0, 200)}`
     }
@@ -107,7 +140,7 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
     case 'list':
       return formatReport(reportOf(config, ports))
     case 'stop':
-      return stopCommand(config, ports, positional, flags, reportOf(config, ports))
+      return stopCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
     case 'start':
       return startCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
     default:

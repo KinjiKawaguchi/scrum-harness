@@ -10,10 +10,11 @@ import { memberCommand, type WatchdogDeps } from '../src/members/command.ts'
 import { parseLaunch } from '../src/members/config.ts'
 import { lintStartFailures } from '../src/members/rules.ts'
 import { clearStartFailure, readStartFailures, recordStartFailure } from '../src/members/start-failures.ts'
-import { showsLife, waitForLife, watchdogOf } from '../src/members/watchdog.ts'
+import { screenSummary, showsLife, waitForLife, watchdogOf } from '../src/members/watchdog.ts'
 import type { LaunchPlan } from '../src/ports/index.ts'
 import { paths, type Paths } from '../src/store.ts'
 import type { MemberState, SessionSignal } from '../src/team/types.ts'
+import type { Config } from '../src/config.ts'
 import { fakePorts } from './fake-ports.ts'
 import { config as base, NOW } from './helpers.ts'
 
@@ -82,7 +83,7 @@ describe('starting with a watchdog', () => {
     writeFileSync(join(dir, 'brief.txt'), 'You are CodexA.')
     return { ...base, members: ['CodexA'], launch: parseLaunch({ tmuxSession: 'team', members: { CodexA: { dir, brief: join(dir, 'brief.txt'), product: 'codex', startupSeconds: 10, startupRetries: 2, ...spec } } }) }
   }
-  const ports = () => fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan.name), stop: (_s: string, name: string, how: 'graceful' | 'kill') => void stopped.push(`${name}:${how}`) }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+  const ports = () => fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan.name), stop: (_s: string, name: string, how: 'graceful' | 'kill') => void stopped.push(`${name}:${how}`), screen: () => null, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
   const deps = (time: ReturnType<typeof clock>, lifeAfterStart: number | null): WatchdogDeps => {
     // The member shows a sign of life once it has been started `lifeAfterStart` times (null: never).
     return { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals: () => (lifeAfterStart !== null && started.length >= lifeAfterStart ? [signal('CodexA', time.now())] : []) }
@@ -145,5 +146,101 @@ describe('M-START-FAILED', () => {
     assert.deepEqual(readStartFailures(path).map((one) => one.tries), [2])
     clearStartFailure(path, 'CodexA')
     assert.deepEqual(readStartFailures(path), [])
+  })
+})
+
+describe('Codex\'s question about a directory', () => {
+  const QUESTION = '> You are in /work/team\n\n  Do you trust the contents of this directory? Working with untrusted contents\n› 1. Yes, continue\n  2. No, quit\n\n  Press enter to continue\n'
+  let p: Paths
+  beforeEach(() => {
+    p = paths(mkdtempSync(join(tmpdir(), 'scrum-trust-')))
+    mkdirSync(join(p.dir, 'cache'), { recursive: true })
+  })
+
+  const config = (spec: Record<string, unknown>): Config => {
+    const dir = mkdtempSync(join(tmpdir(), 'scrum-trust-dir-'))
+    return { ...base, members: ['CodexA'], launch: parseLaunch({ tmuxSession: 'team', members: { CodexA: { dir, product: 'codex', startupSeconds: 10, startupRetries: 0, ...spec } } }) }
+  }
+
+  /** A window that shows the question until Enter is pressed, and then the member shows a sign of life. */
+  function run(spec: Record<string, unknown>, screen: string = QUESTION) {
+    const presses: string[] = []
+    const time = clock()
+    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => screen, press: (_s: string, _n: string, key: string) => void presses.push(key) }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals: () => (presses.length > 0 ? [signal('CodexA', time.now())] : []) }
+    return { text: memberCommand(config(spec), ports, ['start', 'CodexA'], {}, deps), presses }
+  }
+
+  it('is answered with Enter, once, for a Codex member that is set to have it answered', () => {
+    const { text, presses } = run({ trustDirectory: true })
+    assert.deepEqual(presses, ['Enter'])
+    assert.match(text, /shows a sign of life/)
+  })
+
+  it('is left alone without trustDirectory, when the screen shows something else, and for a Claude Code member; the failure says what the window showed', () => {
+    const left = run({})
+    assert.deepEqual(left.presses, [])
+    assert.match(left.text, /no sign of life.*Its window showed: .*Do you trust the contents of this directory\?/)
+    assert.deepEqual(run({ trustDirectory: true }, 'a prompt about something else').presses, [])
+    assert.deepEqual(run({ trustDirectory: true, product: 'claude-code' }).presses, [])
+  })
+
+  it('keeps what the window showed in the failure, and in the finding', () => {
+    run({})
+    const [failure] = readStartFailures(p.startFailures)
+    assert.match(failure?.screen ?? '', /Do you trust the contents of this directory\?/)
+    const [finding] = lintStartFailures(readStartFailures(p.startFailures), [{ name: 'CodexA', state: 'unknown', since: null }])
+    assert.match(finding?.message ?? '', /Its window showed: .*Do you trust/)
+  })
+
+  it('reads trustDirectory as a switch', () => {
+    assert.equal(parseLaunch({ tmuxSession: 't', members: { A: { trustDirectory: true } } })?.members.A?.trustDirectory, true)
+    assert.equal(parseLaunch({ tmuxSession: 't', members: { A: { trustDirectory: 'yes' } } }), undefined)
+  })
+
+  it('summarizes a screen as its last few lines, short, without blanks', () => {
+    assert.equal(screenSummary(null), null)
+    assert.equal(screenSummary('  \n\n'), null)
+    assert.equal(screenSummary('a\n\n b  c \nd', 2), 'b c | d')
+    assert.equal(screenSummary(`${'x'.repeat(300)}`)?.length, 120)
+  })
+})
+
+describe('stopping a member and what it leaves behind', () => {
+  let p: Paths
+  beforeEach(() => {
+    p = paths(mkdtempSync(join(tmpdir(), 'scrum-exit-')))
+  })
+  const config = { ...base, members: ['CodexA'], launch: parseLaunch({ tmuxSession: 'team', members: {}, ignoreWindows: ['home'] }) }
+
+  /** A member that is idle in a window; `after` says what happens in the window and the signals once it is asked to exit. */
+  function run(after: { readonly windowCloses?: boolean; readonly endsSession?: boolean }) {
+    const time = clock()
+    const stops: string[] = []
+    let asked = false
+    const windows = () => (asked && after.windowCloses === true ? ['home'] : ['home', 'CodexA'])
+    const idle = signal('CodexA', new Date(NOW.getTime() - 60_000))
+    const ports = fakePorts({ members: { windows, start: () => undefined, stop: (_s: string, name: string, how: 'graceful' | 'kill') => { stops.push(`${name}:${how}`); if (how === 'graceful') asked = true }, screen: () => null, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [idle] } })
+    const signals = () => (asked && after.endsSession === true ? [signal('CodexA', time.now(), { state: 'ended' })] : [idle])
+    const text = memberCommand(config, ports, ['stop', 'CodexA'], {}, { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals })
+    return { text, stops }
+  }
+
+  it('says it exited when the window goes away by itself, and closes nothing', () => {
+    const { text, stops } = run({ windowCloses: true })
+    assert.match(text, /CodexA: exited$/)
+    assert.deepEqual(stops, ['CodexA:graceful'])
+  })
+
+  it('closes the window that is left over once the session has ended (Codex shows its list of sessions after one ends)', () => {
+    const { text, stops } = run({ endsSession: true })
+    assert.match(text, /CodexA: exited; the window Codex left open is closed/)
+    assert.deepEqual(stops, ['CodexA:graceful', 'CodexA:kill'])
+  })
+
+  it('leaves a member that has not ended in 15 seconds running, and says how to close it', () => {
+    const { text, stops } = run({})
+    assert.match(text, /CodexA: asked to exit, and still runs after 15 seconds \(--force closes its window\)/)
+    assert.deepEqual(stops, ['CodexA:graceful'])
   })
 })

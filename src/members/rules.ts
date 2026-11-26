@@ -16,7 +16,7 @@ export function lintStartFailures(failures: readonly StartFailure[], members: re
         rule: 'M-START-FAILED',
         subject: failure.name,
         severity: 'medium',
-        message: `${failure.name} was started ${failure.tries} time${failure.tries === 1 ? '' : 's'} and showed no sign of life (since ${failure.at})`,
+        message: `${failure.name} was started ${failure.tries} time${failure.tries === 1 ? '' : 's'} and showed no sign of life (since ${failure.at})${failure.screen === undefined ? '' : `. Its window showed: ${failure.screen}`}`,
         fix: `Look at its window (tmux), then start it again with ${SCRUM_CLI} member start ${failure.name}`,
       }),
     )
