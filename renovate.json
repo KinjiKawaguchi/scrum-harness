@@ -1,0 +1,88 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Dependency updates for this repository (npm packages with pnpm, GitHub Actions).",
+    "Ordinary updates wait 2 days after a release, come grouped by ecosystem, and merge by themselves when CI is green if they are patch or minor. A major update needs a person.",
+    "A security fix skips the wait and merges when CI is green.",
+    "Every GitHub Action stays pinned to a commit SHA with its tag in a comment."
+  ],
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver"
+  ],
+  "timezone": "Asia/Tokyo",
+  "labels": [
+    "dependencies"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "minimumReleaseAge": "2 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "automergeStrategy": "squash",
+  "prConcurrentLimit": 6,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": [
+      "dependencies",
+      "security"
+    ],
+    "automerge": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ],
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "Patch and minor updates: one pull request for each ecosystem, merged when CI is green.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Node dependencies",
+      "groupSlug": "node"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest"
+      ],
+      "groupName": "GitHub Actions",
+      "groupSlug": "github-actions"
+    },
+    {
+      "description": "A major update is a pull request for a person to read and merge.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "major"
+      ]
+    }
+  ]
+}
