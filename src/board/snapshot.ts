@@ -1,6 +1,7 @@
 import type { Config } from '../config.ts'
 import type { BoardSource } from '../ports/index.ts'
 import { appendEvents, trimLog } from '../activity/log.ts'
+import { readDoneTimes, recordDone, writeDoneTimes } from '../agency-runtime/done-at.ts'
 import { boardEvents } from '../activity/board-events.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
@@ -62,6 +63,17 @@ function noteActivity(p: Paths, previous: Snapshot | null, fresh: Snapshot, conf
   }
 }
 
+/** Records the items that reached done since the previous read. A failure is left in errors.log; it never fails the re-fetch. */
+function noteDone(p: Paths, previous: Snapshot | null, fresh: Snapshot, config: Config): void {
+  try {
+    const prior = readDoneTimes(p.doneTimes)
+    const next = recordDone(previous, fresh, config, prior)
+    if (next !== prior) writeDoneTimes(p.doneTimes, next)
+  } catch (error) {
+    logError(p, 'done-at', error)
+  }
+}
+
 /** Re-fetches the board and writes it to the board copy. Does nothing if another process is re-fetching. */
 export function refreshSnapshot(p: Paths, config: Config, now: Date, source: BoardSource): Snapshot | null {
   if (!tryLock(p.refreshLock)) return null
@@ -73,6 +85,7 @@ export function refreshSnapshot(p: Paths, config: Config, now: Date, source: Boa
     const snapshot = source.fetchSnapshot(now)
     saveSnapshot(p, snapshot)
     noteActivity(p, previous, snapshot, config, now)
+    noteDone(p, previous, snapshot, config)
     if (noteCompletions(p, previous, snapshot, config, now, source)) writeJson(p.fetchedSnapshot, snapshot)
     return snapshot
   } catch (error) {

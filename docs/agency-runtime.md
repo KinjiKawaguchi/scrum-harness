@@ -52,6 +52,8 @@ A pending decision uses the issue's ref (`app#14`) as its id, `from` is `board`,
 
 Work items: `blocked.reason` is `needsDecision` for `reasonJudge`. Other reasons map through `runtime.blockedReasons` (below); a reason that is not listed is `external`. A block without a start date counts from the day the board was read. `points` appears only for whole numbers.
 
+**When work was done** (`doneAt`): `WorkItem.doneAt` is when an item first reached `done`, and `EpicForecast.doneAt` is when the last child of an epic became finished (`release` or `done`), which is when the epic's work shipped. Both are left out when unknown, never `null` or a guess, and `WorkItem.doneAt` is left out while the item is not done. The time is the earlier of what the refresh saw (the time of the read that first showed the change, so up to one refresh late; the first time is kept when an item goes back and is done again) and, for a closed issue, GitHub's own close time. An item that was already finished the first time the harness saw it has only the close time, if it has one. The record is `cache/done-at.json` in the state directory. `work` still lists open items only, so `WorkItem.doneAt` is rare; a finished epic stays in `epics` for `runtime.finishedEpicDays` days (default 30; 0 drops it at once) after its last child was finished, with `doneAt`, and an epic whose time is not known is not reported.
+
 What the harness does not report yet: `eta` on work items, and `forecast` on epics (an epic says so in its `basis`).
 
 ## `scrum request`: questions and proposals
@@ -120,7 +122,7 @@ An optional `runtime` section:
 }
 ```
 
-`label` is the team's display name (default: the team id the node sends). `activity` (true or false, default false) makes the board read ask for each issue's parent, so the events of `activity` carry their `epic`. `utcOffset` is the time zone `tokenUsage` cuts days in. `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
+`label` is the team's display name (default: the team id the node sends). `finishedEpicDays` (a whole number from 0 to 365, default 30) is how long a finished epic stays in `epics` with its `doneAt`. `activity` (true or false, default false) makes the board read ask for each issue's parent, so the events of `activity` carry their `epic`. `utcOffset` is the time zone `tokenUsage` cuts days in. `blockedReasons` names the board's blocked reasons for the three kinds that are not decisions. A section of the wrong shape is ignored.
 
 ## Keeping in step with Agency
 

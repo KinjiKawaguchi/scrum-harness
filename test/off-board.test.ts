@@ -83,7 +83,7 @@ describe('readQuery', () => {
   })
 
   it('reads the same fields as the whole-board query', () => {
-    const fields = /status: fieldValueByName\(name:"Status"\)[\s\S]*content\{ \.\.\. on Issue\{ number title state author\{login\} repository\{nameWithOwner\} \}/
+    const fields = /status: fieldValueByName\(name:"Status"\)[\s\S]*content\{ \.\.\. on Issue\{ number title state author\{login\} repository\{nameWithOwner\} closedAt \}/
     assert.match(readQuery([open(8)], config), fields)
     assert.match(itemsQuery(config), fields)
   })
