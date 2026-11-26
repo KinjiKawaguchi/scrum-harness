@@ -68,6 +68,15 @@ Every request is an object with `board: "scrum-board/1"`, `op`, `options`, and t
 
 `snapshot` is the same snapshot a board module returns (`src/board/types.ts`): each item has `itemId`, `kind` (`issue`, `pr`, or `draft`), `repo` (a project or space name), `number` (a whole number, or null), `title`, `state` (`OPEN`, `CLOSED`, `MERGED`, or null), `author`, `status`, `reason`, `since` (`YYYY-MM-DD` or null), `owner`, and `assignee`, and optionally `ref` (the reference; see References above), `points`, `labels`, and the other fields of `BoardItem`. `fetchedAt` is filled in by the harness when the program gives none. Every snapshot is checked before the harness uses it, as `scrum adapter check` does, and one that does not fit is refused with the problems named.
 
-What else the program can do is named in `capabilities` (the configuration accepts them now; the operations behind them, and their requests, are added in the next changes, and until then only reading is offered). The harness offers, and calls, only those: `write` (assign, Status, blocked reason, overrun), `add` (add an issue to the board), `team` (hand an item to a team), `comments` (read and add comments). Without a capability the matching operation is not available, and what needs it (for example a decision on a pending item, which needs `comments` and `write`) says so. The agents' own board writes are read from the `scripts` named in the configuration, as for GitHub. Everything the program does not provide stays GitHub.
+What else the program can do is named in `capabilities`, and the harness offers, and calls, only those. A team on another tracker never writes to a GitHub board, so the writer and the issue thread are always the program's: without a capability the matching operation refuses (and a decision that needs it is answered 503 with the reason). Everything else (the code host, linking PRs into issues, which needs a body side the program does not have) stays as it is, and the agents' own board writes are read from the `scripts` named in the configuration, as for GitHub.
+
+| capability | what it offers | requests |
+|---|---|---|
+| `write` | assigning, setting the Status, setting the blocked reason, writing the overrun (the writer's flags `canAssign` and `canSetReason` are on) | `{ "op": "set", "item": <item>, "field": "assignee" \| "status" \| "reason" \| "overrun", "value": <text, a number for overrun, or null> }` result `{}` |
+| `add` | `scrum board add` | `{ "op": "add", "repo": <name>, "number": <whole number> }` result `{}` |
+| `team` | `scrum board move` and handing an item to a team | `{ "op": "set", "item": <item>, "field": "team", "value": <text> }` result `{}` |
+| `comments` | reading an item's comments and adding one (a decision on a pending item posts one) | `{ "op": "comments", "item": <item> }` result `[ { "body", "createdAt": <ISO time>, "url"? } ]`; `{ "op": "comment", "item": <item>, "body": <text> }` result `{}` |
+
+`<item>` is `{ "ref", "itemId", "repo", "number" }`: the reference first, then the ids the board record has, so a program can find the item by its own id. The blocked reason's date (`since`) is the program's to keep. A decision on a pending item (`judge`) needs both `comments` and `write`.
 
 `scrum adapter check` works for a program too: it calls `snapshot` and lists every problem in what it answers.
