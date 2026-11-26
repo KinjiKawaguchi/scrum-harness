@@ -73,9 +73,9 @@ export function agencyFundingLister(config: FundingConfig): FundingLister {
     const list = jsonOf(split(runFunding(config, ['list'], [0])).stdout)
     if (!Array.isArray(list)) throw new Error('it did not answer a list')
     return list.map((one: unknown): FundingSource => {
-      const { source, tool, env } = (typeof one === 'object' && one !== null ? one : {}) as Record<string, unknown>
+      const { source, tool, env, overThreshold, blocked } = (typeof one === 'object' && one !== null ? one : {}) as Record<string, unknown>
       if (typeof source !== 'string' || source === '' || (tool !== 'claude' && tool !== 'codex')) throw new Error('a source in its list has no name, or a tool that is not claude or codex')
-      return { source, tool, env: envOf(env) }
+      return { source, tool, env: envOf(env), ...(typeof overThreshold === 'boolean' ? { overThreshold } : {}), ...(typeof blocked === 'boolean' ? { blocked } : {}) }
     })
   }
 }

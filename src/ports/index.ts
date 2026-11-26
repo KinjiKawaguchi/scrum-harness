@@ -39,6 +39,8 @@ export type Ports = {
   readonly fundingSources: FundingLister | null
   /** Whether the harness's hooks are in a Claude Code configuration directory (a member under another login runs unguarded and unwatched without them) */
   readonly hasHooksIn: (configDir: string) => boolean
+  /** Whether the conversation of a session can be found under a Claude Code configuration directory (so that `--resume` works there) */
+  readonly hasTranscriptIn: (configDir: string, sessionId: string) => boolean
   readonly launchers: Readonly<Record<Product, ProductLauncher>>
   readonly transcripts: TranscriptSource
   readonly notify: Notifier

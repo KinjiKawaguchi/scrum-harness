@@ -180,6 +180,14 @@ Either MIT or Apache-2.0, at your option ([LICENSE-MIT](LICENSE-MIT), [LICENSE-A
 
 The node's list of sources (`<command> list`) is read at each `scrum member start` and `scrum refresh`, and the login directories in it are kept in `cache/funding-dirs.json`. Session records and transcripts of those directories are read like the configured `claudeConfigDirs` (and the `CODEX_HOME` of Codex sources), and `scrum install --all` writes the hooks into each Claude Code directory. If the node cannot be asked, the kept list stays.
 
+**Moving a running member.** The pick only decides new starts, and members run for days, so a member that started under its threshold keeps spending the same login after it passes. `scrum member move [<name>...] [--dry-run]` restarts **one** member per call on the source the node picks now, continuing its conversation (`claude --resume <session id>` on the new login, with a short note saying it was moved as the first message). It moves a member only when all of these hold, and says which one stopped it otherwise (`--dry-run` shows the same without moving anything):
+
+- The member's source (recorded when `scrum member start` started it) is past its threshold or blocked, as the node's `list` says (`overThreshold`, `blocked` per source; when the node says neither, nothing moves), and the node picks another source with state `ok`. A source that is merely not the first in the list is not a reason: that would restart members each time the first source's window resets.
+- The member is a Claude Code member without its own `configDir`, and not the lead (the lead only when named).
+- Its session has been idle for 60 seconds (checked again just before it is asked to exit), the picked login has the harness's hooks, and the conversation is visible under the picked login (a shared `projects`, below).
+
+If the member does not exit within 15 seconds it is left running; if it does not come up on the new login it is started again on the old one. Members that were not started by `scrum member start` have no recorded source and are skipped, so start the team from its `launch` section.
+
 **Setting up a second login (recommended).** A second Claude Code login needs its own `CLAUDE_CONFIG_DIR` (it holds the credentials), but the rest can be the first one's, by symlink, so that a member restarted on the other login keeps its instructions and memory and `claude --continue` finds its transcript:
 
 ```sh

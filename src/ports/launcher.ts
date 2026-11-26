@@ -4,7 +4,10 @@ import type { MemberSpec, Product } from '../members/config.ts'
 export type LaunchRequest = {
   readonly name: string
   readonly spec: MemberSpec
+  /** The first message: the member's brief, or the note a moved member gets */
   readonly brief: string
+  /** The id of the session to continue (a member that is moved to another account keeps its conversation) */
+  readonly resume?: string
 }
 
 /** Builds the command line that starts a member of one product. Pure; it runs nothing. */
