@@ -120,6 +120,33 @@ describe('resolveIdentity', () => {
   })
 })
 
+describe('resolveIdentity for a session whose name is in the environment', () => {
+  it('keeps the name in the identity record, so the token use of a session with no other record of its name is attributed', async () => {
+    const { resolveIdentity } = await import('../src/team/identity.ts')
+    const { identityNames } = await import('../src/usage/attribution.ts')
+    const { config } = await import('./helpers.ts')
+    const before = process.env.SCRUM_NAME
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-identity-')))
+    try {
+      process.env.SCRUM_NAME = 'SWE1'
+      const first = new Date('2026-10-08T06:00:00.000Z')
+      assert.deepEqual(resolveIdentity(p, 'codex-session', first, config, claudeCodeSessions()), { sessionId: 'codex-session', name: 'SWE1', pid: null })
+      assert.deepEqual([...identityNames(p)], [['codex-session', 'SWE1']])
+      assert.equal(readJson<{ role?: string } | null>(join(p.identity, 'codex-session.json'), null)?.role, 'member')
+      // the calls after leave the record as it is
+      resolveIdentity(p, 'codex-session', new Date('2026-10-08T07:00:00.000Z'), config, claudeCodeSessions())
+      assert.equal(readJson<{ checkedAt?: string } | null>(join(p.identity, 'codex-session.json'), null)?.checkedAt, first.toISOString())
+      // a different name replaces it
+      process.env.SCRUM_NAME = 'SWE2'
+      resolveIdentity(p, 'codex-session', new Date('2026-10-08T08:00:00.000Z'), config, claudeCodeSessions())
+      assert.deepEqual([...identityNames(p)], [['codex-session', 'SWE2']])
+    } finally {
+      if (before === undefined) delete process.env.SCRUM_NAME
+      else process.env.SCRUM_NAME = before
+    }
+  })
+})
+
 describe('logError', async () => {
   const { logError } = await import('../src/store.ts')
 
