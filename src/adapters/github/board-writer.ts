@@ -5,7 +5,7 @@ import type { BoardItem } from '../../board/types.ts'
 import { dispatchOf, type Config } from '../../config.ts'
 import type { BoardWriter } from '../../ports/index.ts'
 import type { Mark } from '../../sprint/marks.ts'
-import type { GhRun } from './gh.ts'
+import { ghEnv, type GhRun } from './gh.ts'
 
 /** Runs the script that rewrites the board. Throws on failure. */
 export type Exec = (script: string, args: readonly string[]) => void
@@ -20,7 +20,7 @@ function scriptPath(config: Config, script: string): string {
 
 export function realExec(config: Config): Exec {
   return (script, args) => {
-    execFileSync(scriptPath(config, script), [...args], { timeout: SCRIPT_TIMEOUT_MS, stdio: 'ignore' })
+    execFileSync(scriptPath(config, script), [...args], { timeout: SCRIPT_TIMEOUT_MS, stdio: 'ignore', env: ghEnv(config.host) })
   }
 }
 

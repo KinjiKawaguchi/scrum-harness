@@ -68,7 +68,7 @@ const ITEM_RULES: readonly ItemRule[] = [
     applies: (item) => item.kind === 'pr' && item.status !== null,
     message: (item) => `PR ${label(item)} has a Status (${item.status}). A PR must not have a Status`,
     fix: (item, config) =>
-      `gh project item-edit --project-id ${config.projectId} --id ${item.itemId} --field-id ${config.statusFieldId} --clear`,
+      `${config.host === undefined ? '' : `GH_HOST=${config.host} `}gh project item-edit --project-id ${config.projectId} --id ${item.itemId} --field-id ${config.statusFieldId} --clear`,
   },
   {
     rule: 'B-NO-STATUS',

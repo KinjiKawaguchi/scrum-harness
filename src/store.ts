@@ -129,7 +129,14 @@ function describeError(error: unknown): string {
   const { status, stderr } = error as Error & { readonly status?: unknown; readonly stderr?: unknown }
   const text = typeof stderr === 'string' ? stderr : stderr instanceof Buffer ? stderr.toString('utf8') : ''
   if (text.trim() === '') return error.message
-  return `gh exited with ${typeof status === 'number' ? status : '?'}: ${text.trim().replace(/\s+/g, ' ')}`
+  return `gh exited with ${typeof status === 'number' ? status : '?'}: ${text.trim().replace(/\s+/g, ' ')}${authHint(text)}`
+}
+
+/** What to do about a failure that is about sign-in, so the log says more than "403". */
+function authHint(text: string): string {
+  if (/SAML|single sign-on|\bSSO\b/i.test(text)) return ' (hint: authorize the token for the organization\'s SSO, with the link gh prints or in the token\'s settings, then run gh auth status --hostname <host>)'
+  if (/gh auth login|not logged in|Bad credentials|HTTP 401/i.test(text)) return ' (hint: gh is not signed in to this host; run gh auth login --hostname <host>, or set `host` in the configuration)'
+  return ''
 }
 
 export function logError(p: Paths, where: string, error: unknown): void {
