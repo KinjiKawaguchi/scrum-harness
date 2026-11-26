@@ -1,6 +1,7 @@
 import { label } from '../board/rules.ts'
 import type { BoardItem } from '../board/types.ts'
 import type { Config } from '../config.ts'
+import { doneAtOf, EMPTY_DONE_TIMES, type DoneTimes } from './done-at.ts'
 import { runtimeOf } from './config.ts'
 import type { BlockedReason, WorkItem, WorkStatus } from './types.ts'
 
@@ -33,13 +34,14 @@ export const blockedSince = (item: BoardItem, fetchedAt: string): string =>
   item.since !== null && /^\d{4}-\d{2}-\d{2}$/.test(item.since) ? item.since : fetchedAt.slice(0, 10)
 
 /** Open issues of the team, without the parents of other items (those are reported as epics). */
-export function workItems(items: readonly BoardItem[], config: Config, fetchedAt: string, epicRefs: ReadonlySet<string>): WorkItem[] {
+export function workItems(items: readonly BoardItem[], config: Config, fetchedAt: string, epicRefs: ReadonlySet<string>, times: DoneTimes = EMPTY_DONE_TIMES): WorkItem[] {
   return items
     .filter((item) => item.kind === 'issue' && item.state === 'OPEN' && !config.excludeAuthors.includes(item.author ?? '') && !epicRefs.has(label(item)))
     .flatMap((item): readonly WorkItem[] => {
       const status = workStatusOf(item, config)
       if (status === null) return []
       const reason = blockedReasonOf(item, config)
+      const doneAt = doneAtOf(item, times, config)
       const hasPoints = typeof item.points === 'number' && Number.isInteger(item.points) && item.points >= 0
       return [
         {
@@ -50,6 +52,7 @@ export function workItems(items: readonly BoardItem[], config: Config, fetchedAt
           ...(reason === null ? {} : { blocked: { reason, since: blockedSince(item, fetchedAt) } }),
           ...(item.epic === null || item.epic === undefined ? {} : { epic: item.epic }),
           ...(hasPoints ? { points: item.points as number } : {}),
+          ...(doneAt === undefined ? {} : { doneAt: new Date(doneAt).toISOString() }),
         },
       ]
     })

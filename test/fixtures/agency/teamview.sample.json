@@ -70,7 +70,7 @@
         { "key": "b", "text": "PostgreSQL", "isRecommended": false }
       ],
       "thread": [
-        { "from": "owner", "text": "What does the load test cover?", "at": "2026-11-24T11:10:00Z" },
+        { "from": "owner", "text": "What does the load test cover?", "by": "owner", "at": "2026-11-24T11:10:00Z" },
         { "from": "backend", "text": "Ten times the current peak traffic for one hour.", "at": "2026-11-24T11:20:00Z" }
       ],
       "answerWith": { "kind": "answer", "target": "r-20261124-110000-a1b2" }
@@ -112,7 +112,8 @@
       "assignee": "backend",
       "epic": "app#10",
       "points": 3,
-      "eta": { "p50": "2026-11-25T03:00:00Z", "p80": "2026-11-25T09:00:00Z", "basis": "8 finished items with 3 points", "isOverBudget": false }
+      "eta": { "p50": "2026-11-25T03:00:00Z", "p80": "2026-11-25T09:00:00Z", "basis": "8 finished items with 3 points", "isOverBudget": false },
+      "workType": "newFeature"
     },
     {
       "ref": "app#14",
@@ -120,7 +121,8 @@
       "status": "next",
       "blocked": { "reason": "needsDecision", "since": "2026-11-23" },
       "epic": "app#10",
-      "points": 2
+      "points": 2,
+      "workType": "debt"
     },
     {
       "ref": "app#15",
@@ -128,20 +130,23 @@
       "status": "backlog",
       "assignee": "docs",
       "blocked": { "reason": "waitingOnPrevious", "since": "2026-11-24" },
-      "epic": "app#10"
+      "epic": "app#10",
+      "workType": "maintenance"
     },
     {
       "ref": "app#11",
       "title": "Add a health check endpoint",
       "status": "release",
       "assignee": "backend",
-      "points": 1
+      "points": 1,
+      "workType": "improvement"
     },
     {
       "ref": "app#9",
       "title": "Set up the project",
       "status": "done",
-      "points": 1
+      "points": 1,
+      "doneAt": "2026-11-20T15:00:00Z"
     }
   ],
   "epics": [

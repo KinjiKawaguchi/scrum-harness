@@ -8,7 +8,7 @@ import type { Payload } from "./Payload.js";
  */
 export type RuntimeDecision = { kind: EnvelopeKind, 
 /**
- * A request id (`answer`) or a work item ref `repo#N` (`judge`).
+ * A request id (`answer`) or a work item's item reference (`judge`).
  */
 target: string, 
 /**

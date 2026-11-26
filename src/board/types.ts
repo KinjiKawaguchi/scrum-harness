@@ -17,6 +17,8 @@ export type BoardItem = {
   /** Of a pull request: when it was opened and when it was merged, and the reference of the first issue it closes */
   readonly openedAt?: string
   readonly mergedAt?: string
+  /** Of an issue: when it was closed (ISO 8601), as the adapter knows it */
+  readonly closedAt?: string
   readonly closes?: string
   readonly kind: ItemKind
   readonly repo: string

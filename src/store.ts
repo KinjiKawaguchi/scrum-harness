@@ -22,6 +22,8 @@ export function paths(dir: string = stateDir()) {
     usageLock: join(dir, 'cache', 'usage-index.lock'),
     /** What the team did in the last 24 hours, one event per line (see activity/log.ts) */
     activityLog: join(dir, 'cache', 'activity.jsonl'),
+    /** When items reached done, as the refresh saw it (see agency-runtime/done-at.ts) */
+    doneTimes: join(dir, 'cache', 'done-at.json'),
     /** Members that did not show a sign of life after their start and retries (see members/start-failures.ts) */
     startFailures: join(dir, 'cache', 'member-start-failed.json'),
     heartbeats: join(dir, 'team'),

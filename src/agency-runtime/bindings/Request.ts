@@ -26,7 +26,7 @@ from: string,
  */
 to?: string, createdAt: Timestamp, 
 /**
- * The related work item (`repo#N`).
+ * The related work item's item reference.
  */
 issue?: string, 
 /**
