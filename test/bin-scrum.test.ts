@@ -138,3 +138,33 @@ describe('bin/scrum activity record (activity)', () => {
     assert.equal(existsSync(sandbox.due), false)
   })
 })
+
+describe('bin/scrum compile cache', () => {
+  /** Runs `bin/scrum help` with a fake node that writes the cache setting it was given to a file; null when it was not set. */
+  function cacheSeenByNode(extraEnv: Record<string, string>): { readonly seen: string; readonly state: string } {
+    const dir = mkdtempSync(join(tmpdir(), 'scrum-bin-cache-'))
+    mkdirSync(join(dir, 'bin'))
+    writeFileSync(join(dir, 'bin', 'node'), `#!/bin/sh\nprintf '%s' "$NODE_COMPILE_CACHE" > "${dir}/seen"\n`)
+    chmodSync(join(dir, 'bin', 'node'), 0o755)
+    const state = join(dir, 'state')
+    const env = { PATH: `${join(dir, 'bin')}:/usr/bin:/bin`, SCRUM_STATE_DIR: state, HOME: dir, ...extraEnv }
+    assert.equal(spawnSync('/bin/sh', [BIN, 'help'], { env, encoding: 'utf8' }).status, 0)
+    return { seen: readFileSync(join(dir, 'seen'), 'utf8'), state }
+  }
+
+  it('points node\'s compile cache into the state directory, so each team keeps its own', () => {
+    const { seen, state } = cacheSeenByNode({})
+    assert.equal(seen, join(state, 'cache', 'node-compile'))
+  })
+
+  it('leaves a cache that the caller already named alone', () => {
+    assert.equal(cacheSeenByNode({ NODE_COMPILE_CACHE: '/somewhere/else' }).seen, '/somewhere/else')
+  })
+
+  it('fills the cache on the first real call', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'scrum-bin-cache-real-'))
+    const env = { PATH: `${join(process.execPath, '..')}:/usr/bin:/bin`, SCRUM_STATE_DIR: join(dir, 'state'), HOME: dir }
+    assert.equal(spawnSync('/bin/sh', [BIN, 'help'], { env, encoding: 'utf8' }).status, 0)
+    assert.equal(existsSync(join(dir, 'state', 'cache', 'node-compile')), true)
+  })
+})

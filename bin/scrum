@@ -11,6 +11,9 @@
 DIR=$(cd "$(dirname "$0")/.." && pwd)
 STATE=${SCRUM_STATE_DIR:-$HOME/.claude/scrum}
 CLI="$DIR/src/cli.ts"
+# Node keeps the compiled form of the harness's modules here, so every call after the first skips compiling the whole tree (about two thirds of the
+# CPU of a call, which matters on a loaded machine and for a runtime that is asked every 30 seconds). It is keyed by the source, so an update is picked up.
+export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-$STATE/cache/node-compile}"
 # Command patterns that start node. node writes them from the script names in the config (writeShellPatterns in src/cli-commands.ts).
 # While they are not yet written, only gh commands are checked.
 POST_PATTERN=$(sed -n 1p "$STATE/cache/shell-patterns" 2>/dev/null)
