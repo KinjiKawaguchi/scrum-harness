@@ -83,7 +83,7 @@ describe('starting with a watchdog', () => {
     writeFileSync(join(dir, 'brief.txt'), 'You are CodexA.')
     return { ...base, members: ['CodexA'], launch: parseLaunch({ tmuxSession: 'team', members: { CodexA: { dir, brief: join(dir, 'brief.txt'), product: 'codex', startupSeconds: 10, startupRetries: 2, ...spec } } }) }
   }
-  const ports = () => fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan.name), stop: (_s: string, name: string, how: 'graceful' | 'kill') => void stopped.push(`${name}:${how}`), screen: () => null, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+  const ports = () => fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => void started.push(plan.name), stop: (_s: string, name: string, how: 'graceful' | 'kill') => void stopped.push(`${name}:${how}`), screen: () => null, say: () => undefined, press: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
   const deps = (time: ReturnType<typeof clock>, lifeAfterStart: number | null): WatchdogDeps => {
     // The member shows a sign of life once it has been started `lifeAfterStart` times (null: never).
     return { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals: () => (lifeAfterStart !== null && started.length >= lifeAfterStart ? [signal('CodexA', time.now())] : []) }
@@ -166,7 +166,7 @@ describe('Codex\'s question about a directory', () => {
   function run(spec: Record<string, unknown>, screen: string = QUESTION) {
     const presses: string[] = []
     const time = clock()
-    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => screen, press: (_s: string, _n: string, key: string) => void presses.push(key) }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => screen, say: () => undefined, press: (_s: string, _n: string, key: string) => void presses.push(key) }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
     const deps: WatchdogDeps = { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals: () => (presses.length > 0 ? [signal('CodexA', time.now())] : []) }
     return { text: memberCommand(config(spec), ports, ['start', 'CodexA'], {}, deps), presses }
   }
@@ -220,7 +220,7 @@ describe('stopping a member and what it leaves behind', () => {
     let asked = false
     const windows = () => (asked && after.windowCloses === true ? ['home'] : ['home', name])
     const idle = signal(name, new Date(NOW.getTime() - 60_000))
-    const ports = fakePorts({ members: { windows, start: () => undefined, stop: (_s: string, name: string, how: 'graceful' | 'kill') => { stops.push(`${name}:${how}`); if (how === 'graceful') asked = true }, screen: () => null, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [idle] } })
+    const ports = fakePorts({ members: { windows, start: () => undefined, stop: (_s: string, name: string, how: 'graceful' | 'kill') => { stops.push(`${name}:${how}`); if (how === 'graceful') asked = true }, screen: () => null, say: () => undefined, press: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [idle] } })
     const signals = () => (asked && after.endsSession === true ? [signal(name, time.now(), { state: 'ended' })] : [idle])
     const text = memberCommand(config, ports, ['stop', name], {}, { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals })
     return { text, stops }

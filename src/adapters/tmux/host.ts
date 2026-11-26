@@ -18,6 +18,14 @@ export function tmuxHost(run: Run = realRun, sleep: (milliseconds: number) => vo
     if (result.status !== 0) return null
     return result.stdout.split('\n').map((line) => line.trim().split(' ')).find(([, ...words]) => words.join(' ') === name)?.[0] ?? null
   }
+  /** Typed as text (`-l`, so a word of it is never read as a key), then Enter a moment later, as a person does: Enter sent with the text was not taken as a command by Codex. */
+  const typeLine = (session: string, name: string, text: string): void => {
+    const id = windowId(session, name)
+    if (id === null) throw new Error(`there is no window named ${name} in the tmux session ${session}`)
+    runOrThrow(run, 'tmux', ['send-keys', '-t', id, '-l', text])
+    sleep(TYPE_THEN_ENTER_MS)
+    runOrThrow(run, 'tmux', ['send-keys', '-t', id, 'Enter'])
+  }
   return {
     windows: (session) => {
       const result = run('tmux', ['list-windows', '-t', `=${session}`, '-F', '#{window_name}'])
@@ -34,16 +42,13 @@ export function tmuxHost(run: Run = realRun, sleep: (milliseconds: number) => vo
       if (id === null) throw new Error(`there is no window named ${name} in the tmux session ${session}`)
       runOrThrow(run, 'tmux', ['send-keys', '-t', id, key])
     },
+    say: (session, name, text) => typeLine(session, name, text),
     stop: (session, name, how) => {
-      const id = windowId(session, name)
-      if (id === null) throw new Error(`there is no window named ${name} in the tmux session ${session}`)
-      if (how === 'kill') runOrThrow(run, 'tmux', ['kill-window', '-t', id])
-      else {
-        // Typed as text, then Enter a moment later, as a person does: Enter sent with the text was not taken as a command by Codex.
-        runOrThrow(run, 'tmux', ['send-keys', '-t', id, '-l', '/exit'])
-        sleep(TYPE_THEN_ENTER_MS)
-        runOrThrow(run, 'tmux', ['send-keys', '-t', id, 'Enter'])
-      }
+      if (how === 'kill') {
+        const id = windowId(session, name)
+        if (id === null) throw new Error(`there is no window named ${name} in the tmux session ${session}`)
+        runOrThrow(run, 'tmux', ['kill-window', '-t', id])
+      } else typeLine(session, name, '/exit')
     },
     start: (session, plan: LaunchPlan) => {
       if (!hasSession(session)) runOrThrow(run, 'tmux', ['new-session', '-d', '-s', session, '-n', 'home', '-c', plan.dir])

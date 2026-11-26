@@ -1,4 +1,5 @@
 import type { LaunchPlan, Ports } from '../ports/index.ts'
+import type { Paths } from '../store.ts'
 import type { MemberSpec, Product } from './config.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
 import { CODEX_TRUST_QUESTION, claudeTrustKey, screenQuestion } from './trust.ts'
@@ -24,6 +25,8 @@ export type WatchdogDeps = WaitDeps & {
   readonly budgetPath?: string
   /** Where the time of the last automatic move is kept */
   readonly memberMovesPath?: string
+  /** The state directory's paths, for what reads the board copy, the acknowledgements, and the event log (telling a Codex member to go on) */
+  readonly paths?: Paths
 }
 
 /**

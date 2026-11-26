@@ -99,7 +99,7 @@ describe('starting a Claude Code member at the question about its folder', () =>
       if (key === 'Down') focused = 'Yes, I trust this folder'
       if (key === 'Enter' && focused === 'Yes, I trust this folder') isAnswered = true
     }
-    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => (isAnswered ? 'Try "create a util logging.py that..."' : question(shown, focused)), press }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
+    const ports = fakePorts({ members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => (isAnswered ? 'Try "create a util logging.py that..."' : question(shown, focused)), say: () => undefined, press }, launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher } })
     const deps: WatchdogDeps = { startFailuresPath: p.startFailures, now: time.now, sleep: time.sleep, signals: () => (isAnswered ? [signal('ClaudeA', time.now())] : []) }
     return { text: memberCommand(config(spec), ports, ['start', 'ClaudeA'], {}, deps), presses }
   }

@@ -44,7 +44,7 @@ describe('members that run, and members that start again', () => {
     const config: Config = { ...base, members: Object.keys(specs), launch: parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'] }, members: specs }) }
     const started: LaunchPlan[] = []
     const ports = fakePorts({
-      members: { windows: () => ['home', ...(world.running ?? ['SWE1', 'SWE2'])], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, press: () => undefined },
+      members: { windows: () => ['home', ...(world.running ?? ['SWE1', 'SWE2'])], start: (_s: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined },
       sessions: { find: () => ({ name: null, pid: null }), signals: () => world.signals ?? [signal('SWE1'), signal('SWE2')] },
       fundingSources: () => world.sources ?? [DEFAULT, OTHER],
       funding: world.pickEnv === undefined ? null : () => ({ state: 'ok', source: 'two', env: world.pickEnv ?? {} }),
@@ -141,7 +141,7 @@ describe('members that run, and members that start again', () => {
       const dir = mkdtempSync(join(tmpdir(), 'scrum-adopt-dir-'))
       const config: Config = { ...base, members: ['SWE1'], launch: parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'] }, members: { SWE1: { dir } } }) }
       const ports = fakePorts({
-        members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, press: () => undefined },
+        members: { windows: () => ['home'], start: () => undefined, stop: () => undefined, screen: () => null, say: () => undefined, press: () => undefined },
         sessions: { find: () => ({ name: null, pid: null }), signals: () => [signal('SWE1', { state: 'ended', isAlive: false })] },
         funding: () => ({ state: 'ok', source: 'two', env: { CLAUDE_CONFIG_DIR: '/accounts/two' } }),
         hasTranscriptIn: (configDir: string) => (seen.push(configDir), true),

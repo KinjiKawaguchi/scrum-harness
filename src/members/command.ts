@@ -10,6 +10,7 @@ import { budgetGate } from '../budget/gate.ts'
 import { adoptCommand } from './adopt.ts'
 import { moveCommand } from './move.ts'
 import { RESTART_NOTE, recordedSessionId, resumeSession } from './resume.ts'
+import { continueIdle } from './continue.ts'
 import { finishExit, startWatched, type WatchdogDeps } from './lifecycle.ts'
 import { watchdogOf } from './watchdog.ts'
 
@@ -20,6 +21,7 @@ export const MEMBER_USAGE = `scrum member: the members of this team and where th
   scrum member stop <name...> [--force]              Ask an idle member to exit. A busy member, or one at a permission prompt, only with --force, which closes its window
   scrum member adopt <name...> | --all [--source <name>]   Record members that already run (started some other way) as on the default login, or on the source named, without restarting them; needed by "member move"
   scrum member move [<name>...] [--dry-run]          With launch.funding: restart ONE idle member that runs on a source past its threshold on the source the node picks, continuing its conversation. Without names, the members (not the lead)
+  scrum member continue [--dry-run]                  Type the continuation text of a Codex member into its window when it has been idle at its prompt for its afterMinutes (once for each stretch of idleness, not while an acknowledgement of its idleness is in force); scrum refresh does this too
   scrum member start <name...> | --all [--dry-run] [--no-wait] [--resume]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run. A member with a startup watchdog (a Codex member by default) is waited for, closed, and started again if it shows no sign of life; --no-wait skips that. --resume continues the member's latest recorded Claude Code conversation (claude --resume) with a short note instead of its brief`
 
 const shellWord = (word: string): string => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`)
@@ -124,9 +126,18 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
       return adoptCommand(config, ports, positional, flags, watchdogDeps)
     case 'move':
       return moveCommand(config, ports, positional, flags, watchdogDeps)
+    case 'continue':
+      return continueCommand(config, ports, flags, watchdogDeps)
     case 'start':
       return startCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
     default:
       return MEMBER_USAGE
   }
+}
+
+/** `scrum member continue [--dry-run]`: tells each Codex member that has been idle too long to go on, as `scrum refresh` does (see `continueIdle`). */
+function continueCommand(config: Config, ports: Ports, flags: Flags, deps: WatchdogDeps | undefined): string {
+  if (deps === undefined) return 'telling a member to go on needs the clock and the state directory, which only the command line has'
+  const lines = continueIdle(config, ports, deps, flags['dry-run'] === true)
+  return lines.length === 0 ? 'no Codex member needs to be told to go on' : lines.join('\n')
 }
