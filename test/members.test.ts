@@ -112,14 +112,14 @@ describe('the tmux host', () => {
 
 describe('scrum member', () => {
   it('lists the report with the host\'s windows and the session records', () => {
-    const ports = fakePorts({ members: { windows: (session) => (session === 'team' ? ['TechLead', 'SWE1'] : null), start: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [signal('SWE2', 'waiting')] } })
+    const ports = fakePorts({ members: { windows: (session) => (session === 'team' ? ['TechLead', 'SWE1'] : null), start: () => undefined, stop: () => undefined }, sessions: { find: () => ({ name: null, pid: null }), signals: () => [signal('SWE2', 'waiting')] } })
     const text = memberCommand(config, ports, ['list'])
     assert.match(text, /SWE2\s+member\s+running \(waiting\) \[no window\]/)
     assert.match(text, /listed but not running: SWE3/)
   })
 
   it('does not ask the host without a launch section, and shows the usage for anything else', () => {
-    const ports = fakePorts({ members: { windows: () => assert.fail('the host must not be asked'), start: () => undefined } })
+    const ports = fakePorts({ members: { windows: () => assert.fail('the host must not be asked'), start: () => undefined, stop: () => undefined } })
     assert.match(memberCommand(base, ports, ['list']), /could not be read/)
     assert.match(memberCommand(config, ports, []), /scrum member: /)
   })
@@ -137,7 +137,7 @@ describe('starting a member', () => {
     const launch = parseLaunch({ tmuxSession: 'team', defaults: { model: 'model-a', effort: 'high' }, members: { SWE1: { dir: swe1, brief: briefFile, ...extra }, SWE2: { dir: dir() } }, ignoreWindows: ['home'] })
     return { ...base, launch }
   }
-  const hostOf = (windows: readonly string[] | null, started: LaunchPlan[]) => ({ windows: () => windows, start: (_session: string, plan: LaunchPlan) => void started.push(plan) })
+  const hostOf = (windows: readonly string[] | null, started: LaunchPlan[]) => ({ windows: () => windows, start: (_session: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined })
   const portsOf = (windows: readonly string[] | null, started: LaunchPlan[], signals: readonly SessionSignal[] = []) =>
     fakePorts({ members: hostOf(windows, started), launchers: { 'claude-code': claudeCodeLauncher }, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } })
 
@@ -209,7 +209,7 @@ describe('starting a member', () => {
 
   it('says what the host refused, and goes on with the others', () => {
     const config: Config = { ...launchConfig(), members: ['SWE1', 'SWE2'] }
-    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') } }, launchers: { 'claude-code': claudeCodeLauncher } })
+    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') }, stop: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher } })
     const text = memberCommand(config, refusing, ['start', 'SWE1', 'SWE2'], {})
     assert.match(text, /SWE1: could not start: no space for window/)
     assert.match(text, /SWE2: started/)
@@ -238,5 +238,65 @@ describe('the tmux host starts a window', () => {
     assert.deepEqual(calls.map((call) => call[1]), ['has-session', 'new-window'])
     const refusing = tmuxHost((_c, args) => ({ status: args[0] === 'new-window' ? 1 : 0, stdout: '', stderr: 'create window failed: index in use' }))
     assert.throws(() => refusing.start('team', plan), /create window failed: index in use/)
+  })
+})
+
+describe('stopping a member', () => {
+  type Stop = { readonly session: string; readonly name: string; readonly how: string }
+  const config: Config = { ...base, launch: parseLaunch({ tmuxSession: 'team', members: {}, ignoreWindows: ['home'] }) }
+  const live = (name: string, state: SessionSignal['state']): SessionSignal => ({ sessionId: `s-${name}`, name, state, since: '2026-10-08T05:00:00.000Z', updatedAt: '2026-10-08T05:00:00.000Z', isAlive: true, nameSince: '2026-10-08T04:00:00.000Z' })
+  const run = (args: readonly string[], flags: Record<string, string | true>, windows: readonly string[], signals: readonly SessionSignal[], stops: Stop[], fail = false) =>
+    memberCommand(config, fakePorts({ members: { windows: () => windows, start: () => undefined, stop: (session: string, name: string, how: 'graceful' | 'kill') => { if (fail) throw new Error('no such window'); stops.push({ session, name, how }) } }, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } }), ['stop', ...args], flags)
+
+  it('asks an idle member to exit, and a member with no live session too', () => {
+    const stops: Stop[] = []
+    const text = run(['SWE1', 'SWE2'], {}, ['home', 'SWE1', 'SWE2'], [live('SWE1', 'idle')], stops)
+    assert.match(text, /SWE1: asked to exit/)
+    assert.deepEqual(stops, [{ session: 'team', name: 'SWE1', how: 'graceful' }, { session: 'team', name: 'SWE2', how: 'graceful' }])
+  })
+
+  it('leaves a busy member, and one waiting at a prompt, alone unless --force, which closes the window', () => {
+    const stops: Stop[] = []
+    const signals = [live('SWE1', 'busy'), live('SWE2', 'waiting')]
+    const refused = run(['SWE1', 'SWE2'], {}, ['SWE1', 'SWE2'], signals, stops)
+    assert.match(refused, /SWE1: is busy; not stopped \(--force closes its window\)/)
+    assert.match(refused, /SWE2: is waiting at a prompt; not stopped/)
+    assert.deepEqual(stops, [])
+    assert.match(run(['SWE1'], { force: true }, ['SWE1'], signals, stops), /SWE1: window closed/)
+    assert.deepEqual(stops, [{ session: 'team', name: 'SWE1', how: 'kill' }])
+  })
+
+  it('says when there is nothing to stop here: not in the configuration, no window, a session that runs elsewhere', () => {
+    const stops: Stop[] = []
+    const text = run(['Stranger', 'SWE1', 'SWE2'], {}, ['home'], [live('SWE2', 'idle')], stops)
+    assert.match(text, /Stranger: not in the configuration/)
+    assert.match(text, /SWE1: has no window in the tmux session team\n/)
+    assert.match(text, /SWE2: has no window in the tmux session team \(it runs elsewhere, so it is not stopped from here\)/)
+    assert.deepEqual(stops, [])
+  })
+
+  it('says what the host refused, names nobody, and needs a launch section', () => {
+    assert.match(run(['SWE1'], {}, ['SWE1'], [], [], true), /SWE1: could not stop: no such window/)
+    assert.match(run([], {}, ['SWE1'], [], []), /name the members to stop/)
+    assert.match(memberCommand(base, fakePorts(), ['stop', 'SWE1'], {}), /no launch section/)
+  })
+})
+
+describe('the tmux host stops a window', () => {
+  const listing = '@1 home\n@4 SWE1\n@7 SWE1 notes\n'
+  const host = (calls: string[][], status = 0) => tmuxHost((command, args) => (calls.push([command, ...args]), { status, stdout: args[0] === 'list-windows' ? listing : '', stderr: 'tmux refused' }))
+
+  it('finds the window by its exact name and types /exit into it, or closes it by its id', () => {
+    const graceful: string[][] = []
+    host(graceful).stop('team', 'SWE1', 'graceful')
+    assert.deepEqual(graceful.at(-1), ['tmux', 'send-keys', '-t', '@4', '/exit', 'Enter'])
+    const kill: string[][] = []
+    host(kill).stop('team', 'SWE1', 'kill')
+    assert.deepEqual(kill.at(-1), ['tmux', 'kill-window', '-t', '@4'])
+  })
+
+  it('throws when there is no such window, and tmux\'s own words when it refuses', () => {
+    assert.throws(() => host([]).stop('team', 'SWE9', 'graceful'), /no window named SWE9 in the tmux session team/)
+    assert.throws(() => host([], 1).stop('team', 'SWE1', 'graceful'), /tmux refused/)
   })
 })
