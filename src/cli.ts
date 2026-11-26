@@ -41,6 +41,7 @@ import { refreshFundingDirs } from './members/funding-dirs.ts'
 import { autoMove } from './members/move.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
+import { metricsCommand } from './metrics/command.ts'
 
 const DEFAULT_STATE_DIR = join(homedir(), '.claude', 'scrum')
 
@@ -60,6 +61,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum board <add|move>              Add an issue to the board, or hand an item to another team (when the board is shared). Run it with no arguments for the shape
   scrum member list|start|stop      the configured members, whether each runs, and what runs but is not listed; start or stop them from the launch section
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
+  scrum metrics [--days N] [--json]  each participant's busy, waiting, and idle time, cost, and tokens by day, and the pull requests whose author is known (what the op participantMetrics answers)
   scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
   scrum init --project-id <id> --status-field-id <id> --repos <owner/name,...> --owner-user <@login> [...]
                                     write a minimal team configuration and the state directory (scrum init with no flags shows the rest)
@@ -258,6 +260,8 @@ async function main(argv: readonly string[]): Promise<number> {
         if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now, ports.board)
         return formatOnce(dispatchOnce(p, c, now, ports, positional))
       })
+    case 'metrics':
+      return needConfig((c, ports) => metricsCommand(c, flags, { p, ports, now: new Date(), spawnRefresh, spawnUsageIndex }))
     case 'usage-index':
       return needConfig((c, ports) => {
         const done = runUsageIndex(p, c, ports.transcripts, new Date())

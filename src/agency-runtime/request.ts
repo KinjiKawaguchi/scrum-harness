@@ -1,4 +1,4 @@
-import { MAX_ACTIVITY_LIMIT, MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
+import { MAX_ACTIVITY_LIMIT, MAX_USAGE_DAYS, MAX_UTC_OFFSET_MINUTES, MIN_UTC_OFFSET_MINUTES, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 /** RFC 3339 in UTC, ending in Z, as the protocol's `Timestamp` */
@@ -53,7 +53,14 @@ export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError 
     const isLimit = typeof limit === 'number' && Number.isInteger(limit) && limit >= 1 && limit <= MAX_ACTIVITY_LIMIT
     return isLimit ? { ...base, op: 'activity', since, limit } : malformed(`limit must be a whole number from 1 to ${MAX_ACTIVITY_LIMIT}`)
   }
-  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", or "activity"')
+  if (raw.op === 'participantMetrics') {
+    const { days, utcOffsetMinutes } = raw
+    if (!(typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= MAX_USAGE_DAYS)) return malformed(`days must be a whole number from 1 to ${MAX_USAGE_DAYS}`)
+    if (utcOffsetMinutes === undefined) return { ...base, op: 'participantMetrics', days }
+    const isOffset = typeof utcOffsetMinutes === 'number' && Number.isInteger(utcOffsetMinutes) && utcOffsetMinutes >= MIN_UTC_OFFSET_MINUTES && utcOffsetMinutes <= MAX_UTC_OFFSET_MINUTES
+    return isOffset ? { ...base, op: 'participantMetrics', days, utcOffsetMinutes } : malformed(`utcOffsetMinutes must be a whole number from ${MIN_UTC_OFFSET_MINUTES} to ${MAX_UTC_OFFSET_MINUTES}`)
+  }
+  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", "activity", or "participantMetrics"')
   const decision = parseDecision(raw.decision)
   return 'status' in decision ? decision : { ...base, op: 'decide', decision }
 }

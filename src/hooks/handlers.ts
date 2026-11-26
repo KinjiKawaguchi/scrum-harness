@@ -97,8 +97,8 @@ function techlead(event: string, input: HookInput, deps: HookDeps): HookResult {
 /** Records the member whose session opened a pull request, from the tool result. */
 function notePullRequest(identity: Identity, input: HookInput, deps: HookDeps): void {
   const call = toolCall(input)
-  const ref = call === null ? null : openedPullRequest(call)
-  if (ref !== null) recordPrAuthor(deps.p.prAuthors, { at: deps.now.toISOString(), name: identity.name, sessionId: identity.sessionId, ref })
+  const opened = call === null ? null : openedPullRequest(call)
+  if (opened !== null) recordPrAuthor(deps.p.prAuthors, { at: deps.now.toISOString(), name: identity.name, sessionId: identity.sessionId, ...opened })
 }
 
 /**
