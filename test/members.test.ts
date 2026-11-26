@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { claudeCodeLauncher } from '../src/adapters/claude-code/launch.ts'
+import { codexLauncher } from '../src/adapters/codex/launch.ts'
 import { tmuxHost } from '../src/adapters/tmux/host.ts'
 import { parseConfig, type Config } from '../src/config.ts'
 import { memberCommand } from '../src/members/command.ts'
@@ -15,6 +16,7 @@ import type { SessionSignal } from '../src/team/types.ts'
 import { fakePorts } from './fake-ports.ts'
 import { config as base } from './helpers.ts'
 
+const LAUNCHERS = { 'claude-code': claudeCodeLauncher, codex: codexLauncher }
 const LAUNCH = {
   tmuxSession: 'team',
   defaults: { model: 'model-a', effort: 'high' },
@@ -139,11 +141,11 @@ describe('starting a member', () => {
   }
   const hostOf = (windows: readonly string[] | null, started: LaunchPlan[]) => ({ windows: () => windows, start: (_session: string, plan: LaunchPlan) => void started.push(plan), stop: () => undefined })
   const portsOf = (windows: readonly string[] | null, started: LaunchPlan[], signals: readonly SessionSignal[] = []) =>
-    fakePorts({ members: hostOf(windows, started), launchers: { 'claude-code': claudeCodeLauncher }, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } })
+    fakePorts({ members: hostOf(windows, started), launchers: LAUNCHERS, sessions: { find: () => ({ name: null, pid: null }), signals: () => signals } })
 
   it('plans a member from its settings: the directory, the environment that makes it report to this team, and its product\'s command line', () => {
     const config = launchConfig()
-    const planned = planMember(config, 'SWE1', '/state/team', '/usr/bin:/opt/bin', { 'claude-code': claudeCodeLauncher })
+    const planned = planMember(config, 'SWE1', '/state/team', '/usr/bin:/opt/bin', LAUNCHERS)
     assert.ok('plan' in planned)
     assert.deepEqual(planned.plan.argv, ['claude', '-n', 'SWE1', '--model', 'model-a', '--effort', 'high', SECRET_BRIEF])
     assert.deepEqual(planned.plan.env, { SCRUM_STATE_DIR: '/state/team', SCRUM_NAME: 'SWE1', PATH: '/usr/bin:/opt/bin' })
@@ -151,21 +153,21 @@ describe('starting a member', () => {
   })
 
   it('lets the member\'s own settings win over the defaults, adds its Claude Code configuration directory, and skips prompts only when told', () => {
-    const planned = planMember(launchConfig({ model: 'model-b', configDir: '/data/claude-b', permissions: 'skip' }), 'SWE1', '/s', undefined, { 'claude-code': claudeCodeLauncher })
+    const planned = planMember(launchConfig({ model: 'model-b', configDir: '/data/claude-b', permissions: 'skip' }), 'SWE1', '/s', undefined, LAUNCHERS)
     assert.ok('plan' in planned)
     assert.deepEqual(planned.plan.argv.slice(0, 6), ['claude', '--dangerously-skip-permissions', '-n', 'SWE1', '--model', 'model-b'])
     assert.deepEqual(planned.plan.env, { SCRUM_STATE_DIR: '/s', SCRUM_NAME: 'SWE1', CLAUDE_CONFIG_DIR: '/data/claude-b' })
-    assert.equal(planMember(launchConfig(), 'SWE1', '/s', undefined, { 'claude-code': claudeCodeLauncher }).hasOwnProperty('plan'), true)
-    const asks = planMember(launchConfig(), 'SWE1', '/s', undefined, { 'claude-code': claudeCodeLauncher })
+    assert.equal(planMember(launchConfig(), 'SWE1', '/s', undefined, LAUNCHERS).hasOwnProperty('plan'), true)
+    const asks = planMember(launchConfig(), 'SWE1', '/s', undefined, LAUNCHERS)
     assert.equal('plan' in asks && asks.plan.argv.includes('--dangerously-skip-permissions'), false)
   })
 
   it('says what is missing: a directory that is not set or not there, and a brief that cannot be read', () => {
     const config = launchConfig()
-    assert.match((planMember(config, 'Nobody', '/s', undefined, { 'claude-code': claudeCodeLauncher }) as { problem: string }).problem, /has no directory/)
+    assert.match((planMember(config, 'Nobody', '/s', undefined, LAUNCHERS) as { problem: string }).problem, /has no directory/)
     const gone: Config = { ...config, launch: parseLaunch({ tmuxSession: 'team', members: { SWE1: { dir: '/nonexistent/dir' }, SWE2: { dir: dir(), brief: '/nonexistent/brief.txt' } } }) }
-    assert.match((planMember(gone, 'SWE1', '/s', undefined, { 'claude-code': claudeCodeLauncher }) as { problem: string }).problem, /does not exist: \/nonexistent\/dir/)
-    assert.match((planMember(gone, 'SWE2', '/s', undefined, { 'claude-code': claudeCodeLauncher }) as { problem: string }).problem, /brief of SWE2 cannot be read/)
+    assert.match((planMember(gone, 'SWE1', '/s', undefined, LAUNCHERS) as { problem: string }).problem, /does not exist: \/nonexistent\/dir/)
+    assert.match((planMember(gone, 'SWE2', '/s', undefined, LAUNCHERS) as { problem: string }).problem, /brief of SWE2 cannot be read/)
   })
 
   it('starts the members named, through the host, in the launch section\'s session', () => {
@@ -209,7 +211,7 @@ describe('starting a member', () => {
 
   it('says what the host refused, and goes on with the others', () => {
     const config: Config = { ...launchConfig(), members: ['SWE1', 'SWE2'] }
-    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') }, stop: () => undefined }, launchers: { 'claude-code': claudeCodeLauncher } })
+    const refusing = fakePorts({ members: { windows: () => ['home'], start: (_s: string, plan: LaunchPlan) => { if (plan.name === 'SWE1') throw new Error('no space for window') }, stop: () => undefined }, launchers: LAUNCHERS })
     const text = memberCommand(config, refusing, ['start', 'SWE1', 'SWE2'], {})
     assert.match(text, /SWE1: could not start: no space for window/)
     assert.match(text, /SWE2: started/)

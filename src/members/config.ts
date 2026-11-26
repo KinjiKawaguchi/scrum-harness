@@ -2,8 +2,9 @@
  * How a team's members are started and found: the one place that says where each runs. Names, directories, and models are values of a team, so they
  * live only in the configuration file.
  */
-export type Product = 'claude-code'
+export type Product = 'claude-code' | 'codex'
 export type Permissions = 'ask' | 'skip'
+export type Sandbox = 'read-only' | 'workspace-write' | 'danger-full-access'
 
 export type MemberSpec = {
   /** The working directory: an absolute path, or one under `~/` */
@@ -15,6 +16,8 @@ export type MemberSpec = {
   readonly effort?: string
   /** `skip` starts the member without permission prompts; it is never a default and has to be written next to the member */
   readonly permissions?: Permissions
+  /** Codex only: how much the member's commands may touch (`-s`). Left to the user's Codex configuration when absent */
+  readonly sandbox?: Sandbox
   /** The Claude Code configuration directory (`CLAUDE_CONFIG_DIR`) the member runs under, for a team that uses more than one subscription */
   readonly configDir?: string
 }
@@ -32,9 +35,10 @@ export type LaunchConfig = {
 const WORD = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const NAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/
 const SETTING = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
-const PRODUCTS: readonly Product[] = ['claude-code']
+const PRODUCTS: readonly Product[] = ['claude-code', 'codex']
+const SANDBOXES: readonly Sandbox[] = ['read-only', 'workspace-write', 'danger-full-access']
 const PERMISSIONS: readonly Permissions[] = ['ask', 'skip']
-const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'configDir'] as const
+const KEYS = ['dir', 'brief', 'product', 'model', 'effort', 'permissions', 'sandbox', 'configDir'] as const
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const isPath = (value: unknown): value is string => typeof value === 'string' && (value.startsWith('/') || value.startsWith('~/')) && value.length > 1
@@ -43,7 +47,7 @@ const isSetting = (value: unknown): value is string => typeof value === 'string'
 /** One member's settings, or null when a value is of the wrong shape or a key is not known (a misspelled key would otherwise be ignored). */
 function parseSpec(raw: unknown): MemberSpec | null {
   if (!isObject(raw) || Object.keys(raw).some((key) => !(KEYS as readonly string[]).includes(key))) return null
-  const { dir, brief, product, model, effort, permissions, configDir } = raw
+  const { dir, brief, product, model, effort, permissions, sandbox, configDir } = raw
   const isValid =
     (dir === undefined || isPath(dir)) &&
     (configDir === undefined || isPath(configDir)) &&
@@ -51,9 +55,10 @@ function parseSpec(raw: unknown): MemberSpec | null {
     (product === undefined || PRODUCTS.includes(product as Product)) &&
     (model === undefined || isSetting(model)) &&
     (effort === undefined || isSetting(effort)) &&
-    (permissions === undefined || PERMISSIONS.includes(permissions as Permissions))
+    (permissions === undefined || PERMISSIONS.includes(permissions as Permissions)) &&
+    (sandbox === undefined || SANDBOXES.includes(sandbox as Sandbox))
   if (!isValid) return null
-  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(configDir === undefined ? {} : { configDir }) }
+  return { ...(dir === undefined ? {} : { dir }), ...(brief === undefined ? {} : { brief }), ...(product === undefined ? {} : { product: product as Product }), ...(model === undefined ? {} : { model }), ...(effort === undefined ? {} : { effort }), ...(permissions === undefined ? {} : { permissions: permissions as Permissions }), ...(sandbox === undefined ? {} : { sandbox: sandbox as Sandbox }), ...(configDir === undefined ? {} : { configDir }) }
 }
 
 /** Reads the `launch` section. A section of the wrong shape is ignored (undefined), so the other features keep working. */
