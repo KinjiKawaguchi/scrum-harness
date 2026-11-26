@@ -3,6 +3,8 @@ import { MAX_USAGE_DAYS, RUNTIME_VERSION, type RuntimeDecision, type RuntimeErro
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 /** GitHub rejects comment bodies above 65536 characters; stay well below so the added header fits. */
 const MAX_TEXT_LENGTH = 60_000
+/** A choice is the key of an option, so it is short. */
+const MAX_CHOICE_LENGTH = 200
 /** A participant's runtime name. */
 const MAX_NAME_LENGTH = 80
 
@@ -20,7 +22,7 @@ function parseDecision(raw: unknown): RuntimeDecision | RuntimeError {
   if (!isObj(payload) || typeof payload.text !== 'string') return malformed('decision.payload.text must be a string')
   const choice = payload.choice
   if (choice !== undefined && typeof choice !== 'string') return malformed('decision.payload.choice must be a string')
-  if (payload.text.length > MAX_TEXT_LENGTH || (choice?.length ?? 0) > MAX_TEXT_LENGTH) return malformed('decision text is too long')
+  if (payload.text.length > MAX_TEXT_LENGTH || (choice?.length ?? 0) > MAX_CHOICE_LENGTH) return malformed('decision text or choice is too long')
   return { kind, target, by, ...(byParticipant === undefined ? {} : { byParticipant }), payload: { text: payload.text, ...(choice === undefined ? {} : { choice }) } }
 }
 

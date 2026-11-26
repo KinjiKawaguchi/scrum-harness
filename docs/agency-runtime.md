@@ -63,7 +63,7 @@ The node calls `decide` only after it has verified the decision. The harness che
 
 - `kind: "answer"` answers a request in the store, by its id. The answer is a message from `owner` (with `choice` when one of the options was chosen, and the decider's id as `by`), the turn moves to the team, and R-ANSWERED reaches the lead. A closed request reopens, so a late answer still reaches the team. An unknown id is 404; a `choice` that is not an option key, or an answer with neither text nor a choice, is 400. Applying the same answer again (a retry after a lost reply) changes nothing.
 - `kind: "judge"` answers an item blocked on a decision. The harness first reads the board again if its copy is older than `refreshSeconds` (this can take several seconds on a large board; the node stops a call after 20 seconds). Then:
-  1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then `Decision by <person>.`, the choice if there is one, and the text. If the same comment is already there (a retry), it does not post it again.
+  1. It posts a comment on the issue: a first line `<!-- agency-runtime:decision by=<person> -->`, then a line saying the rest is quoted data relayed by the node, then the choice (if there is one) and the text inside a fenced block, so no mention, link, image, or HTML in it takes effect. If the same comment is already there (a retry), it does not post it again.
   2. It clears the blocked reason with the configured `scripts.setReason` script (`<number> <reasonNone>`), and updates its board copy.
 
   The comment comes first, so a failure in between is retried without losing the answer. `judge` needs `scripts.setReason`; without it the answer is 503. An id that is not a pending decision is 404.

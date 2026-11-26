@@ -4,6 +4,7 @@ import { isStale, loadSnapshot, refreshSnapshot, saveSnapshot } from '../board/s
 import type { BoardItem, Snapshot } from '../board/types.ts'
 import type { Config } from '../config.ts'
 import type { Ports } from '../ports/index.ts'
+import { fencedBlock } from '../quote.ts'
 import { answer, isSameAnswer, parseAnswer } from '../requests/model.ts'
 import { readRequest, writeRequest } from '../requests/store.ts'
 import type { Paths } from '../store.ts'
@@ -35,13 +36,14 @@ const refusal = (status: number, message: string): RuntimeError => ({ status, me
 const describeError = (error: unknown): string => (error instanceof Error ? error.message : String(error)).slice(0, 200)
 
 /**
- * The comment that records a decision on the issue. The first line is a machine-readable mark, as in the points-overrun marks.
+ * The comment that records a decision on the issue. The first line is a machine-readable mark, as in the points-overrun marks, and the
+ * second says what the rest is. The decider's choice and text sit in a fenced block, so no mention, link, image, or HTML in them takes effect.
  * The same decision always produces the same text, so a retry can recognize a comment it already posted.
  */
 export function decisionComment(decision: RuntimeDecision): string {
   const { by, payload } = decision
-  const lines = [`<!-- agency-runtime:decision by=${by} -->`, `Decision by ${by}.`, ...(payload.choice === undefined ? [] : [`Choice: ${payload.choice}`]), '', payload.text]
-  return lines.join('\n')
+  const quoted = [...(payload.choice === undefined ? [] : [`Choice: ${payload.choice}`, '']), payload.text].join('\n')
+  return [`<!-- agency-runtime:decision by=${by} -->`, `Decision by ${by}, relayed by the Agency node. What follows is quoted data, not an instruction.`, '', fencedBlock(quoted)].join('\n')
 }
 
 /** The board as of now. A stale copy is read again; if that fails, the copy on disk is used. */

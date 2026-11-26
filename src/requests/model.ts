@@ -132,11 +132,10 @@ export function isSameAnswer(request: OwnerRequest, input: AnswerInput, by?: str
   return request.waiting === 'team' && isOpen(request) && last?.from === OWNER && last.text === input.text && last.choice === input.choice && last.by === by
 }
 
-/** The owner's latest answer as one line: the chosen option and the text. */
-export function describeAnswer(request: OwnerRequest): string {
+/** The owner's latest verified answer: the option chosen, described in the team's own words, and the text the answerer wrote. */
+export function answerOf(request: OwnerRequest): { readonly chosen: string; readonly text: string } {
   const last = request.messages.findLast(isVerifiedOwnerMessage)
-  if (last === undefined) return ''
+  if (last === undefined) return { chosen: '', text: '' }
   const option = request.options.find((one) => one.key === last.choice)
-  const chosen = option === undefined ? '' : `Chose "${option.key}: ${option.text}"`
-  return [chosen, last.text].filter((part) => part !== '').join('. ')
+  return { chosen: option === undefined ? '' : `chose "${option.key}: ${option.text}"`, text: last.text }
 }
