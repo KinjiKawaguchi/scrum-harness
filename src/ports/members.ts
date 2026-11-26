@@ -7,6 +7,10 @@ export type MemberHost = {
    * Throws when the host refuses or has no such window.
    */
   readonly stop: (session: string, name: string, how: 'graceful' | 'kill') => void
+  /** The last lines on the screen of the window named `name`, or null when there is no such window. For a person (or a watchdog) to see what a member is waiting at. */
+  readonly screen: (session: string, name: string) => string | null
+  /** Presses a key in the window (`Enter`), as a person would. Throws when the host refuses or has no such window. */
+  readonly press: (session: string, name: string, key: string) => void
   /** Starts a window named `plan.name` in the session (creating the session when it is not there). Throws when the host refuses. */
   readonly start: (session: string, plan: LaunchPlan) => void
 }

@@ -174,4 +174,38 @@ Connections to external systems are split into ports and adapters. Dependencies 
 Either MIT or Apache-2.0, at your option ([LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE)).
 
 
-**Codex members.** A member with `product: "codex"` is started with `codex` instead of `claude`, with the same hooks as a Claude Code member passed at the start with `-c hooks.<Event>=[...]` (the same events and limits; nothing is written under `~/.codex`), and with `SCRUM_NAME` and `SCRUM_STATE_DIR` in its environment, which reach the hooks. Codex gives its hooks the same input as Claude Code, so the harness's write guard works for it: a command a hook denies is not run. Two things differ. The hooks are trusted for the session (`--dangerously-bypass-hook-trust`), because nobody can answer a trust prompt in a member's window; this also trusts a hook that the member's project defines. And the reason a hook gives does not reach the model, which only learns that a hook blocked the command. Approvals and the sandbox follow the user's Codex configuration unless the member says `sandbox` (`read-only`, `workspace-write`, or `danger-full-access`); `permissions: "skip"` bypasses both and is never a default. A `codex exec` that is started alone has been seen to hang before its first hook; give an automated one a timeout and a retry. The TechLead stays Claude Code: the wake-up of an idle session (`asyncRewake`) has not been shown for Codex.
+**Codex members.** A member with `product: "codex"` is started with `codex` instead of `claude`, with the same hooks as a Claude Code member passed at the start with `-c hooks.<Event>=[...]` (the same events and limits; nothing is written under `~/.codex`), and with `SCRUM_NAME` and `SCRUM_STATE_DIR` in its environment, which reach the hooks. Codex gives its hooks the same input as Claude Code, so the harness's write guard works for it: a command a hook denies is not run. Two things differ. The hooks are trusted for the session (`--dangerously-bypass-hook-trust`), because nobody can answer a trust prompt in a member's window; this also trusts a hook that the member's project defines. And the reason a hook gives does not reach the model, which only learns that a hook blocked the command. Approvals and the sandbox follow the user's Codex configuration unless the member says `sandbox` (`read-only`, `workspace-write`, or `danger-full-access`); `permissions: "skip"` bypasses both and is never a default. A Codex session that is started alone has been seen to hang before its first hook, so a Codex member has a **startup watchdog**: after `scrum member start` it has `startupSeconds` (default 60) to show a sign of life (a hook heartbeat or a live session record); if it does not, its window is closed and it is started again, `startupRetries` more times (default 2), and then it is reported as the finding M-START-FAILED. Any member can have the watchdog by setting `startupSeconds` (5 to 600) and `startupRetries` (0 to 5); `--no-wait` skips it. Give an automated `codex exec` its own timeout and retry. The TechLead stays Claude Code: the wake-up of an idle session (`asyncRewake`) has not been shown for Codex.
+
+**Adding a Codex member to a team**, step by step (tried on Codex 0.151):
+
+1. Install `codex` and sign in (`codex login`). The member uses that login, so its work counts against that plan.
+2. Add the member's name to `members` in the team's `config.json`, and give it launch settings. The working directory is where it works, usually a checkout of its own:
+
+   ```json
+   "launch": {
+     "tmuxSession": "team",
+     "members": {
+       "CodexA": {
+         "product": "codex",
+         "dir": "~/work/app-wt/codex-a",
+         "brief": "~/work/briefs/CodexA.txt",
+         "sandbox": "workspace-write",
+         "trustDirectory": true
+       }
+     }
+   }
+   ```
+
+   `brief` is a text file whose content is the first message. `model` and `effort` are optional; without them Codex uses the user's own. `trustDirectory` is explained below.
+3. See what would run: `scrum member start CodexA --dry-run`. It prints the directory, the environment, and the command (the brief is not printed).
+4. Start it: `scrum member start CodexA`. It opens a window of the tmux session and waits for the member's sign of life (the startup watchdog). If there is none in time it closes the window and tries again, then reports the finding M-START-FAILED with what the window showed.
+5. Check it: `scrum member list` (does it run?) and `scrum team` (is it busy or idle?). Its token use appears in `tokenUsage` under its name, in tokens and at 0 dollars.
+6. Stop it: `scrum member stop CodexA` asks an idle member to exit and closes the window Codex leaves open; a busy member is left alone unless `--force`.
+
+Things to know:
+
+- **The trust question.** The first time Codex runs in a directory it asks "Do you trust the contents of this directory?" and waits; no command-line option or `-c` setting skips it, so a member started without anyone there stays at the question and the watchdog reports it (with the question as what the window showed). With `trustDirectory: true` the harness answers "Yes, continue" for the member's own directory, which you chose by configuring it; Codex then records the trust in `~/.codex/config.toml`, as it does when a person answers. Trusting a directory lets Codex load that directory's project-local config, hooks, and exec policies. It is never a default. The alternative is to run `codex` once in the directory yourself and answer the question.
+- **The hooks and the write guard** are passed at the start, so nothing is installed. A command that the harness's guard denies is not run. The reason does not reach the model.
+- **`/exit` needs a pause before Enter**, which `scrum member stop` does for you. After a Codex session ends, Codex leaves a list of sessions in the window; the harness closes it once the session's end is recorded.
+- **Approvals and the sandbox** follow the user's Codex configuration unless the member sets `sandbox`. A Codex member that stops to ask for an approval waits in its window for a person.
+- The lead stays Claude Code.
