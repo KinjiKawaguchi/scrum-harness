@@ -1,15 +1,11 @@
 import { readdirSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { SessionDirectory } from '../../ports/index.ts'
 import { isPidAlive, readJson } from '../../store.ts'
 import type { ActivityState, SessionSignal } from '../../team/types.ts'
+import { claudeConfigDirs, sessionsDirs } from './config-dirs.ts'
 
 type SessionRecord = { readonly pid?: unknown; readonly sessionId?: unknown; readonly name?: unknown }
-
-export function sessionsDir(): string {
-  return process.env.SCRUM_SESSIONS_DIR ?? join(homedir(), '.claude', 'sessions')
-}
 
 export function findSessionName(records: readonly SessionRecord[], sessionId: string): string | null {
   const record = records.find((one) => one.sessionId === sessionId)
@@ -17,7 +13,7 @@ export function findSessionName(records: readonly SessionRecord[], sessionId: st
 }
 
 /** Reads ~/.claude/sessions/<pid>.json. It is Claude Code's internal record, so anything unreadable is discarded. */
-export function readSessionRecords(dir: string = sessionsDir()): readonly SessionRecord[] {
+export function readSessionRecords(dir: string): readonly SessionRecord[] {
   try {
     return readdirSync(dir)
       .filter((name) => name.endsWith('.json'))
@@ -28,6 +24,11 @@ export function readSessionRecords(dir: string = sessionsDir()): readonly Sessio
   } catch {
     return []
   }
+}
+
+/** The records of every session folder, one after the other. */
+export function readSessionRecordsIn(dirs: readonly string[]): readonly SessionRecord[] {
+  return dirs.flatMap((dir) => readSessionRecords(dir))
 }
 
 const SESSION_STATUS: Readonly<Record<string, ActivityState>> = {
@@ -54,16 +55,16 @@ export function parseSessionFile(raw: unknown, isAlive: (pid: number) => boolean
   return { sessionId, name, state, since: at, updatedAt: at, isAlive: isAlive(pid), nameSince: toIso(record.nameSince) }
 }
 
-/** Re-reads Claude Code's session records (~/.claude/sessions, changeable with SCRUM_SESSIONS_DIR) on every read. */
-export function claudeCodeSessions(): SessionDirectory {
+/** Re-reads Claude Code's session records (`sessions` in each configuration directory; SCRUM_SESSIONS_DIR replaces them with one folder) on every read. */
+export function claudeCodeSessions(dirs: readonly string[] = sessionsDirs(claudeConfigDirs(undefined))): SessionDirectory {
   return {
     find: (sessionId) => {
-      const records = readSessionRecords()
+      const records = readSessionRecordsIn(dirs)
       const record = records.find((one) => one.sessionId === sessionId)
       return { name: findSessionName(records, sessionId), pid: typeof record?.pid === 'number' ? record.pid : null }
     },
     signals: () =>
-      readSessionRecords().flatMap((record) => {
+      readSessionRecordsIn(dirs).flatMap((record) => {
         const signal = parseSessionFile(record, isPidAlive)
         return signal === null ? [] : [signal]
       }),

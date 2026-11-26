@@ -1,4 +1,3 @@
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadSnapshot, refreshSnapshot } from './board/snapshot.ts'
@@ -7,6 +6,7 @@ import { localClock } from './sprint/checkpoints.ts'
 import { loadCompletions } from './sprint/completion.ts'
 import { formatPoints } from './sprint/report.ts'
 import { loadCountingHistory } from './sprint/counting-history.ts'
+import { claudeConfigDirs, expandHome, isConfigDirPath, settingsPaths } from './adapters/claude-code/config-dirs.ts'
 import type { Config } from './config.ts'
 import { addAck, OVERRUN_RULE, parseDuration, type Ack } from './findings/acks.ts'
 import { formatFinding, formatStatusline } from './findings/format.ts'
@@ -140,18 +140,21 @@ export function statuslineCommand(p: Paths, config: Config, input: Record<string
   return formatStatusline(lintAll(loadContext(p, config, now, sessions)).active)
 }
 
-function settingsPath(): string {
-  return process.env.SCRUM_SETTINGS ?? join(homedir(), '.claude', 'settings.json')
+/** The settings files `scrum install` writes: `--dir <configuration directory>`, `--all` for every directory in the configuration, otherwise `~/.claude` (SCRUM_SETTINGS replaces it). */
+export function settingsTargets(flags: Flags, config: Config | null): readonly string[] | string {
+  if (typeof flags.dir === 'string') return isConfigDirPath(flags.dir) ? settingsPaths([expandHome(flags.dir)], {}) : '--dir must be an absolute path, or one under ~/'
+  if (flags.all === true) return config === null ? '--all reads the configured directories, and there is no configuration yet' : settingsPaths(claudeConfigDirs(config.claudeConfigDirs))
+  return settingsPaths(claudeConfigDirs(undefined))
 }
 
-export function installCommand(p: Paths, isInstall: boolean): string {
+export function installCommand(p: Paths, isInstall: boolean, targets: readonly string[]): string {
   const bin = fileURLToPath(new URL('../bin/scrum', import.meta.url))
-  const backup = updateSettings(settingsPath(), (settings) => (isInstall ? withHooks(settings, bin) : withoutHooks(settings)))
+  const lines = targets.map((path) => {
+    const backup = updateSettings(path, (settings) => (isInstall ? withHooks(settings, bin) : withoutHooks(settings)))
+    return `${isInstall ? 'Added' : 'Removed'}: the hooks in ${path} (${backup === null ? 'a new file' : `backup: ${backup}`})`
+  })
   const created = isInstall && ensureConfig(p)
-  return [
-    `${isInstall ? 'Added' : 'Removed'}: the hooks in ${settingsPath()} (backup: ${backup})`,
-    created ? `Created the configuration: ${p.dir}/config.json` : '',
-  ].filter((line) => line !== '').join('\n')
+  return [...lines, created ? `Created the configuration: ${p.dir}/config.json` : ''].filter((line) => line !== '').join('\n')
 }
 
 /** From the configured script names, writes the patterns that bin/scrum reads. Writes only when the content changes. */

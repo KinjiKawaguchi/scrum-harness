@@ -37,12 +37,13 @@ bin/scrum refresh && bin/scrum lint                  # check the findings
 bin/scrum install                # adds the hooks to ~/.claude/settings.json (backs it up first)
 ```
 
-To remove it, `bin/scrum uninstall`. A change to settings.json takes effect in running sessions as well.
+To remove it, `bin/scrum uninstall`. `install` and `uninstall` take `--dir <configuration directory>` for one Claude Code configuration directory (a `settings.json` that is not there yet is created) and `--all` for every directory in `claudeConfigDirs`. A change to settings.json takes effect in running sessions as well.
 
 The main settings in the configuration (`config.json`):
 
 | Setting | Meaning |
 |---|---|
+| `claudeConfigDirs` | The Claude Code configuration directories (`CLAUDE_CONFIG_DIR`) the team's sessions run under, as absolute paths or `~/...` (optional; default `["~/.claude"]`). The session records and the transcripts of every directory are read, so a member is found, and its usage counted, wherever it runs. Install the hooks in each with `scrum install --all`. A session of another directory also needs `SCRUM_STATE_DIR` in its environment |
 | `host` | The GitHub host name when the board is on GitHub Enterprise (for example `ghe.example.com`). Every `gh` call and every board script the harness runs gets `GH_HOST=<host>`. Optional; without it `gh`'s own default host applies. See [GitHub Enterprise](#github-enterprise) |
 | `projectId`, `repos`, `defaultRepo` | The board and the repositories to check |
 | `fields`, `statuses`, `reasonNone`, `reasonJudge`, `statusFieldId` | The names of the board's fields and options. `fields.workType` (optional) names a single-select field that says what kind of work an item is (for example New feature, Improvement, Maintenance, Debt, Incident); when set, the harness reads it into each item |
