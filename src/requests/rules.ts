@@ -1,12 +1,12 @@
 import { SCRUM_CLI } from '../cli-path.ts'
 import type { Config } from '../config.ts'
 import { makeFinding, type Finding } from '../findings/types.ts'
-import { describeAnswer, isOpen } from './model.ts'
+import { describeAnswer, isOpen, isVerifiedOwnerMessage } from './model.ts'
 import { OWNER, type OwnerRequest } from './types.ts'
 
-/** Who answered: the person's id when it was recorded, otherwise the owner. */
+/** Who answered: the id of the member who decided, or the owner's label for the owner's own name. */
 function answererOf(request: OwnerRequest, config: Config): string {
-  const by = request.messages.findLast((one) => one.from === OWNER)?.by
+  const by = request.messages.findLast(isVerifiedOwnerMessage)?.by
   return by === undefined || by === OWNER ? config.ownerLabel : by
 }
 
