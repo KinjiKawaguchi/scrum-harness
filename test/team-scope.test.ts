@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { assertTeamValue } from '../src/adapters/github/team-field.ts'
-import { fetchSnapshot } from '../src/adapters/github/project-board.ts'
+import { fetchSnapshot, parseItemPages } from '../src/adapters/github/project-board.ts'
 import { itemNodeSelection } from '../src/adapters/github/item-node.ts'
 import { parseTeamScope, scopeToTeam, type TeamScope } from '../src/board/team-scope.ts'
 import { parseConfig, type Config } from '../src/config.ts'
@@ -130,5 +130,26 @@ describe('fetchSnapshot with a team', () => {
     const run = fakeGh(['clients', 'clients', 'clients'], [1, 2, 3])
     const snapshot = fetchSnapshot(run, { ...config, repos: [REPO] }, now)
     assert.deepEqual([snapshot.items, snapshot.openIssues], [[], []])
+  })
+})
+
+describe('the work type field', () => {
+  const withField: Config = { ...base, fields: { ...base.fields, workType: 'Work type' } }
+
+  it('is read only when the configuration names it', () => {
+    assert.match(itemNodeSelection(withField), /workType: fieldValueByName\(name:"Work type"\)/)
+    assert.doesNotMatch(itemNodeSelection(base), /workType/)
+  })
+
+  it('is kept on the item, with null when the item has none', () => {
+    const nodes = [{ ...node(1, null), workType: { name: 'Maintenance' } }, { ...node(2, null), workType: null }, node(3, null)]
+    const items = parseItemPages(JSON.stringify([{ data: { node: { items: { totalCount: 3, nodes } } } }]))
+    assert.deepEqual(items.map((item) => item.workType), ['Maintenance', null, undefined])
+  })
+
+  it('is refused in the configuration when it is not a name', () => {
+    assert.equal(parseConfig({ ...base, fields: { ...base.fields, workType: 7 } }), null)
+    assert.equal(parseConfig({ ...base, fields: { ...base.fields, workType: ' ' } }), null)
+    assert.equal(parseConfig({ ...base, fields: { ...base.fields, workType: 'Work type' } })?.fields.workType, 'Work type')
   })
 })

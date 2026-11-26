@@ -27,6 +27,8 @@ export type ProjectConfig = {
     readonly since: string
     readonly owner: string
     readonly assignee: string
+    /** The single-select field that says what kind of work an item is (New feature, Improvement, ...). Optional: when absent it is not read */
+    readonly workType?: string
   }
   readonly statusFieldId: string
   readonly statuses: StatusNames
@@ -199,6 +201,12 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
   }
 }
 
+/** The name of the work type field, when given, is text; it goes into a query. */
+const isValidWorkTypeField = (fields: unknown): boolean => {
+  const name = (fields as { readonly workType?: unknown }).workType
+  return name === undefined || (typeof name === 'string' && name.trim() !== '')
+}
+
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/
 
 /** The GitHub host name for gh (GH_HOST). Absent is fine; a value that is not a host name is not used, because a call would then go to another host. */
@@ -211,7 +219,8 @@ export function parseConfig(raw: unknown): Config | null {
   const isValid =
     REQUIRED_STRINGS.every((key) => typeof record[key] === 'string') &&
     REQUIRED_LISTS.every((key) => Array.isArray(record[key])) &&
-    REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null)
+    REQUIRED_OBJECTS.every((key) => typeof record[key] === 'object' && record[key] !== null) &&
+    isValidWorkTypeField(record.fields)
   if (!isValid || (record.host !== undefined && !isHostName(record.host))) return null
   const { sprint: rawSprint, dispatch: rawDispatch, links: rawLinks, alerts: rawAlerts, runtime: rawRuntime, team: rawTeam, ...rest } = record
   const sprint = parseSprint(rawSprint)
