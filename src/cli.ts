@@ -14,6 +14,7 @@ import {
   statuslineCommand,
   teamCommand,
   writeShellPatterns,
+  type Flags,
 } from './cli-commands.ts'
 import { alertsCommand } from './alerts/command.ts'
 import { configPath, dispatchOf, loadConfig, stateDir, type Config } from './config.ts'
@@ -33,7 +34,7 @@ import { watchFor } from './watch-role.ts'
 import { boardCommand } from './board/board-command.ts'
 import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
-import { buildPorts, buildScheduler, settingsTargets } from './wiring.ts'
+import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 
 const DEFAULT_STATE_DIR = join(homedir(), '.claude', 'scrum')
@@ -158,6 +159,19 @@ function reportPortsError(p: Paths, command: string, reason: string): number {
   return 1
 }
 
+/** `scrum adapter check [--module <path>] [--calls <file>]`: checks the board module of the configuration, or the one at the path. */
+function runAdapterCheck(positional: readonly string[], flags: Flags, config: Config | null): number {
+  const path = typeof flags.module === 'string' ? flags.module : undefined
+  const spec = path === undefined ? config?.adapters : { module: path, options: config?.adapters?.options ?? {} }
+  if (positional[0] !== 'check' || config === null || spec === undefined) {
+    process.stderr.write('Usage: scrum adapter check [--module <path>] [--calls <file>]\nChecks the board module named by `adapters` in the configuration (or the one at --module) without writing to the tracker. --calls is a JSON list of { "call": { "tool", "input" }, "expect": [ ...commands ] } for the action reader.\n')
+    return 1
+  }
+  const result = checkBoardModule(spec, config, new Date(), typeof flags.calls === 'string' ? flags.calls : undefined)
+  process.stdout.write(`${result.text}\n`)
+  return result.isOk ? 0 : 1
+}
+
 async function main(argv: readonly string[]): Promise<number> {
   const p = paths()
   const [command = 'help', ...rest] = argv
@@ -167,6 +181,8 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0
   }
   const config = loadConfig()
+  // Before the ports are built: the check is for a module that cannot be loaded, and it says why.
+  if (command === 'adapter') return runAdapterCheck(positional, flags, config)
   const built = config === null ? { ports: null } : portsOrError(config)
   if ('error' in built) return reportPortsError(p, command, built.error)
   const { ports } = built
