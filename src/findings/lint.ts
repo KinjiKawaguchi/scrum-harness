@@ -93,8 +93,11 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintBudget(ctx.budget ?? null),
   ]
+  // While the weekly budget is used the harness holds back new work on purpose, so an idle member is no finding.
+  const isHeld = ctx.budget?.team.state === 'over'
+  const reported = isHeld ? findings.filter((finding) => finding.rule !== 'T-IDLE') : findings
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
-  const { active, acked } = applyAcks(findings, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
+  const { active, acked } = applyAcks(reported, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
   return { active: active.toSorted(bySeverity), acked }
 }
 
