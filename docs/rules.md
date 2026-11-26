@@ -188,3 +188,20 @@ To exceed the limit on purpose, add `SCRUM_GUARD=off` to the command and leave t
 ## Intended exceptions
 
 `scrum ack <rule> <subject> (--for 2h | --until <time>) --reason "<reason>"` silences a finding until its end (a T-IDLE acknowledgement lasts at most 1 hour, and its reason is chosen from fixed words; see the T-IDLE row above). `scrum acks` lists them, and they appear in the summary `scrum report` makes for the sprint review.
+
+## What a rule needs from the board adapter
+
+The rules above read one board copy (the snapshot) and a few things from the adapter. A team on another tracker (a board module, [docs/board-module.md](board-module.md)) gets every rule that its adapter can feed, and none of the others fires, because the data they read is absent. Nothing here assumes GitHub except where a row says so.
+
+| Rule or feature | What it needs | Without it |
+|---|---|---|
+| The board rules (B-WIP-OVER, B-DOING-NO-ASSIGNEE, B-NO-STATUS, B-CLOSED-NOT-DONE, B-OPEN-DONE, B-NEXT-BLOCKED, B-JUDGE-OWNER, B-SINCE-*, B-REASON-MISSING, B-BLOCK-STALE) | The snapshot's items (`status`, `reason`, `since`, `owner`, `assignee`, `state`) | n/a: this is the minimum |
+| B-PR-STATUS | Items of kind `pr` in the snapshot | Never fires |
+| B-OFF-BOARD | `openIssues` in the snapshot (the open issues, including those off the board) | An empty list means it never fires. The one-by-one read of missing items and the `offBoard` scope are GitHub adapter behavior |
+| The Status history behind the sprint rules (S-*) and `scrum points` | `BoardSource.statusEvents` | `null` means "cannot be read", and the effort falls back to the board copies |
+| T-IDLE, A-DISPATCH (handing over work) | The writer's `assign` and `setStatus` (`canAssign`), and for the branch `dispatch.linkedBranchPrefix`, the code host's `prepareBranch` | No hand-over without `canAssign`; no branch without a code host that makes one |
+| Progress marker of a member (T-IDLE nudges) | The code host's `activity` | The board's marker only |
+| Linking PRs into issue bodies (`links`) | The code host's `openPullRequests` and the body side of the issue thread (`openIssues`, `read`, `writeBody`) | `links` does nothing |
+| The merge note after a merged PR | The action reader returning a `merge-pr` command, and the code host's `referencedIssues` | No note. Only the GitHub reader produces `merge-pr` and `close-issue` |
+| A decision on a pending decision (`judge`) | The issue thread's `comments` and `addComment`, the writer's `setReason`, and a reference that fits Agency's decision target rule | The decision is refused with 503 (no `setReason`) or cannot be sent (a reference that does not fit) |
+| Finding texts that name `gh` | Only B-PR-STATUS does (it needs items of kind `pr`). Every other fix uses the `scripts` in the configuration, or is given in words | A board without pull requests never gets a `gh` command in a finding |
