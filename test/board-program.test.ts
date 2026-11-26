@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { chmodSync, copyFileSync, mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -89,10 +89,11 @@ describe('the board a program provides', () => {
     assert.deepEqual([read.fetchedAt, read.items.map((one) => one.ref)], [NOW.toISOString(), ['ENG-123']])
   })
 
-  it('leaves every other port GitHub, and offers no write the program did not list', () => {
+  it('leaves the code host GitHub, and replaces the writer and the issue thread so that nothing is written to GitHub', () => {
     const ports = buildPorts(withProgram({ snapshot: snapshot() }))
     assert.equal(typeof ports.code.openPullRequests, 'function')
-    assert.equal(ports.writer.canAssign, buildPorts(base).writer.canAssign)
+    assert.equal(buildPorts(base).writer.canAssign, true)
+    assert.equal(ports.writer.canAssign, false)
   })
 
   it('refuses a snapshot that does not fit the contract, naming what is wrong', () => {
@@ -132,5 +133,97 @@ describe('scrum adapter check on a program', () => {
     const result = checkBoardModule(specOf({ mode: 'error' }), base, NOW)
     assert.equal(result.isOk, false)
     assert.match(result.text, /snapshot\s+FAILED: .*the tracker is down/)
+  })
+})
+
+describe('what a program can write, by its capabilities', () => {
+  const logFile = () => join(mkdtempSync(join(tmpdir(), 'scrum-board-log-')), 'log')
+  const requests = (log: string): readonly Record<string, unknown>[] => readFileSync(log, 'utf8').split('\n').filter((line) => line !== '').map((line) => JSON.parse(line))
+  const portsWith = (capabilities: readonly string[], options: Record<string, unknown> = {}) => {
+    const log = logFile()
+    const cfg: Config = { ...base, adapters: specOf({ log, snapshot: snapshot(), ...options }, { capabilities }) }
+    return { ports: buildPorts(cfg), log }
+  }
+  const target = issue(1, { repo: 'ENG', ref: 'ENG-1', itemId: 'i1' })
+
+  it('writes the assignee, Status, blocked reason, and overrun with `write`, naming the item by its reference', () => {
+    const { ports, log } = portsWith(['write'])
+    assert.deepEqual([ports.writer.canAssign, ports.writer.canSetReason], [true, true])
+    ports.writer.assign(target, 'SWE1')
+    ports.writer.setStatus(target, 'In Progress')
+    ports.writer.setReason(target, 'External wait')
+    assert.deepEqual(ports.writer.writeOverrun([{ itemId: 'i1', label: 'ENG-1', value: 2 }, { itemId: 'i2', label: 'ENG-2', value: null }]), [])
+    assert.deepEqual(requests(log).map((one) => [one.op, (one.item as { ref: string }).ref, one.field, one.value]), [['set', 'ENG-1', 'assignee', 'SWE1'], ['set', 'ENG-1', 'status', 'In Progress'], ['set', 'ENG-1', 'reason', 'External wait'], ['set', 'ENG-1', 'overrun', 2], ['set', 'ENG-2', 'overrun', null]])
+  })
+
+  it('names the item\'s ids too, so a program can find it by its own id', () => {
+    const { ports, log } = portsWith(['write'])
+    ports.writer.setStatus(target, 'Done')
+    assert.deepEqual(requests(log)[0]?.item, { ref: 'ENG-1', itemId: 'i1', repo: 'ENG', number: 1 })
+  })
+
+  it('refuses every write without `write`, and never falls back to the GitHub writer (which has scripts here)', () => {
+    const { ports, log } = portsWith([])
+    assert.equal(buildPorts(base).writer.canAssign, true)
+    assert.deepEqual([ports.writer.canAssign, ports.writer.canSetReason], [false, false])
+    assert.throws(() => ports.writer.assign(target, 'SWE1'), /assigning is not available: .*"write"/)
+    assert.throws(() => ports.writer.setStatus(target, 'Done'), /setting a Status is not available/)
+    assert.throws(() => ports.writer.setReason(target, 'x'), /setting a blocked reason is not available/)
+    assert.equal(ports.writer.writeOverrun([]).length, 0)
+    assert.match(ports.writer.writeOverrun([{ itemId: 'i1', label: 'ENG-1', value: 1 }])[0] ?? '', /not available/)
+    assert.equal(existsSync(log), false)
+  })
+
+  it('offers `add` and `team` only when they are listed', () => {
+    assert.deepEqual([portsWith(['write']).ports.writer.addToBoard, portsWith(['write']).ports.writer.setTeam], [undefined, undefined])
+    const { ports, log } = portsWith(['add', 'team'])
+    ports.writer.addToBoard?.('ENG', 7)
+    ports.writer.setTeam?.(target, 'clients')
+    assert.deepEqual(requests(log).map((one) => [one.op, one.repo, one.number, one.field, one.value]), [['add', 'ENG', 7, undefined, undefined], ['set', undefined, undefined, 'team', 'clients']])
+  })
+
+  it('reports the overrun marks the program refused, one by one, and goes on', () => {
+    const { ports } = portsWith(['write'], { failOps: ['set'] })
+    const failures = ports.writer.writeOverrun([{ itemId: 'i1', label: 'ENG-1', value: 1 }, { itemId: 'i2', label: 'ENG-2', value: 2 }])
+    assert.deepEqual(failures.map((one) => one.slice(0, 6)), ['ENG-1:', 'ENG-2:'])
+    assert.match(failures[0] ?? '', /set failed/)
+  })
+
+  it('reads and adds comments with `comments`, and has none without it (never the GitHub thread)', () => {
+    const comments = [{ body: 'First', createdAt: '2026-11-24T10:00:00Z', url: 'https://tracker.example/1' }]
+    const { ports, log } = portsWith(['comments'], { comments })
+    assert.deepEqual(ports.issues.comments(target), comments)
+    ports.issues.addComment(target, 'A decision')
+    assert.deepEqual(requests(log).map((one) => [one.op, one.body]), [['comments', undefined], ['comment', 'A decision']])
+    const none = portsWith([]).ports
+    assert.deepEqual(none.issues.comments(target), [])
+    assert.throws(() => none.issues.addComment(target, 'x'), /commenting is not available/)
+    assert.equal(none.issues.openIssues, undefined)
+  })
+
+  it('refuses comments that do not have the shape of the contract', () => {
+    assert.throws(() => portsWith(['comments'], { comments: [{ body: 1 }] }).ports.issues.comments(target), /list of \{ body, createdAt, url\? \}/)
+  })
+})
+
+describe('a decision on a pending item through a program', () => {
+  it('posts the decision as a comment, then clears the block, and refuses without the capabilities', async () => {
+    const { runRuntime } = await import('../src/agency-runtime/handle.ts')
+    const { saveSnapshot } = await import('../src/board/snapshot.ts')
+    const { paths } = await import('../src/store.ts')
+    const run = (capabilities: readonly string[]) => {
+      const log = join(mkdtempSync(join(tmpdir(), 'scrum-board-log-')), 'log')
+      const cfg: Config = { ...base, adapters: specOf({ log, snapshot: snapshot() }, { capabilities }) }
+      const p = paths(mkdtempSync(join(tmpdir(), 'scrum-decide-program-')))
+      saveSnapshot(p, { fetchedAt: NOW.toISOString(), items: [issue(14, { repo: 'ENG', ref: 'ENG-14', itemId: 'i14', reason: cfg.reasonJudge, since: '2026-11-20', status: 'Next' })], openIssues: [] })
+      const input = JSON.stringify({ runtime: 'agency-runtime/1', org: 'acme', team: 'app', op: 'decide', decision: { kind: 'judge', target: 'ENG-14', by: 'alice', byParticipant: 'owner', payload: { text: 'Go ahead.' } } })
+      const output = runRuntime(input, { p, config: cfg, now: NOW, ports: buildPorts(cfg), spawnRefresh: () => undefined, spawnUsageIndex: () => undefined })
+      return { response: JSON.parse(output.stdout) as { result?: unknown; error?: { status: number; message: string } }, log }
+    }
+    const both = run(['write', 'comments'])
+    assert.deepEqual(both.response, { result: {} })
+    assert.deepEqual(readFileSync(both.log, 'utf8').split('\n').filter((l) => l !== '').map((l) => (JSON.parse(l) as { op: string }).op), ['comments', 'comment', 'set'])
+    assert.equal(run(['comments']).response.error?.status, 503)
+    assert.equal(run(['write']).response.error?.status, 503)
   })
 })
