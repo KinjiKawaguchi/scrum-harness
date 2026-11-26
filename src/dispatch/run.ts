@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises'
+import { isHandOverHeld } from '../budget/hold.ts'
 import { alertStep } from '../alerts/run.ts'
 import { applyCommands, checkGuard } from '../board/commands.ts'
 import { label } from '../board/rules.ts'
@@ -68,6 +69,8 @@ export function dispatchStep(
       if (action.reason === 'progressing') writeSeen(p, observe(seen, memberName, label(action.item), action.token, now))
       return null
     }
+    // While the weekly budget is used no new work is handed out; a nudge to move the member's own work forward still goes.
+    if (action.kind === 'dispatch' && isHandOverHeld(p.budget, now)) return null
     const { item } = action
     if (action.kind === 'nudge') {
       writeSeen(p, observe(seen, memberName, label(item), action.token, now))

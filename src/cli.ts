@@ -35,7 +35,8 @@ import { boardCommand } from './board/board-command.ts'
 import { collectSignals } from './findings/lint.ts'
 import { memberCommand } from './members/command.ts'
 import { requestCommand } from './requests/command.ts'
-import { refreshBudget } from './budget/record.ts'
+import { askOwnerWhenOver } from './budget/ask.ts'
+import { currentBudget, readBudgetRecord, refreshBudget } from './budget/record.ts'
 import { refreshFundingDirs } from './members/funding-dirs.ts'
 import { autoMove } from './members/move.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
@@ -223,8 +224,9 @@ async function main(argv: readonly string[]): Promise<number> {
         const snapshot = refreshSnapshot(p, c, new Date(), ports.board)
         const fundingProblem = refreshFundingDirs(ports, p.fundingDirs, new Date())
         const budgetProblem = refreshBudget(ports, p.budget, new Date())
+        const asked = askOwnerWhenOver(p, currentBudget(readBudgetRecord(p.budget), new Date()), new Date())
         const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
-        const note = `${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}`
+        const note = `${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}${asked === null ? '' : `\n${asked}`}`
         return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${note}`
       })
     }
