@@ -16,6 +16,8 @@ export type WatchdogDeps = WaitDeps & {
   readonly memberSourcesPath?: string
   /** Where the login directories of the funding sources are kept; refreshed at each start */
   readonly fundingDirsPath?: string
+  /** Where what the node last said of the weekly budget is kept (used when the node cannot be asked at a start) */
+  readonly budgetPath?: string
   /** Where the time of the last automatic move is kept */
   readonly memberMovesPath?: string
 }

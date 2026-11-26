@@ -32,6 +32,8 @@ function briefOf(spec: MemberSpec): string | null {
 export type PlanOptions = {
   /** The account the node picked: what to set for the session */
   readonly pickedEnv?: Readonly<Record<string, string>>
+  /** The model to start on instead of the member's own (the cheaper one while the weekly budget is at its warning) */
+  readonly model?: string
   /** Continue a session instead of starting a new conversation, with `note` as the first message (not the member's brief) */
   readonly resume?: { readonly sessionId: string; readonly note: string }
 }
@@ -42,8 +44,8 @@ export type PlanOptions = {
  * process's PATH, because a terminal multiplexer's server may have a shorter one that lacks `gh`.
  */
 export function planMember(config: Config, name: string, stateDir: string, path: string | undefined, launchers: Readonly<Record<Product, ProductLauncher>>, options: PlanOptions = {}): Planned {
-  const { pickedEnv = {}, resume } = options
-  const spec = specOf(config, name)
+  const { pickedEnv = {}, resume, model } = options
+  const spec = { ...specOf(config, name), ...(model === undefined ? {} : { model }) }
   if (spec.dir === undefined) return { problem: `${name} has no directory: set launch.members.${name}.dir (or launch.defaults.dir)` }
   const dir = expandHome(spec.dir)
   if (!isDirectory(dir)) return { problem: `the directory of ${name} does not exist: ${dir}` }
