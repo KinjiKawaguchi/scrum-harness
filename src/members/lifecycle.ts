@@ -2,7 +2,7 @@ import type { LaunchPlan, Ports } from '../ports/index.ts'
 import type { Paths } from '../store.ts'
 import type { MemberSpec, Product } from './config.ts'
 import { clearStartFailure, recordStartFailure } from './start-failures.ts'
-import { CODEX_TRUST_QUESTION, claudeTrustKey, screenQuestion } from './trust.ts'
+import { asksCodexTrust, claudeTrustKey, screenQuestion } from './trust.ts'
 import { screenSummary, showsEnd, waitForLife, waitUntil, watchdogOf, type WaitDeps } from './watchdog.ts'
 
 /** The most keys sent to Claude Code's trust question for one start. Two answer it; the rest are for a key it did not take. */
@@ -48,7 +48,7 @@ export function startWatched(ports: Ports, session: string, plan: LaunchPlan, sp
       if (spec.trustDirectory !== true) return
       const screen = ports.members.screen(session, plan.name) ?? ''
       if (spec.product === 'codex') {
-        if (answered || !CODEX_TRUST_QUESTION.test(screen)) return
+        if (answered || !asksCodexTrust(screen)) return
         answered = true
         ports.members.press(session, plan.name, 'Enter')
         return

@@ -60,6 +60,34 @@ describe('which key Claude Code\'s question about a folder gets', () => {
     assert.equal(claudeTrustKey(question(`${dir.slice(0, half)}\n ${dir.slice(half)}`, 'No, exit'), dir), 'Down')
   })
 
+  it('reads the question as an 80-column window breaks it, even between "trust" and its question mark (as tmux showed it on Linux)', () => {
+    // a window of a session made without a terminal is 80 columns wide
+    const wrapped = [
+      ' Accessing workspace:',
+      '',
+      ` ${dir}`,
+      '',
+      ' Quick safety check: Is this a project you created or one you trust',
+      '? (Like your own code, a well-known open',
+      ' source project, or work from your team). If not, take a moment to',
+      "review what's in this folder first.",
+      '',
+      " Claude Code'll be able to read, edit, and execute files here.",
+      '',
+      ' Security guide',
+      '',
+      ' \u276F No, exit',
+      '   Yes, I trust this folder',
+      '',
+    ].join('\n')
+    assert.equal(claudeTrustKey(wrapped, dir), 'Down')
+    assert.equal(claudeTrustKey(wrapped.replace(' \u276F No, exit\n   Yes', '   No, exit\n \u276F Yes'), dir), 'Enter')
+    assert.match(screenQuestion(wrapped) ?? '', /Claude Code's question/)
+    assert.match(screenQuestion('  Do you trust the contents of this dir\nectory? Working with untrusted contents') ?? '', /Codex's question/)
+    // a folder that brings code is still left alone when the line that says so is broken
+    assert.equal(claudeTrustKey(wrapped.replace('Security guide', 'This folder configures hooks that can run comm\nands without asking'), dir), null)
+  })
+
   it('is null for a folder that is not the member\'s, for the longer form that brings settings that run code, and for any other screen', () => {
     assert.equal(claudeTrustKey(question('/somewhere/else', 'No, exit'), dir), null)
     assert.equal(claudeTrustKey(question(`${dir}/sub`, 'No, exit'), dir), null)
