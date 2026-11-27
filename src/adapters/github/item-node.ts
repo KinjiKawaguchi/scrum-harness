@@ -97,9 +97,10 @@ export function normalizeNodes(nodes: readonly RawNode[]): readonly BoardItem[] 
 
 function sprintFields(config: Config): string {
   const sprint = config.sprint
-  if (sprint === undefined) return ''
   const number = (alias: string, field: string) =>
     `${alias}: fieldValueByName(name:"${field}"){ ... on ProjectV2ItemFieldNumberValue{ number } }`
+  // without a sprint section, the points are read when `fields.points` names the field (for `scrum forecast`)
+  if (sprint === undefined) return config.fields.points === undefined ? '' : number('points', config.fields.points)
   return [number('points', sprint.pointsField), ...(sprint.overrunField === undefined ? [] : [number('overrun', sprint.overrunField)])].join(' ')
 }
 

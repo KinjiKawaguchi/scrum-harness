@@ -146,7 +146,7 @@ export function releaseLock(path: string): void {
  * When an external command (gh) fails, the Error's message contains the whole long query text and the cause is cut off.
  * For a failure that has stderr, keeps the exit code and the stderr.
  */
-function describeError(error: unknown): string {
+export function describeError(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
   const { status, stderr } = error as Error & { readonly status?: unknown; readonly stderr?: unknown }
   const text = typeof stderr === 'string' ? stderr : stderr instanceof Buffer ? stderr.toString('utf8') : ''

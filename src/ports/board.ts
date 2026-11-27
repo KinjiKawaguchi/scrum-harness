@@ -3,6 +3,9 @@ import type { BoardItem, Snapshot } from '../board/types.ts'
 import type { StatusEvent } from '../sprint/effort.ts'
 import type { Mark } from '../sprint/marks.ts'
 
+/** What a tracker says of an issue besides its Status: its labels, and the issues that still block it (its dependencies, in the same `<repo>#<number>` form). */
+export type ItemRelations = { readonly labels: readonly string[]; readonly blockedBy: readonly string[] }
+
 /**
  * Reads the board. Throws if it cannot be read. When the returned content is in an unreadable shape, throws FetchError (board/fetch-log.ts)
  * carrying the raw output of the fetch (refreshSnapshot leaves it in the log).
@@ -12,6 +15,11 @@ export type BoardSource = {
   readonly fetchSnapshot: (now: Date) => Snapshot
   /** Reads each issue's Status changes, keyed by label. null if it cannot be read (so "no record" and "period is 0" are not confused) */
   readonly statusEvents: (items: readonly BoardItem[]) => ReadonlyMap<string, readonly StatusEvent[]> | null
+  /**
+   * Optional (a tracker may have no dependencies). Reads the labels and the open blockers of the issues among `items`, keyed by label. An issue it could not read is not
+   * in the map. Used by `scrum forecast`; throws if it cannot be asked.
+   */
+  readonly relations?: (items: readonly BoardItem[]) => ReadonlyMap<string, ItemRelations>
 }
 
 /** Writes to the board. Throws if it cannot write. */
