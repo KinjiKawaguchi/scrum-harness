@@ -25,6 +25,8 @@ import { currentBudget, readBudgetRecord } from '../budget/record.ts'
 import { lintBudget } from '../budget/rules.ts'
 import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
+import { lintGraphqlAllowance } from '../board/allowance.ts'
+import { readCostRecord, type CostRecord } from '../board/shared.ts'
 import { readContinued, type Continued } from '../members/continued.ts'
 import { lintContinued, lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
 import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
@@ -52,6 +54,8 @@ export type LintContext = {
   readonly requests?: readonly OwnerRequest[]
   /** Members that were started and showed no sign of life (M-START-FAILED) */
   readonly startFailures?: readonly StartFailure[]
+  /** What the last refresh cost in GraphQL points */
+  readonly graphqlCost?: CostRecord | null
   /** The Codex members that were told to go on, by name */
   readonly continued?: Continued
   /** The account each member started on, or why its start was refused (M-SOURCE-REFUSED) */
@@ -98,6 +102,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintContinued(ctx.continued ?? {}, ctx.now),
+    ...lintGraphqlAllowance(ctx.graphqlCost ?? null, ctx.now),
     ...lintBudget(ctx.budget ?? null),
     ...lintTurnErrors(ctx.turnErrors ?? []),
   ]
@@ -132,6 +137,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     requests: readRequests(p),
     startFailures: readStartFailures(p.startFailures),
     continued: readContinued(p.memberContinued),
+    graphqlCost: readCostRecord(p.graphqlCost),
     memberSources: readMemberSources(p.memberSources),
     budget: currentBudget(readBudgetRecord(p.budget), now),
     turnErrors: findTurnErrors(signals, sessions, names, now),
