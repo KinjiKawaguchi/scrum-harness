@@ -1,5 +1,5 @@
 import { isOwnerDecision } from './model.ts'
-import type { OwnerRequest } from './types.ts'
+import { OWNER, type OwnerRequest } from './types.ts'
 
 /** A stretch in which a member's request waited for the owner's answer, in milliseconds since the epoch. */
 export type OwnerWait = { readonly name: string; readonly from: number; readonly to: number }
@@ -14,11 +14,11 @@ function answeredAt(request: OwnerRequest): number | null {
 
 /**
  * The time each request that is addressed to the owner waited for the answer: from the time it was filed to the owner's answer, else to the time it was
- * closed, else to now. A request addressed to another member of the team (`to`) waits for an agent, not for a person, and is not here.
+ * closed, else to now. A request addressed to another member of the team (`to`) waits for an agent, not for a person, and is not here; one addressed to the owner by name is the owner's like one addressed to nobody.
  */
 export function ownerWaits(requests: readonly OwnerRequest[], now: Date): readonly OwnerWait[] {
   return requests.flatMap((request): readonly OwnerWait[] => {
-    if (request.to !== undefined) return []
+    if (request.to !== undefined && request.to !== OWNER) return []
     const from = Date.parse(request.createdAt)
     const closed = request.closedAt === undefined ? null : Date.parse(request.closedAt)
     const to = Math.min(now.getTime(), answeredAt(request) ?? closed ?? now.getTime())

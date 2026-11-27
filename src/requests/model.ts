@@ -26,13 +26,13 @@ export type Decider = { readonly participant: string; readonly by: string }
  * Who decided a message, when it records a verified decision, and null otherwise. It is the participant the node named in the decision (`byParticipant`),
  * and only that: the member id in `by` is whatever account the signing device belongs to, and an account can be called `owner`, so it is never read as
  * the decider. A message must say the same participant as its author (`from`), so a record that was edited to claim the owner's name is not one.
- * A message written before the participant was recorded has only `by`; it is the owner's when the request was not addressed to anyone else, since only
- * the owner could answer such a request, and not a decision otherwise.
+ * A message written before the participant was recorded has only `by`; it is the owner's when the request was addressed to nobody else, or to the owner,
+ * since only the owner could answer such a request, and not a decision otherwise.
  */
 export function deciderOf(request: Pick<OwnerRequest, 'to'>, message: RequestMessage): Decider | null {
   if (message.by === undefined) return null
   if (message.byParticipant !== undefined) return message.from === message.byParticipant ? { participant: message.byParticipant, by: message.by } : null
-  return message.from === OWNER && request.to === undefined ? { participant: OWNER, by: message.by } : null
+  return message.from === OWNER && (request.to === undefined || request.to === OWNER) ? { participant: OWNER, by: message.by } : null
 }
 
 /** Whether the owner decided this message: a verified decision whose participant is the owner. */
