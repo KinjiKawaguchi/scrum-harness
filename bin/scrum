@@ -80,6 +80,22 @@ fi
 role=""
 if [ -n "$SCRUM_NAME" ]; then
   role=env
+  # The role of a named session, from the names node wrote (lines 5 and 6 of shell-patterns), so that a member's tool call does not start node. A name that is
+  # not there, a liaison, and a file without the lines (written by an older version) stay `env`: node decides, as before.
+  techlead=
+  members=
+  if [ -r "$STATE/cache/shell-patterns" ]; then
+    { IFS= read -r _l1; IFS= read -r _l2; IFS= read -r _l3; IFS= read -r _l4; IFS= read -r techlead; IFS= read -r members; } <"$STATE/cache/shell-patterns"
+  fi
+  if [ -n "$techlead" ]; then
+    if [ "$SCRUM_NAME" = "$techlead" ]; then
+      role=techlead
+    else
+      case "|$members|" in
+        *"|$SCRUM_NAME|"*) role=member ;;
+      esac
+    fi
+  fi
 else
   sid=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -n 1)
   cache="$STATE/identity/$sid.json"
@@ -113,6 +129,13 @@ record_activity() {
   printf '{"at":"%s","type":"activity","role":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" "$role" >>"$STATE/log/events.jsonl" 2>/dev/null
   return 0
 }
+# A tool result after a permission prompt means the session works again, so the heartbeat that says it waits has to be corrected; only then does a tool call of a
+# member (or of the TechLead outside a board command) start node. The heartbeat's `state` is looked at with grep, not parsed.
+end_waiting() {
+  sid=$(printf '%s' "$input" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -n 1)
+  [ -n "$sid" ] && grep -q '"state": "waiting"' "$STATE/team/$sid.json" 2>/dev/null && run_detached "$@"
+  return 0
+}
 case "$role" in
   none | "") ;;
   *)
@@ -130,7 +153,7 @@ case "$role" in
   member)
     case "$event" in
       PostToolUse)
-        if printf '%s' "$input" | grep -Eq "$AUTHOR_PATTERN"; then run_detached "$@"; fi
+        if printf '%s' "$input" | grep -Eq "$AUTHOR_PATTERN"; then run_detached "$@"; else end_waiting "$@"; fi
         exit 0
         ;;
       watch)
@@ -155,6 +178,8 @@ case "$role" in
     if [ "$event" = PostToolUse ]; then
       if printf '%s' "$input" | grep -Eq "$POST_PATTERN|$AUTHOR_PATTERN" || [ -e "$STATE/notify/pending" ]; then
         run "$@"
+      else
+        end_waiting "$@"
       fi
       exit 0
     fi

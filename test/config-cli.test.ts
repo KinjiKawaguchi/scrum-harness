@@ -103,6 +103,13 @@ describe('writeShellPatterns', async () => {
     assert.equal(dispatch, '0')
   })
 
+  it('lines 5 and 6 are the TechLead\'s name and the members\' names joined with |, which bin/scrum tells the role of a named session from', () => {
+    const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
+    write(p, { ...config, techlead: 'Lead', members: ['SWE1', 'SWE 2'] })
+    const lines = readFileSync(p.shellPatterns, 'utf8').split('\n')
+    assert.deepEqual([lines[4], lines[5]], ['Lead', 'SWE1|SWE 2'])
+  })
+
   it('line 3 is 1 only when dispatch is enabled (it decides whether bin/scrum starts the member watch)', () => {
     const p = paths(mkdtempSync(join(tmpdir(), 'scrum-patterns-')))
     write(p, { ...config, dispatch: { enabled: true, baseBranch: 'develop', skipLabels: [], utcOffset: '+09:00', notes: [] } })
