@@ -121,7 +121,7 @@ function execute(facts: Facts, session: string, name: string, move: Move, deps: 
 
 /**
  * `scrum member move [<name>...] [--dry-run] [--refused]`: moves every member that runs on a source past its threshold to the source the node picks, one after
- * another, each at an idle moment, by restarting it with `--resume` on the new login. Without names it looks at the members (not the lead). Nothing is moved
+ * another, each at an idle moment, by restarting it with `--resume` on the new login. Without names it looks at every member of the launch section, the team's lead and liaison included: no agent keeps running on a source past its threshold. Nothing is moved
  * on --dry-run. With --refused the named members were refused by their source (a usage-limit refusal): that source counts as blocked, and they are moved
  * at once, idle or not.
  */
@@ -149,7 +149,7 @@ function runMove(config: Config, ports: Ports, positional: readonly string[], fl
   if (launch === undefined || ports.funding === null || ports.fundingSources === null) return say('moving a member needs a launch section and launch.funding in the configuration')
   const report = memberReport(config, ports.members.windows(launch.tmuxSession), ports.sessions.signals())
   const named = positional.slice(1)
-  const wanted = named.length > 0 ? named : report.rows.filter((row) => row.role === 'member' && launch.members[row.name] !== undefined).map((row) => row.name)
+  const wanted = named.length > 0 ? named : report.rows.filter((row) => launch.members[row.name] !== undefined).map((row) => row.name)
   const unknown = wanted.filter((name) => !report.rows.some((row) => row.name === name))
   if (unknown.length > 0) return say(`not in the configuration (the lead, the members, or the liaison): ${unknown.join(', ')}`)
   let facts: Facts

@@ -197,6 +197,12 @@ describe('a turn that ended because the subscription refused it', () => {
     assert.deepEqual(moved, ['SWE1'])
   })
 
+  it('moves the team\'s lead too when it is refused: the rule has no exception for it', () => {
+    const moved: string[] = []
+    handleHook('StopFailure', refusal, deps('TechLead', { config: funding(true), spawnMoveRefused: (name: string) => void moved.push(name) }))
+    assert.deepEqual(moved, ['TechLead'])
+  })
+
   it('does nothing for another error, without autoMove, or for a session outside the team', () => {
     const moved: string[] = []
     const spawnMoveRefused = (name: string) => void moved.push(name)

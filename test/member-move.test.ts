@@ -136,13 +136,23 @@ describe('moving a member to the account the node picks', () => {
     })
   }
 
-  it('leaves the lead out unless it is named', () => {
+  it('moves the team\'s lead too, under the same rules: when it is idle, and when it was refused', () => {
     const lead = base.techlead
     const withLead = { members: { [lead]: {}, SWE1: {} } }
-    const unnamed = run(withLead)
-    assert.doesNotMatch(unnamed.text, new RegExp(`^${lead}:`, 'm'))
-    assert.deepEqual(unnamed.calls, ['SWE1:graceful'])
-    assert.equal(run(withLead, ['move', lead]).calls[0], `${lead}:graceful`)
+    const idle = run(withLead)
+    assert.deepEqual(idle.calls, [`${lead}:graceful`, 'SWE1:graceful'])
+    assert.match(idle.text, new RegExp(`^${lead}: moves: one is past its threshold; two is not\\n${lead}: moved from one to two`))
+    const busy = run({ ...withLead, signals: [signal(lead, { state: 'busy' }), signal('SWE1')] })
+    assert.deepEqual(busy.calls, ['SWE1:graceful'])
+    assert.match(busy.text, new RegExp(`${lead}: stays: not idle for 60 seconds \\(busy\\)`))
+    const refused = run({ ...withLead, sources: [{ ...ONE, overThreshold: false }, TWO], signals: [signal(lead, { state: 'busy', since: ago(5) }), signal('SWE1')], flags: { refused: true } }, ['move', lead])
+    assert.deepEqual(refused.calls, [`${lead}:graceful`])
+  })
+
+  it('keeps a lead that cannot be moved in the record of who is left on a source past its threshold, so the finding covers it', () => {
+    const lead = base.techlead
+    run({ members: { [lead]: {}, SWE1: {} }, pick: { state: 'overThreshold', source: 'one', env: {} }, auto: { at: NOW } })
+    assert.deepEqual(readOver(p.memberOver).map((one) => one.name), [lead, 'SWE1'])
   })
 
   it('does not move a member that went busy since it was looked at', () => {
