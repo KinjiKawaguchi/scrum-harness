@@ -10,6 +10,7 @@ import { memberCommand, type WatchdogDeps } from '../src/members/command.ts'
 import { autoMove } from '../src/members/move.ts'
 import { parseLaunch } from '../src/members/config.ts'
 import { readMemberSources, recordMemberSource } from '../src/members/funding.ts'
+import { readOver } from '../src/members/over-threshold.ts'
 import type { FundingPick, FundingSource, LaunchPlan } from '../src/ports/index.ts'
 import { paths, type Paths } from '../src/store.ts'
 import type { SessionSignal } from '../src/team/types.ts'
@@ -73,7 +74,7 @@ describe('moving a member to the account the node picks', () => {
       launchers: { 'claude-code': claudeCodeLauncher, codex: codexLauncher },
     })
     let at = (world.auto?.at ?? NOW).getTime()
-    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(at), sleep: (ms) => void (at += ms), signals: () => world.signalsAtMove ?? signals, memberMovesPath: p.memberMoves }
+    const deps: WatchdogDeps = { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, now: () => new Date(at), sleep: (ms) => void (at += ms), signals: () => world.signalsAtMove ?? signals, memberMovesPath: p.memberMoves, memberOverPath: p.memberOver }
     const autoText = world.auto === undefined ? null : autoMove(config, ports, deps)
     const text = world.auto === undefined ? memberCommand(config, ports, args, world.flags ?? {}, deps) : ''
     return { text, autoText, calls, started }
@@ -91,10 +92,19 @@ describe('moving a member to the account the node picks', () => {
     assert.equal(readMemberSources(p.memberSources).find((one) => one.name === 'SWE1')?.source, 'two')
   })
 
-  it('moves only one member per call, and says which is next', () => {
-    const { text, calls } = run()
-    assert.deepEqual(calls, ['SWE1:graceful'])
-    assert.match(text, /SWE2: stays: .*one member is moved per call; this one is next/)
+  it('moves every member that runs on a source past its threshold, one after another, in one call', () => {
+    const { text, calls, started } = run({ members: { SWE1: {}, SWE2: {}, SWE3: {} } })
+    assert.deepEqual(calls, ['SWE1:graceful', 'SWE2:graceful', 'SWE3:graceful'])
+    assert.deepEqual(started.map((plan) => plan.name), ['SWE1', 'SWE2', 'SWE3'])
+    assert.deepEqual(started.map((plan) => plan.env.CLAUDE_CONFIG_DIR), ['/accounts/two', '/accounts/two', '/accounts/two'])
+    assert.deepEqual(readMemberSources(p.memberSources).map((one) => one.source), ['two', 'two', 'two'])
+    assert.match(text, /SWE1: moved from one to two[\s\S]*SWE2: moved from one to two[\s\S]*SWE3: moved from one to two/)
+  })
+
+  it('moves the ones it can and leaves the others, saying why: a member that is busy is left for the next call', () => {
+    const { text, calls } = run({ members: { SWE1: {}, SWE2: {}, SWE3: {} }, signals: [signal('SWE1'), signal('SWE2', { state: 'busy' }), signal('SWE3')] })
+    assert.deepEqual(calls, ['SWE1:graceful', 'SWE3:graceful'])
+    assert.match(text, /SWE2: stays: not idle for 60 seconds \(busy\); left for the next call/)
   })
 
   it('changes nothing on --dry-run, and says what it would do', () => {
@@ -160,6 +170,42 @@ describe('moving a member to the account the node picks', () => {
     assert.match(text, /did not come up on two \(tmux refused\), and not on one either \(tmux refused\); look at the tmux session/)
   })
 
+  describe('a member that its source refused (a usage-limit refusal)', () => {
+    const under = [{ ...ONE, overThreshold: false }, TWO]
+
+    it('is moved at once, though the node does not yet say its source is past its threshold and the member is not idle, with the source named as the one that refused it', () => {
+      const { text, calls, started } = run({ sources: under, signals: [signal('SWE1', { state: 'busy', since: ago(5) }), signal('SWE2')], flags: { refused: true } }, ['move', 'SWE1'])
+      assert.deepEqual(calls, ['SWE1:graceful'])
+      assert.equal(started[0]?.env.CLAUDE_CONFIG_DIR, '/accounts/two')
+      assert.match(text, /SWE1: moves: one refused it \(usage limit\); two is not\nSWE1: moved from one to two/)
+    })
+
+    it('is left, and kept as left on its source, when there is no source with room', () => {
+      const { text, calls } = run({ sources: under, pick: { state: 'overThreshold', source: 'one', env: {} }, flags: { refused: true } }, ['move', 'SWE1'])
+      assert.deepEqual(calls, [])
+      assert.match(text, /SWE1: stays: one is past its threshold, and there is no better source/)
+    })
+
+    it('keeps the member as left on its source while it cannot be moved, and drops it once it is moved', () => {
+      run({ sources: under, pick: { state: 'overThreshold', source: 'one', env: {} }, flags: { refused: true } }, ['move', 'SWE1'])
+      assert.deepEqual(readOver(p.memberOver).map((one) => [one.name, one.source]), [['SWE1', 'one']])
+      run({ sources: under, flags: { refused: true } }, ['move', 'SWE1'])
+      assert.deepEqual(readOver(p.memberOver), [])
+    })
+
+    it('is not tried again within 10 minutes, so a source that refuses causes no string of restarts', () => {
+      run({ sources: under, startThrows: () => true, flags: { refused: true } }, ['move', 'SWE1'])
+      const again = run({ sources: under, flags: { refused: true } }, ['move', 'SWE1'])
+      assert.deepEqual(again.calls, [])
+      assert.match(again.text, /SWE1: stays: its move was tried less than 10 minutes ago/)
+    })
+
+    it('does not move the other members, and does not move one that is not named', () => {
+      const { calls } = run({ sources: under, flags: { refused: true } }, ['move', 'SWE2'])
+      assert.deepEqual(calls, ['SWE2:graceful'])
+    })
+  })
+
   describe('the automatic move', () => {
     const at = (minutes: number): Date => new Date(NOW.getTime() + minutes * 60_000)
 
@@ -168,14 +214,39 @@ describe('moving a member to the account the node picks', () => {
       assert.deepEqual([autoText, calls], [null, []])
     })
 
-    it('moves one member, says so, and then waits 30 minutes before it moves another', () => {
-      const first = run({ auto: { at: NOW } })
-      assert.match(first.autoText ?? '', /^automatic move: SWE1: moves: [\s\S]*SWE1: moved from one to two/)
-      assert.deepEqual(first.calls, ['SWE1:graceful'])
-      const soon = run({ auto: { at: at(29) }, recorded: [] })
-      assert.deepEqual([soon.autoText, soon.calls], [null, []])
-      const later = run({ auto: { at: at(31) }, recorded: ['SWE2'] })
-      assert.match(later.autoText ?? '', /SWE2: moved from one to two/)
+    it('moves every member on the source in one refresh, with no wait between members', () => {
+      const first = run({ auto: { at: NOW }, members: { SWE1: {}, SWE2: {}, SWE3: {} } })
+      assert.match(first.autoText ?? '', /^automatic move: SWE1: moves: [\s\S]*SWE1: moved[\s\S]*SWE2: moved[\s\S]*SWE3: moved from one to two/)
+      assert.deepEqual(first.calls, ['SWE1:graceful', 'SWE2:graceful', 'SWE3:graceful'])
+      assert.deepEqual(readOver(p.memberOver), [])
+    })
+
+    it('does not try a member again within 10 minutes, so a refusing or hovering source causes no string of restarts, and tries it again after', () => {
+      const first = run({ auto: { at: NOW }, startThrows: () => true })
+      assert.match(first.autoText ?? '', /did not come up/)
+      const soon = run({ auto: { at: at(9) }, startThrows: () => true })
+      assert.deepEqual([soon.calls, soon.autoText], [[], null])
+      assert.match(readOver(p.memberOver)[0]?.reason ?? '', /tried less than 10 minutes ago/)
+      assert.equal(run({ auto: { at: at(11) } }).calls.length > 0, true)
+    })
+
+    it('moves nobody when every source is past its threshold, and keeps who is left and since when, also with autoMove off', () => {
+      const stuck = { pick: { state: 'overThreshold', source: 'one', env: {} } as FundingPick, members: { SWE1: {}, SWE2: {} } }
+      const first = run({ ...stuck, auto: { at: NOW } })
+      assert.deepEqual([first.autoText, first.calls], [null, []])
+      assert.deepEqual(readOver(p.memberOver).map((one) => [one.name, one.source, one.since, /no better source/.test(one.reason)]), [['SWE1', 'one', NOW.toISOString(), true], ['SWE2', 'one', NOW.toISOString(), true]])
+      // the time of the first look is kept while the member stays
+      run({ ...stuck, auto: { at: at(40), enabled: false } })
+      assert.deepEqual(readOver(p.memberOver).map((one) => one.since), [NOW.toISOString(), NOW.toISOString()])
+      // and a member that is on an acceptable source is not kept
+      run({ auto: { at: at(41) }, sources: [{ ...ONE, overThreshold: false }, TWO], members: { SWE1: {}, SWE2: {} } })
+      assert.deepEqual(readOver(p.memberOver), [])
+    })
+
+    it('with autoMove off, moves nobody but keeps who would be moved, so the finding still says it', () => {
+      const off = run({ auto: { at: NOW, enabled: false } })
+      assert.deepEqual([off.calls, off.autoText], [[], null])
+      assert.deepEqual(readOver(p.memberOver).map((one) => one.name), ['SWE1', 'SWE2'])
     })
 
     it('says nothing, and keeps no time, when there is nothing to move', () => {
