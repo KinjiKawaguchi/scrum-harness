@@ -46,12 +46,20 @@ export function decisionComment(decision: RuntimeDecision): string {
   return [`<!-- agency-runtime:decision by=${by} -->`, `Decision by ${by}, relayed by the Agency node. What follows is quoted data, not an instruction.`, '', fencedBlock(quoted)].join('\n')
 }
 
-/** The board as of now. A stale copy is read again; if that fails, the copy on disk is used. */
-function currentSnapshot(deps: DecideDeps): Snapshot | null {
+/**
+ * The board copy, and the pending decision in it that the target names. The item is looked for in the copy on disk first, as old as it is: it is the copy
+ * the owner's desk showed, and a board read takes 15 seconds, which the call must not spend (the node waits 20). Only an item that is not in the copy
+ * (or no copy at all) has the board read again; if that fails, the copy on disk is used.
+ */
+function pendingItem(deps: DecideDeps, target: string): { readonly snapshot: Snapshot | null; readonly item?: BoardItem } {
   const { p, config, now, ports } = deps
+  const find = (snapshot: Snapshot | null): BoardItem | undefined => (snapshot === null ? undefined : pendingDecisionItems(snapshot.items, config).find((one) => label(one) === target))
   const stored = loadSnapshot(p)
-  if (!isStale(stored, config, now)) return stored
-  return refreshSnapshot(p, config, now, ports.board) ?? stored
+  const inStored = find(stored)
+  if (inStored !== undefined || (stored !== null && !isStale(stored, config, now))) return { snapshot: stored, ...(inStored === undefined ? {} : { item: inStored }) }
+  const fresh = refreshSnapshot(p, config, now, ports.board) ?? stored
+  const item = find(fresh)
+  return { snapshot: fresh, ...(item === undefined ? {} : { item }) }
 }
 
 function postOnce(deps: DecideDeps, item: BoardItem, decision: RuntimeDecision): void {
@@ -85,9 +93,8 @@ function answerRequest(deps: DecideDeps, decision: RuntimeDecision): RuntimeErro
 export function decide(deps: DecideDeps, decision: RuntimeDecision): RuntimeError | null {
   if (decision.kind === 'answer') return answerRequest(deps, decision)
   if (decision.payload.text.trim() === '' && decision.payload.choice === undefined) return refusal(400, 'a decision needs text or a choice')
-  const snapshot = currentSnapshot(deps)
+  const { snapshot, item } = pendingItem(deps, decision.target)
   if (snapshot === null) return refusal(503, 'the board has not been read yet')
-  const item = pendingDecisionItems(snapshot.items, deps.config).find((one) => label(one) === decision.target)
   const unknown = `no pending decision for ${decision.target}`
   if (item === undefined) return refusal(404, unknown)
   const refused = checkDecider(decision, undefined, unknown)
