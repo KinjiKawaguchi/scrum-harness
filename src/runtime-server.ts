@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync, unlinkSync, chmodSync } from 'node:fs'
 import { connect, createServer, type Socket } from 'node:net'
 import { isAbsolute, join } from 'node:path'
+import { releaseLock, tryLock } from './store.ts'
 
 /**
  * A long-lived process that answers `scrum runtime` calls, so that a call does not start node and load the harness's modules (about 0.2 CPU-s and, on a
@@ -32,6 +33,9 @@ const CLIENT_MS = 10_000
 const STAMP_EVERY_MS = 1000
 
 const errorLine = (status: number, message: string): string => `${JSON.stringify({ error: { status, message } })}\n`
+
+/** The lock that keeps one server for a socket: the process id of the server, in a file next to the socket. */
+export const lockPathOf = (socketPath: string): string => `${socketPath}.lock`
 
 /** Whether a server already answers on the socket. */
 function isServed(socketPath: string): Promise<boolean> {
@@ -75,12 +79,20 @@ function parse(received: string, isEnded: boolean): { readonly stateDir: string;
 /** Runs until it has been idle, has run its time, the source changed, or it was asked to stop. Resolves with the reason. Resolves at once, with `already`, when a server answers. */
 export async function serveRuntime(options: RuntimeServerOptions): Promise<'idle' | 'age' | 'source' | 'stopped' | 'already'> {
   const { socketPath, sourceStamp } = options
+  // One server at most: the lock is what says so. A socket that refuses a connection is not proof that no server holds it (a busy server's queue is full,
+  // and a machine under load fills it), so a socket is never taken from a server by looking at the socket alone.
+  const lock = lockPathOf(socketPath)
+  if (!tryLock(lock)) return 'already'
   if (existsSync(socketPath)) {
-    if (await isServed(socketPath)) return 'already'
+    // A server of a version that had no lock may still hold it.
+    if (await isServed(socketPath)) {
+      releaseLock(lock)
+      return 'already'
+    }
     try {
       unlinkSync(socketPath)
     } catch {
-      // Another server is taking the place; the listen below says so.
+      // The listen below says what is wrong.
     }
   }
   const startStamp = sourceStamp()
@@ -106,6 +118,7 @@ export async function serveRuntime(options: RuntimeServerOptions): Promise<'idle
       } catch {
         // Already gone.
       }
+      releaseLock(lock)
       resolve(reason)
     }
     const arm = (): void => {
@@ -156,7 +169,10 @@ export async function serveRuntime(options: RuntimeServerOptions): Promise<'idle
         }
       })
     })
-    server.once('error', reject)
+    server.once('error', (error) => {
+      releaseLock(lock)
+      reject(error)
+    })
     server.listen(socketPath, () => {
       try {
         chmodSync(socketPath, 0o600)
