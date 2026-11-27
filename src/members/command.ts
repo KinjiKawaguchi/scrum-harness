@@ -1,7 +1,7 @@
 import type { Config } from '../config.ts'
 import type { Ports } from '../ports/index.ts'
 import { stateDir } from '../config.ts'
-import { formatReport, memberReport, runningVersions, type MemberReport } from './list.ts'
+import { formatReport, memberReport, runningVersions, waitingQuestions, type MemberReport } from './list.ts'
 import { planMember, specOf } from './plan.ts'
 import type { Flags } from '../cli-commands.ts'
 import { refreshFundingDirs } from './funding-dirs.ts'
@@ -118,7 +118,9 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
     {
       const report = reportOf(config, ports)
       const sources = watchdogDeps?.memberSourcesPath === undefined ? [] : readMemberSources(watchdogDeps.memberSourcesPath)
-      return formatReport(report, sources, runningVersions(report, watchdogDeps?.signals() ?? ports.sessions.signals(), ports.sessions))
+      const session = config.launch?.tmuxSession
+      const waiting = waitingQuestions(report, (name) => (session === undefined ? null : ports.members.screen(session, name)))
+      return formatReport(report, sources, runningVersions(report, watchdogDeps?.signals() ?? ports.sessions.signals(), ports.sessions), waiting)
     }
     case 'stop':
       return stopCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)

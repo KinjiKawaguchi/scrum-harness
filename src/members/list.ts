@@ -5,6 +5,7 @@ import type { SessionSignal } from '../team/types.ts'
 import { baseName } from '../usage/attribution.ts'
 import { aggregateMembers } from '../team/state.ts'
 import type { MemberSource } from './funding.ts'
+import { questionOf } from './trust.ts'
 
 export type MemberRow = {
   readonly name: string
@@ -65,8 +66,20 @@ export function runningVersions(report: MemberReport, signals: readonly SessionS
   return new Map(versions)
 }
 
-export function formatReport(report: MemberReport, sources: readonly MemberSource[] = [], versions: ReadonlyMap<string, string> = new Map()): string {
-  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}${versions.has(row.name) ? ` [claude ${versions.get(row.name)}]` : ''}`)
+/**
+ * What each running member whose state is unknown waits at, for the ones whose window shows a question the harness knows (`name` to the question). A member that
+ * runs but has not been heard from shows as `running (unknown)`; this says that it is waiting for an answer, which is why. Reads only the windows of those members.
+ */
+export function waitingQuestions(report: MemberReport, screenOf: (name: string) => string | null): ReadonlyMap<string, string> {
+  const asked = report.rows.flatMap((row): readonly (readonly [string, string])[] => {
+    const question = row.isRunning && row.hasWindow && row.state === 'unknown' ? questionOf(screenOf(row.name)) : null
+    return question === null ? [] : [[row.name, question.name]]
+  })
+  return new Map(asked)
+}
+
+export function formatReport(report: MemberReport, sources: readonly MemberSource[] = [], versions: ReadonlyMap<string, string> = new Map(), waiting: ReadonlyMap<string, string> = new Map()): string {
+  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state}${waiting.has(row.name) ? `, waiting at ${waiting.get(row.name)}` : ''})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}${versions.has(row.name) ? ` [claude ${versions.get(row.name)}]` : ''}`)
   const drift = [
     ...report.unlisted.map((window) => `running but not in the configuration: ${window}`),
     ...report.rows.filter((row) => !row.isRunning).map((row) => `listed but not running: ${row.name}`),
