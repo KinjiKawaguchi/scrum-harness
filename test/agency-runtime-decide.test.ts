@@ -7,7 +7,8 @@ import { loadSnapshot, saveSnapshot } from '../src/board/snapshot.ts'
 import { close, parseNewRequest } from '../src/requests/model.ts'
 import { lintRequests } from '../src/requests/rules.ts'
 import { readRequest, readRequests, writeRequest } from '../src/requests/store.ts'
-import type { BoardItem } from '../src/board/types.ts'
+import { label } from '../src/board/rules.ts'
+import type { BoardItem, Snapshot } from '../src/board/types.ts'
 import { runRuntime, type RuntimeDeps } from '../src/agency-runtime/handle.ts'
 import { decisionComment } from '../src/agency-runtime/decide.ts'
 import type { Ports } from '../src/ports/index.ts'
@@ -145,6 +146,42 @@ describe('agency-runtime/1 decide', () => {
       assert.deepEqual([comments, reasons], [[], []])
     })
   }
+
+  describe('when the board copy is old', () => {
+    const old = new Date(NOW.getTime() - 10 * 60_000)
+    let fetches = 0
+    const withBoard = (items: Snapshot['items'] = board().items): RuntimeDeps['ports'] => ({
+      ...ports(),
+      board: { ...fakePorts().board, fetchSnapshot: () => (fetches += 1, { fetchedAt: NOW.toISOString(), items, openIssues: [] }) },
+    })
+    beforeEach(() => {
+      fetches = 0
+      saveSnapshot(p, board(old))
+    })
+
+    it('decides on the item in the stored copy without reading the board again, which takes 15 seconds', () => {
+      const { exitCode } = run(request(), { ports: withBoard() })
+      assert.deepEqual([exitCode, fetches, comments.length, reasons.length], [0, 0, 1, 1])
+    })
+
+    it('reads the board again when the item is not in the copy, and decides on what it finds', () => {
+      saveSnapshot(p, { ...board(old), items: board().items.filter((item) => label(item) !== 'app#14') })
+      const { exitCode } = run(request(), { ports: withBoard() })
+      assert.deepEqual([exitCode, fetches, comments.length, reasons.length], [0, 1, 1, 1])
+    })
+
+    it('uses the copy on disk when the board cannot be read, and refuses an item that is in neither', () => {
+      saveSnapshot(p, { ...board(old), items: board().items.filter((item) => label(item) !== 'app#14') })
+      const failing = { ...ports(), board: { ...fakePorts().board, fetchSnapshot: () => { throw new Error('gh is down') } } }
+      assert.equal(run(request(), { ports: failing }).response.error?.status, 404)
+    })
+
+    it('does not read the board for an item that is not there when the copy is fresh', () => {
+      saveSnapshot(p, board())
+      assert.equal(run(request(decision({ target: 'app#999' })), { ports: withBoard() }).response.error?.status, 404)
+      assert.equal(fetches, 0)
+    })
+  })
 
   it('answers 503 while there is no board', () => {
     p = paths(mkdtempSync(join(tmpdir(), 'scrum-runtime-decide-empty-')))
