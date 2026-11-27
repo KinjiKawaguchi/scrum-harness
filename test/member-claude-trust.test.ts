@@ -10,6 +10,7 @@ import { memberCommand, type WatchdogDeps } from '../src/members/command.ts'
 import { parseLaunch } from '../src/members/config.ts'
 import { lintStartFailures } from '../src/members/rules.ts'
 import { readStartFailures } from '../src/members/start-failures.ts'
+import { formatReport, memberReport, waitingQuestions } from '../src/members/list.ts'
 import { claudeTrustKey, screenQuestion } from '../src/members/trust.ts'
 import { watchdogOf } from '../src/members/watchdog.ts'
 import { paths, type Paths } from '../src/store.ts'
@@ -137,5 +138,31 @@ describe('starting a Claude Code member at the question about its folder', () =>
   it('watches a member that is to have it answered even when no startupSeconds is set', () => {
     assert.deepEqual(watchdogOf({ trustDirectory: true }), { seconds: 60, retries: 2 })
     assert.equal(watchdogOf({}), null)
+  })
+})
+
+describe('member list for a member that waits at a question', () => {
+  const dir = '/work/team'
+  const config = (): Config => ({ ...base, members: ['ClaudeA', 'ClaudeB'], launch: parseLaunch({ tmuxSession: 'team', members: { ClaudeA: { dir }, ClaudeB: { dir } } }) })
+
+  it('says what a running member that has not been heard from waits at, and only for it', () => {
+    const screens: Record<string, string> = { ClaudeA: question(dir, 'No, exit'), ClaudeB: 'Try "create a util logging.py that..."' }
+    const asked: string[] = []
+    const ports = fakePorts({ members: { windows: () => ['home', 'ClaudeA', 'ClaudeB'], start: () => undefined, stop: () => undefined, screen: (_s: string, name: string) => (asked.push(name), screens[name] ?? null), say: () => undefined, press: () => undefined } })
+    const text = memberCommand(config(), ports, ['list'])
+    assert.match(text, /ClaudeA\s+member\s+running \(unknown, waiting at Claude Code's question whether to trust the folder\)/)
+    assert.match(text, /ClaudeB\s+member\s+running \(unknown\) *$/m)
+    assert.deepEqual(asked.toSorted(), ['ClaudeA', 'ClaudeB'])
+  })
+
+  it('does not read the window of a member that has a live session, or that does not run', () => {
+    const live: SessionSignal = { ...signal('ClaudeA', NOW), state: 'busy' }
+    const report = memberReport(config(), ['home', 'ClaudeA'], [live])
+    assert.deepEqual([...waitingQuestions(report, () => assert.fail('the window must not be read'))], [])
+  })
+
+  it('shows nothing extra when there is no question', () => {
+    const report = memberReport(config(), ['home', 'ClaudeA'], [])
+    assert.doesNotMatch(formatReport(report, [], new Map(), waitingQuestions(report, () => 'nothing special')), /waiting at/)
   })
 })

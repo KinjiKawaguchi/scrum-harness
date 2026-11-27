@@ -50,9 +50,15 @@ export function claudeTrustKey(screen: string | null, dir: string): 'Down' | 'En
   return focused === 'No, exit' ? 'Down' : 'Enter'
 }
 
+/** The question of a product a window waits at: its name (for a line of a list), and what lets the harness answer it (for a message). Null when it shows none of the ones known. */
+export function questionOf(screen: string | null): { readonly name: string; readonly hint: string } | null {
+  if (asksClaudeTrust(screen)) return { name: "Claude Code's question whether to trust the folder", hint: "`trustDirectory: true` has the harness answer it for the member's own folder" }
+  if (CODEX_TRUST_QUESTION.test(screen ?? '')) return { name: "Codex's question whether to trust the directory", hint: "`trustDirectory: true` has the harness answer it for the member's own directory" }
+  return null
+}
+
 /** What a window that is waiting at a question of the product is waiting for, in words for a message. Null when it shows none of the ones known. */
 export function screenQuestion(screen: string | null): string | null {
-  if (asksClaudeTrust(screen)) return "it is waiting at Claude Code's question whether to trust the folder (`trustDirectory: true` has the harness answer it for the member's own folder)"
-  if (CODEX_TRUST_QUESTION.test(screen ?? '')) return "it is waiting at Codex's question whether to trust the directory (`trustDirectory: true` has the harness answer it for the member's own directory)"
-  return null
+  const question = questionOf(screen)
+  return question === null ? null : `it is waiting at ${question.name} (${question.hint})`
 }
