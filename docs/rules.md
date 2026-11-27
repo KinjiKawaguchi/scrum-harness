@@ -14,7 +14,7 @@ The severity decides how a finding is reported.
 
 | Rule | Severity | Condition | Fix |
 |---|---|---|---|
-| B-WIP-OVER | High | The open issues In Progress exceed the limit (`wipLimit`) | Start with the blocked ones, and move them back to Backlog |
+| B-WIP-OVER | High | The open issues In Progress exceed the limit (`wipLimit`). Epics (issues with sub-issues, or that other items name as their parent) are not counted, as nobody works on an epic itself; the guard that refuses a move, the hand-over, and this rule count the same way, and the refusal names the items it counted and the epics it left out | Start with the blocked ones, and move them back to Backlog |
 | B-DOING-NO-ASSIGNEE | High | An issue is In Progress but has no assignee | Assign it. If you cannot decide, move it to Backlog |
 | B-NO-TEAM | Medium | On a shared board (`team` is set), for the team that has `adoptsUnassigned`: an open issue is on the board with no team | `scrum board move <ref> --team <name>` |
 | B-CLOSED-NOT-DONE | Medium | A closed issue's Status is not Done | Set Status to Done |

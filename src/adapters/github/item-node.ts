@@ -32,6 +32,7 @@ export type RawNode = {
     readonly repository?: { readonly nameWithOwner?: string }
     readonly labels?: { readonly nodes?: readonly { readonly name?: string }[] } | null
     readonly parent?: { readonly number?: number; readonly repository?: { readonly nameWithOwner?: string } } | null
+    readonly subIssuesSummary?: { readonly total?: number } | null
   } | null
 }
 
@@ -41,7 +42,9 @@ const KINDS: Readonly<Record<string, ItemKind>> = { ISSUE: 'issue', PULL_REQUEST
 function dispatchFields(node: RawNode): Partial<BoardItem> {
   const content = node.content ?? {}
   const parent = content.parent
+  const subIssues = content.subIssuesSummary?.total
   return {
+    ...(typeof subIssues === 'number' ? { subIssues } : {}),
     ...(node.order === undefined ? {} : { order: node.order?.number ?? null }),
     ...(content.labels === undefined ? {} : { labels: (content.labels?.nodes ?? []).flatMap((one) => (one.name === undefined ? [] : [one.name])) }),
     ...(parent === undefined
@@ -115,7 +118,10 @@ export function itemNodeSelection(config: Config): string {
     `${alias}: fieldValueByName(name:"${field}"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }`
   const content = 'number title state author{login} repository{nameWithOwner}'
   const issueContent = `${content} closedAt`
-  const issueExtra = config.dispatch?.enabled === true || alertsOf(config).enabled || config.runtime?.activity === true ? ' labels(first:20){ nodes{ name } } parent{ number repository{ nameWithOwner } }' : ''
+  const wantsFamily = config.dispatch?.enabled === true || alertsOf(config).enabled || config.runtime?.activity === true
+  // The sub-issues are read from github.com always, since the In Progress limit leaves epics out; another host (an older GitHub Enterprise Server may lack the field) only when a config already reads the parent
+  const subIssues = wantsFamily || config.host === undefined ? ' subIssuesSummary{ total }' : ''
+  const issueExtra = `${wantsFamily ? ' labels(first:20){ nodes{ name } } parent{ number repository{ nameWithOwner } }' : ''}${subIssues}`
   return `id type createdAt
     ${single('status', config.fields.status)} ${single('reason', config.fields.reason)}
     ${single('owner', config.fields.owner)} ${single('assignee', config.fields.assignee)}
