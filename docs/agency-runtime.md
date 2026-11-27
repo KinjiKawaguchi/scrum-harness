@@ -25,6 +25,16 @@ The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, 
 
 Errors use the specification's statuses: 400 for malformed input (not JSON, wrong runtime version, unknown op, an id that is not an id, a decision without text or a choice), 404 for a target that does not exist or is not waiting for a decision, and 503 when the harness cannot act now (not configured, no board read yet, a script or `gh` failed). The node does not retry 400 and 404.
 
+### The runtime server
+
+The node calls `scrum runtime` for every read of a team (a view for each desk screen, the activity, the usage). Starting node and loading the harness's modules for each call costs about 0.2 CPU-s, and on a machine that is loaded or swaps it costs seconds: in the node's own measurements a fifth of the views took 30 seconds or more, for all the teams at the same moments. So `bin/scrum runtime` first asks a long-lived process, `scrum runtime-serve`, over a Unix socket (`.runtime.sock` next to the source, or `SCRUM_RUNTIME_SOCKET`) with `nc -U`:
+
+- The server answers for every state directory (every team of the node): a request is the state directory on a line, then the JSON as the node wrote it; the answer is the line the command would print, and `bin/scrum` gives the exit code (1 for an error). What the server does for a request is synchronous and short; it never waits for `gh` (a board read and the transcripts' reading are started in processes of their own).
+- With no server, or when it does not answer in 8 seconds, `bin/scrum` answers by itself as before, and starts a server for the next call (at most once a minute). Nothing depends on the server being there.
+- A decision (`decide`) is always answered by `bin/scrum` itself, not queued behind the server's reads, since it writes to the board and can take seconds. So is a call that sets `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, or `SCRUM_SESSIONS_DIR`: the server takes the team's settings from its state directory, not from the environment of a call. `SCRUM_RUNTIME_DIRECT=1` skips the server.
+- The server ends when it has been idle for 20 minutes, when it has run 6 hours, or when a source file under `src/` is newer than when it started (an update); in that last case it answers nothing, the call answers by itself, and the next call starts a server with the new code. `scrum runtime-stop` ends it.
+- It needs `nc` with `-U` (macOS has it; the OpenBSD netcat on Linux does). Without it every call answers by itself.
+
 ## What `view` reports
 
 `view` reads the board copy that the harness already keeps and the session records. It never waits for the board: if the copy is older than `refreshSeconds` it starts a background refresh and answers from the copy; if there is no copy yet it starts a refresh and answers 503. `generatedAt` is the time the board was read, so a client can tell that a quiet harness is stale.

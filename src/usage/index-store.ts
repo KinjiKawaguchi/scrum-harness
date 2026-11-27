@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { SentMessage, Tokens, TranscriptFile, TranscriptSource, UsageRow } from '../ports/index.ts'
 import { readJson } from '../store.ts'
@@ -25,9 +25,23 @@ export type UsageIndex = {
 
 export const EMPTY_INDEX: UsageIndex = { version: 1, updatedAt: new Date(0).toISOString(), files: {}, sessionIds: [], models: [], titles: {}, rows: [] }
 
+/** The last index read from each file, with the file's size and modification time: a process that reads it again and again (the runtime server) parses it once. The index is never changed in place. */
+const readBefore = new Map<string, { readonly mtimeMs: number; readonly size: number; readonly value: UsageIndex | null }>()
+
 export function readIndex(path: string): UsageIndex | null {
+  let stamp: { readonly mtimeMs: number; readonly size: number } | null = null
+  try {
+    const { mtimeMs, size } = statSync(path)
+    stamp = { mtimeMs, size }
+  } catch {
+    readBefore.delete(path)
+  }
+  const known = readBefore.get(path)
+  if (stamp !== null && known?.mtimeMs === stamp.mtimeMs && known.size === stamp.size) return known.value
   const value = readJson<UsageIndex | null>(path, null)
-  return value !== null && value.version === 1 && Array.isArray(value.rows) ? value : null
+  const index = value !== null && value.version === 1 && Array.isArray(value.rows) ? value : null
+  if (stamp !== null) readBefore.set(path, { ...stamp, value: index })
+  return index
 }
 
 function indexOf(list: readonly string[], value: string): { readonly list: readonly string[]; readonly index: number } {
