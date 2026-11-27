@@ -156,7 +156,9 @@ export function writeShellPatterns(p: Paths, config: Config, actions: ActionRead
   // Line 4: whether to start the liaison's watch (advance stall detection and receive the text to send to the liaison). 1 only when the liaison's name is set
   const alerts = alertsOf(config)
   const liaisonFlag = alerts.enabled && alerts.liaison !== undefined ? '1' : '0'
-  const content = `${post}\n${pre}\n${dispatchOf(config).enabled ? '1' : '0'}\n${liaisonFlag}\n`
+  // Line 5: the TechLead's name. Line 6: the members' names, joined with `|`. bin/scrum tells the role of a session that has `SCRUM_NAME` from these, in the shell,
+  // so that a member's tool call does not start node (about 0.2 CPU-s and, on a loaded machine, seconds, for every call)
+  const content = `${post}\n${pre}\n${dispatchOf(config).enabled ? '1' : '0'}\n${liaisonFlag}\n${config.techlead}\n${config.members.join('|')}\n`
   if (readText(p.shellPatterns) === content) return
   mkdirSync(dirname(p.shellPatterns), { recursive: true })
   writeFileSync(p.shellPatterns, content)
