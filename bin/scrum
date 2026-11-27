@@ -24,7 +24,7 @@ AUTHOR_PATTERN='gh .*pr +create|create_pull_request'
 
 # `scrum runtime` is what the node calls for every read of a team's view. Starting node and loading the harness's modules for each costs about 0.2 CPU-s, and
 # seconds on a machine that swaps, so the call goes to a long-lived server (src/runtime-server.ts) when there is one, over its socket with nc. With none, or
-# when it does not answer, this call answers by itself, and starts a server for the next one (at most once a minute). A decision writes to the board and can
+# when it does not answer, this call answers by itself, and starts a server for the next one (at most once a minute, and not while a server holds its lock). A decision writes to the board and can
 # take seconds, so it is never queued behind the server's reads: it is answered here. The server takes its settings from the state directory of each call, but
 # not from the environment, so a call that sets CODEX_HOME, CLAUDE_CONFIG_DIR or SCRUM_SESSIONS_DIR is answered here too. SCRUM_RUNTIME_DIRECT=1 skips the server.
 if [ "$1" = runtime ] && [ -z "${SCRUM_RUNTIME_DIRECT:-}" ]; then
@@ -41,8 +41,14 @@ if [ "$1" = runtime ] && [ -z "${SCRUM_RUNTIME_DIRECT:-}" ]; then
             '{"error"'*) printf '%s\n' "$out"; exit 1 ;;
           esac
         fi
+        # A server that holds the lock is busy, not missing (a machine under load fills its queue and a call is refused): none is started then.
+        # Otherwise one is started, at most once a minute; the server takes the lock itself, so two that start together are one.
         started="$sock.started"
-        if [ -z "$(find "$started" -mmin -1 2>/dev/null)" ]; then
+        lockpid=
+        [ -r "$sock.lock" ] && read -r lockpid <"$sock.lock"
+        if [ -n "$lockpid" ] && kill -0 "$lockpid" 2>/dev/null; then
+          :
+        elif [ -z "$(find "$started" -mmin -1 2>/dev/null)" ]; then
           : >"$started" 2>/dev/null
           (node --no-warnings "$CLI" runtime-serve </dev/null >/dev/null 2>&1 &)
         fi

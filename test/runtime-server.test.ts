@@ -1,12 +1,12 @@
 import { after, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, utimesSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync, mkdirSync } from 'node:fs'
 import { connect } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { newestMtime, serveRuntime, type RuntimeServerOptions } from '../src/runtime-server.ts'
+import { lockPathOf, newestMtime, serveRuntime, type RuntimeServerOptions } from '../src/runtime-server.ts'
 import { writeMetricsState } from './fixtures/metrics-state.ts'
 
 const BIN = fileURLToPath(new URL('../bin/scrum', import.meta.url))
@@ -135,6 +135,34 @@ describe('the runtime server', () => {
     await second.ended
   })
 
+  it('is one server for a socket: a second process leaves the first, and its socket, alone', async () => {
+    const path = socket()
+    const first = start(path)
+    await untilListening(path)
+    assert.equal(readFileSync(lockPathOf(path), 'utf8'), String(process.pid))
+    // the lock, not a probe of the socket, says that a server is there: a busy server refuses a connection when its queue is full
+    const second = spawnSync('node', ['--no-warnings', CLI, 'runtime-serve'], { env: { ...process.env, SCRUM_RUNTIME_SOCKET: path }, encoding: 'utf8' })
+    assert.match(second.stderr, /ended: already/)
+    assert.equal(await ask(path, `${stateDir}\n{"op":"view"}`), '{"result":13}\n')
+    assert.equal(readFileSync(lockPathOf(path), 'utf8'), String(process.pid))
+    await ask(path, '!shutdown\n')
+    assert.equal(await first.ended, 'stopped')
+    assert.equal(existsSync(lockPathOf(path)), false)
+  })
+
+  it('takes over from a server that is gone: its lock names a process that does not run, and its socket file is left', async () => {
+    const path = socket()
+    writeFileSync(lockPathOf(path), '2147483646')
+    writeFileSync(path, '')
+    const server = start(path)
+    await untilListening(path)
+    await wait(100)
+    assert.equal(readFileSync(lockPathOf(path), 'utf8'), String(process.pid))
+    assert.equal(await ask(path, `${stateDir}\n{"op":"view"}`), '{"result":13}\n')
+    await ask(path, '!shutdown\n')
+    await server.ended
+  })
+
   it('knows when the source changed by the newest modification time of its files', () => {
     const root = mkdtempSync(join(tmpdir(), 'scrum-rt-src-'))
     mkdirSync(join(root, 'sub'))
@@ -193,6 +221,20 @@ describe('scrum runtime through bin/scrum', () => {
     const a = JSON.parse(call(metrics).stdout).result.pullRequests
     const b = JSON.parse(call(metrics, { SCRUM_STATE_DIR: other }).stdout).result.pullRequests
     assert.deepEqual([a, b], [[{ repo: 'acme/app', number: 12, by: 'SWE1' }], [{ repo: 'acme/other', number: 7, by: 'SWE2' }]])
+  })
+
+  it('starts no server while a live process holds the lock, and starts one when the lock names a process that is gone', { skip: !hasNc }, async () => {
+    const other = join(dir, 'locked.sock')
+    const locked = { SCRUM_RUNTIME_SOCKET: other }
+    writeFileSync(`${other}.lock`, String(process.pid))
+    writeFileSync(other, '')
+    assert.equal(call(metrics, locked).status, 0)
+    await wait(1500)
+    assert.equal(existsSync(`${other}.started`), false)
+    writeFileSync(`${other}.lock`, '2147483646')
+    assert.equal(call(metrics, locked).status, 0)
+    await untilListening(other)
+    spawnSync('node', ['--no-warnings', CLI, 'runtime-stop'], { env: { ...env, ...locked }, encoding: 'utf8' })
   })
 
   it('is stopped by runtime-stop, which removes the socket', { skip: !hasNc }, async () => {
