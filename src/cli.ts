@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { connect } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { isRefreshDue, refreshSnapshot } from './board/snapshot.ts'
 import {
@@ -21,7 +22,8 @@ import { configPath, dispatchOf, loadConfig, stateDir, type Config } from './con
 import { dispatchOnce, formatOnce } from './dispatch/once.ts'
 import { handleHook } from './hooks/handlers.ts'
 import { linkPullRequests, type LinkPlan } from './links/run.ts'
-import { hookDeps, parseInput, readStdin, spawnRefresh, spawnUsageIndex } from './runtime.ts'
+import { hookDeps, parseInput, readStdin, runtimeSocketPath, sourceRoot, spawnRefresh, spawnUsageIndex } from './runtime.ts'
+import { newestMtime, serveRuntime } from './runtime-server.ts'
 import { runUsageIndex } from './usage/run.ts'
 import { initCommand } from './init/command.ts'
 import { scheduleCommand } from './schedule/command.ts'
@@ -122,6 +124,37 @@ async function runRuntimeCommand(p: Paths, config: Config | null, ports: Ports |
   return output.exitCode
 }
 
+/**
+ * The line `scrum runtime` prints for a request about the team whose state directory is given, for the runtime server, which answers for every team. What the
+ * code reads from the environment (`SCRUM_STATE_DIR`) is set to this team's for the length of the call, which is synchronous, and a process it starts inherits it.
+ */
+function answerRuntime(stateDir: string, input: string): string {
+  process.env.SCRUM_STATE_DIR = stateDir
+  const config = loadConfig(stateDir)
+  const built = config === null ? { ports: null } : portsOrError(config)
+  if ('error' in built) return `${JSON.stringify({ error: { status: 503, message: built.error.slice(0, 300) } })}\n`
+  const deps = config === null || built.ports === null ? null : { p: paths(stateDir), config, now: new Date(), ports: built.ports, spawnRefresh, spawnUsageIndex }
+  return runRuntime(input, deps).stdout
+}
+
+/** `scrum runtime-serve`: the long-lived process that answers `scrum runtime` for `bin/scrum` (see runtime-server.ts). Ends when it is idle, or the source changes. */
+async function runRuntimeServe(): Promise<number> {
+  const reason = await serveRuntime({ socketPath: runtimeSocketPath(), answer: answerRuntime, sourceStamp: () => newestMtime(sourceRoot()) })
+  process.stderr.write(`scrum runtime server ended: ${reason}\n`)
+  return 0
+}
+
+/** `scrum runtime-stop`: asks the runtime server to end. */
+function runRuntimeStop(): Promise<number> {
+  return new Promise((resolve) => {
+    const client = connect(runtimeSocketPath())
+    client.once('error', () => (process.stdout.write('no runtime server runs\n'), resolve(0)))
+    client.once('connect', () => client.end('!shutdown\n'))
+    client.once('close', () => resolve(0))
+    client.on('data', () => undefined)
+  })
+}
+
 /** `scrum schedule`: a failure of the system's scheduler is shown with its own message and exit code 1. */
 function runSchedule(action: string, instance: string): number {
   try {
@@ -193,6 +226,8 @@ async function main(argv: readonly string[]): Promise<number> {
     if (text !== '') process.stdout.write(`${text}\n`)
     return 0
   }
+  if (command === 'runtime-serve') return runRuntimeServe()
+  if (command === 'runtime-stop') return runRuntimeStop()
   const config = loadConfig()
   // Before the ports are built: the check is for a module that cannot be loaded, and it says why.
   if (command === 'adapter') return runAdapterCheck(positional, flags, config)

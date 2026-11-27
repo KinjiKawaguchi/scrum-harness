@@ -8,6 +8,12 @@ import type { Identity } from './team/identity.ts'
 
 const CLI_PATH = fileURLToPath(new URL('./cli.ts', import.meta.url))
 
+/** Where the runtime server listens: next to the source it runs from (so a checkout has its own), unless `SCRUM_RUNTIME_SOCKET` says another place. */
+export const runtimeSocketPath = (): string => process.env.SCRUM_RUNTIME_SOCKET ?? fileURLToPath(new URL('../.runtime.sock', import.meta.url))
+
+/** The source tree the runtime server watches, to end when it changes. */
+export const sourceRoot = (): string => fileURLToPath(new URL('.', import.meta.url))
+
 /** Starts the board re-fetch in a separate process that does not make the hook wait. */
 export function spawnRefresh(): void {
   const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'refresh'], { detached: true, stdio: 'ignore' })
