@@ -9,6 +9,10 @@ function sleepSync(milliseconds: number): void {
 /** How long a typed command waits before Enter. Codex treats Enter that arrives with the text as part of it and does not run the command. */
 const TYPE_THEN_ENTER_MS = 1000
 
+/** The size of a session the harness makes. A person who attaches sees the windows at the size of their own terminal. */
+const SESSION_COLUMNS = 200
+const SESSION_ROWS = 50
+
 /** The windows of a tmux session, and starting a member in one. */
 export function tmuxHost(run: Run = realRun, sleep: (milliseconds: number) => void = sleepSync): MemberHost {
   const hasSession = (session: string): boolean => run('tmux', ['has-session', '-t', `=${session}`]).status === 0
@@ -51,7 +55,8 @@ export function tmuxHost(run: Run = realRun, sleep: (milliseconds: number) => vo
       } else typeLine(session, name, '/exit')
     },
     start: (session, plan: LaunchPlan) => {
-      if (!hasSession(session)) runOrThrow(run, 'tmux', ['new-session', '-d', '-s', session, '-n', 'home', '-c', plan.dir])
+      // A session made with no terminal is 80 by 24, where a member's questions break and scroll off the screen the harness reads: make it wide and tall.
+      if (!hasSession(session)) runOrThrow(run, 'tmux', ['new-session', '-d', '-s', session, '-n', 'home', '-x', String(SESSION_COLUMNS), '-y', String(SESSION_ROWS), '-c', plan.dir])
       const env = Object.entries(plan.env).map(([key, value]) => `${key}=${value}`)
       runOrThrow(run, 'tmux', ['new-window', '-d', '-t', `=${session}`, '-n', plan.name, '-c', plan.dir, 'env', ...env, ...plan.argv])
     },
