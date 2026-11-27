@@ -15,13 +15,15 @@ export type RequestOption = {
 }
 
 export type RequestMessage = {
-  /** `owner`, or the name of a team session */
+  /** `owner` for the owner's own decision, the participant's name for a decision of another participant, or the name of a team session */
   readonly from: string
   readonly text: string
   /** The key of the chosen option (the owner's answers only) */
   readonly choice?: string
-  /** The id of the member who decided. Set only by a verified decision; a message from the owner without it is not the owner's. */
+  /** The id of the member whose device signed the decision. Set only by a verified decision. It says whose device, never who the decider is: see `byParticipant`. */
   readonly by?: string
+  /** The participant who decided, as the node named them in the decision (`owner` for the owner). Only this says that the owner decided. */
+  readonly byParticipant?: string
   readonly at: string
 }
 
