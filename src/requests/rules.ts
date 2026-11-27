@@ -2,13 +2,17 @@ import { SCRUM_CLI } from '../cli-path.ts'
 import type { Config } from '../config.ts'
 import { makeFinding, type Finding } from '../findings/types.ts'
 import { quoteLine } from '../quote.ts'
-import { answerOf, isOpen, isVerifiedOwnerMessage } from './model.ts'
+import { answerOf, deciderOf, isOpen } from './model.ts'
 import { OWNER, type OwnerRequest } from './types.ts'
 
-/** Who answered: the id of the member who decided, or the owner's label for the owner's own name. */
+/**
+ * Who answered: the participant the last verified decision names (the owner's label when it is the owner), then the member whose device signed it in
+ * parentheses. The member id is not who answered: it can be any id, `owner` included.
+ */
 function answererOf(request: OwnerRequest, config: Config): string {
-  const by = request.messages.findLast(isVerifiedOwnerMessage)?.by
-  return by === undefined || by === OWNER ? config.ownerLabel : by
+  const decider = request.messages.map((message) => deciderOf(request, message)).findLast((one) => one !== null)
+  if (decider === undefined || decider === null) return config.ownerLabel
+  return `${decider.participant === OWNER ? config.ownerLabel : decider.participant} (member ${decider.by})`
 }
 
 const MAX_QUOTED = 600

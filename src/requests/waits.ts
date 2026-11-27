@@ -1,15 +1,14 @@
-import { OWNER, type OwnerRequest } from './types.ts'
+import { isOwnerDecision } from './model.ts'
+import type { OwnerRequest } from './types.ts'
 
 /** A stretch in which a member's request waited for the owner's answer, in milliseconds since the epoch. */
 export type OwnerWait = { readonly name: string; readonly from: number; readonly to: number }
 
 /**
- * When the owner's answer came: the first message of the owner that a verified decision recorded, else, for a request the owner has answered (it is the
- * team's turn), the first message that says it is the owner's. Null while the request waits.
+ * When the owner's answer came: the first decision that the owner made, as the node named the participant. Null while the request waits.
  */
 function answeredAt(request: OwnerRequest): number | null {
-  const ownerMessages = request.messages.filter((message) => message.from === OWNER)
-  const first = ownerMessages.find((message) => message.by !== undefined) ?? (request.waiting === 'team' ? ownerMessages[0] : undefined)
+  const first = request.messages.find((message) => isOwnerDecision(request, message))
   return first === undefined ? null : Date.parse(first.at)
 }
 
