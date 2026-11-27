@@ -229,7 +229,7 @@ describe('the tmux host starts a window', () => {
     }).start('team', plan)
     assert.deepEqual(calls, [
       ['tmux', 'has-session', '-t', '=team'],
-      ['tmux', 'new-session', '-d', '-s', 'team', '-n', 'home', '-c', '/work/swe1'],
+      ['tmux', 'new-session', '-d', '-s', 'team', '-n', 'home', '-x', '200', '-y', '50', '-c', '/work/swe1'],
       ['tmux', 'new-window', '-d', '-t', '=team', '-n', 'SWE1', '-c', '/work/swe1', 'env', 'SCRUM_STATE_DIR=/state', 'SCRUM_NAME=SWE1', 'claude', '-n', 'SWE1', 'You are SWE1; do it'],
     ])
   })

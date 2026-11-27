@@ -156,6 +156,11 @@ case "$role" in
         if printf '%s' "$input" | grep -Eq "$AUTHOR_PATTERN"; then run_detached "$@"; else end_waiting "$@"; fi
         exit 0
         ;;
+      SessionEnd)
+        # In the foreground: the session is going away and its window with it, which ends a process left in the background before it has written that the session ended
+        run "$@"
+        exit 0
+        ;;
       watch)
         # Start the watch only when line 3 of shell-patterns (written by node from the config) is 1
         if [ "$(sed -n 3p "$STATE/cache/shell-patterns" 2>/dev/null)" = 1 ]; then
