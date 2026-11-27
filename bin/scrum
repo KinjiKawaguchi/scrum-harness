@@ -22,6 +22,37 @@ PRE_PATTERN=$(sed -n 2p "$STATE/cache/shell-patterns" 2>/dev/null)
 # Commands that open a pull request. node records which member's session ran them (src/team/pr-authors.ts), so it starts for them in every role.
 AUTHOR_PATTERN='gh .*pr +create|create_pull_request'
 
+# `scrum runtime` is what the node calls for every read of a team's view. Starting node and loading the harness's modules for each costs about 0.2 CPU-s, and
+# seconds on a machine that swaps, so the call goes to a long-lived server (src/runtime-server.ts) when there is one, over its socket with nc. With none, or
+# when it does not answer, this call answers by itself, and starts a server for the next one (at most once a minute). A decision writes to the board and can
+# take seconds, so it is never queued behind the server's reads: it is answered here. The server takes its settings from the state directory of each call, but
+# not from the environment, so a call that sets CODEX_HOME, CLAUDE_CONFIG_DIR or SCRUM_SESSIONS_DIR is answered here too. SCRUM_RUNTIME_DIRECT=1 skips the server.
+if [ "$1" = runtime ] && [ -z "${SCRUM_RUNTIME_DIRECT:-}" ]; then
+  input=$(cat)
+  sock=${SCRUM_RUNTIME_SOCKET:-$DIR/.runtime.sock}
+  case $input in
+    *'"decision"'*) ;;
+    *)
+      if [ -z "${CODEX_HOME:-}${CLAUDE_CONFIG_DIR:-}${SCRUM_SESSIONS_DIR:-}" ] && command -v nc >/dev/null 2>&1; then
+        if [ -S "$sock" ]; then
+          out=$(printf '%s\n%s' "$STATE" "$input" | nc -U -w 8 "$sock" 2>/dev/null)
+          case $out in
+            '{"result"'*) printf '%s\n' "$out"; exit 0 ;;
+            '{"error"'*) printf '%s\n' "$out"; exit 1 ;;
+          esac
+        fi
+        started="$sock.started"
+        if [ -z "$(find "$started" -mmin -1 2>/dev/null)" ]; then
+          : >"$started" 2>/dev/null
+          (node --no-warnings "$CLI" runtime-serve </dev/null >/dev/null 2>&1 &)
+        fi
+      fi
+      ;;
+  esac
+  printf '%s' "$input" | node --no-warnings "$CLI" runtime
+  exit $?
+fi
+
 if [ "$1" != hook ] && [ "$1" != watch ] && [ "$1" != statusline ]; then
   exec node --no-warnings "$CLI" "$@"
 fi
