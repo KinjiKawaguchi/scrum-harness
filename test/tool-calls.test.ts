@@ -32,6 +32,7 @@ function deps(actions: ActionReader): HookDeps {
     ports: { actions, code: fakePorts().code, sessions: fakePorts().sessions },
     spawnRefresh: () => undefined,
     spawnCheckpoint: () => undefined,
+    spawnMoveRefused: () => undefined,
   }
 }
 

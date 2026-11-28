@@ -95,6 +95,7 @@ describe('install', () => {
     assert.equal(next.hooks.Stop?.[0]?.hooks[0]?.command, '~/.claude/hooks/stop-notify.sh')
     const commands = Object.values(next.hooks).flat().flatMap((group) => group.hooks.map((hook) => hook.command))
     assert.ok(commands.includes(`${bin} hook PostToolUse`))
+    assert.ok(commands.includes(`${bin} hook StopFailure`), 'a turn that ended because the subscription refused it is seen')
     assert.ok(Object.values(next.hooks).flat().some((g) => g.hooks.some((h) => h.asyncRewake === true && h.command === `${bin} watch`)))
   })
 

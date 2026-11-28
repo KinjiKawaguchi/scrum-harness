@@ -21,6 +21,8 @@ function groups(bin: string, tools: readonly string[]): Readonly<Record<string, 
     PreToolUse: [{ matcher: ['Bash', ...tools].join('|'), hooks: [hook('PreToolUse', 10)] }],
     PostToolUse: [{ hooks: [hook('PostToolUse', 30)] }],
     Stop: [{ hooks: [hook('Stop', 15), watch] }],
+    // A turn that ended because the subscription refused it: the harness moves the member to a login with room (see members/move.ts)
+    StopFailure: [{ hooks: [hook('StopFailure', 10)] }],
     Notification: [{ matcher: 'permission_prompt', hooks: [hook('Notification', 10)] }],
     SessionEnd: [{ hooks: [hook('SessionEnd', 10)] }],
   }

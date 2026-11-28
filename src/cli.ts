@@ -248,7 +248,7 @@ async function main(argv: readonly string[]): Promise<number> {
     case 'board':
       return needConfig((cfg, prt) => boardCommand(p, cfg, prt, positional, flags))
     case 'member':
-      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, fundingDirsPath: p.fundingDirs, budgetPath: p.budget, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
+      return needConfig((cfg, prt) => memberCommand(cfg, prt, positional, flags, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, fundingDirsPath: p.fundingDirs, budgetPath: p.budget, memberMovesPath: p.memberMoves, memberOverPath: p.memberOver, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), prt.sessions) }))
     case 'request':
       return print(requestCommand(p, positional, flags, positional[0] === 'add' ? await readStdin() : '', new Date()))
     case 'init': {
@@ -265,7 +265,7 @@ async function main(argv: readonly string[]): Promise<number> {
         const fundingProblem = refreshFundingDirs(ports, p.fundingDirs, new Date())
         const budgetProblem = refreshBudget(ports, p.budget, new Date())
         const asked = askOwnerWhenOver(p, currentBudget(readBudgetRecord(p.budget), new Date()), new Date())
-        const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
+        const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, memberOverPath: p.memberOver, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
         const told = continueIdle(c, ports, { startFailuresPath: p.startFailures, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
         const note = `${told.map((line) => `\n${line}`).join('')}${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}${asked === null ? '' : `\n${asked}`}`
         const cost = snapshot === null ? '' : describeCost(readCostRecord(p.graphqlCost), new Date())
