@@ -26,7 +26,8 @@ import { lintBudget } from '../budget/rules.ts'
 import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
 import { readContinued, type Continued } from '../members/continued.ts'
-import { lintContinued, lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
+import { readOver, type OverRecord } from '../members/over-threshold.ts'
+import { lintContinued, lintOverThreshold, lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
 import { lintStandbyBusy, readStandby, viewStandby, type Standby } from '../members/standby.ts'
 import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
 import { readRequests } from '../requests/store.ts'
@@ -55,6 +56,8 @@ export type LintContext = {
   readonly startFailures?: readonly StartFailure[]
   /** The members the lead keeps idle on purpose */
   readonly standby?: readonly Standby[]
+  /** The members left on a source past its threshold */
+  readonly overThreshold?: readonly OverRecord[]
   /** The Codex members that were told to go on, by name */
   readonly continued?: Continued
   /** The account each member started on, or why its start was refused (M-SOURCE-REFUSED) */
@@ -105,6 +108,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintContinued(ctx.continued ?? {}, ctx.now),
     ...lintStandbyBusy(onStandby, subordinates, ctx.config, ctx.now),
+    ...lintOverThreshold(ctx.overThreshold ?? [], ctx.now),
     ...lintBudget(ctx.budget ?? null),
     ...lintTurnErrors(ctx.turnErrors ?? []),
   ]
@@ -140,6 +144,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     startFailures: readStartFailures(p.startFailures),
     continued: readContinued(p.memberContinued),
     standby: readStandby(p.memberStandby),
+    overThreshold: readOver(p.memberOver),
     memberSources: readMemberSources(p.memberSources),
     budget: currentBudget(readBudgetRecord(p.budget), now),
     turnErrors: findTurnErrors(signals, sessions, names, now),

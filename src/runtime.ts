@@ -26,6 +26,15 @@ export function spawnUsageIndex(): void {
   child.unref()
 }
 
+/**
+ * Moves a member that its source refused (a usage limit) to another login, in a process of its own: the move stops the member's session, and a process that
+ * the session's hook started would be stopped with it. `detached` makes it a session of its own.
+ */
+export function spawnMoveRefused(name: string): void {
+  const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'member', 'move', name, '--refused'], { detached: true, stdio: 'ignore' })
+  child.unref()
+}
+
 /** Starts the checkpoint recording in a separate process that does not make the hook wait. */
 export function spawnCheckpoint(): void {
   const child = spawn(process.execPath, ['--no-warnings', CLI_PATH, 'checkpoint'], { detached: true, stdio: 'ignore' })
@@ -33,7 +42,7 @@ export function spawnCheckpoint(): void {
 }
 
 export function hookDeps(p: Paths, config: Config, identity: Identity | null, now: Date, ports: Ports): HookDeps {
-  return { p, config, now, identity, ports, spawnRefresh, spawnCheckpoint }
+  return { p, config, now, identity, ports, spawnRefresh, spawnCheckpoint, spawnMoveRefused }
 }
 
 export async function readStdin(): Promise<string> {
