@@ -5,6 +5,7 @@ import type { EvaluationSummary } from "./EvaluationSummary.js";
 import type { Id } from "./Id.js";
 import type { ParticipantEvaluation } from "./ParticipantEvaluation.js";
 import type { RepositoryEvaluation } from "./RepositoryEvaluation.js";
+import type { Timestamp } from "./Timestamp.js";
 
 export type TeamEvaluation = { team: Id, 
 /**
@@ -31,4 +32,11 @@ unattributedMerged?: number,
  * The summary of each repository that had a merged pull request or a CI run in the period, by name; left
  * out unless at least two had, since one would repeat the team's summary.
  */
-byRepository?: Array<RepositoryEvaluation>, };
+byRepository?: Array<RepositoryEvaluation>, 
+/**
+ * When the node read GitHub for these numbers (the oldest read, when the team's repositories were read at
+ * different times). A node serves what it read within the day while it reads again, so the numbers are as
+ * old as this says; a screen shows how old. Left out when the node does not say. It is never after the
+ * answer's `generatedAt`.
+ */
+readAt?: Timestamp, };

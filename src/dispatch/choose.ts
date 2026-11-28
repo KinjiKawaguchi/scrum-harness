@@ -1,4 +1,5 @@
 import { countDoing } from '../board/commands.ts'
+import { effectivePriority, itemsByRef, priorityRank } from '../board/priority.ts'
 import type { BoardItem, Snapshot } from '../board/types.ts'
 import { dispatchOf, type Config } from '../config.ts'
 
@@ -67,20 +68,24 @@ function compare(a: number | null | undefined, b: number | null | undefined): nu
   return a - b
 }
 
-/** The order of issues to hand over: tier, the board's "order" (smaller first, none last), Epics with fewer people working, then number. */
+/** The order of issues to hand over: tier, the effective priority (highest first; none after low, or not handed over when `dispatch.unprioritized` is `skip`; deferred is never handed over), the board's "order" (smaller first, none last), Epics with fewer people working, then number. */
 export function chooseNext(snapshot: Snapshot, member: string, config: Config): ChooseResult {
   // In Progress is counted the same way as the guard before a write (checkGuard). In Progress by excluded authors (a different development party) is also counted
   if (countDoing(snapshot, config) >= config.wipLimit) return { kind: 'none', reason: 'wip-limit' }
   const load = peoplePerEpic(snapshot, config)
+  const itemOf = itemsByRef(snapshot.items)
   const candidates = snapshot.items
     .filter((item) => isOpenIssue(item, config) && item.repo === config.defaultRepo && !hasSkipLabel(item, config) && !isReleaseIssue(item))
     .flatMap((item) => {
       const tier = tierOf(item, member, config)
-      return tier === null ? [] : [{ item, tier }]
+      const priority = effectivePriority(item, itemOf)
+      const isHeld = priority === 'deferred' || (priority === null && dispatchOf(config).unprioritized === 'skip')
+      return tier === null || isHeld ? [] : [{ item, tier, rank: priorityRank(priority) }]
     })
   const sorted = candidates.toSorted(
     (a, b) =>
       a.tier - b.tier ||
+      a.rank - b.rank ||
       compare(a.item.order, b.item.order) ||
       (load.get(a.item.epic ?? '') ?? 0) - (load.get(b.item.epic ?? '') ?? 0) ||
       (a.item.number ?? 0) - (b.item.number ?? 0),

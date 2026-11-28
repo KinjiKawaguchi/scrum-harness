@@ -26,6 +26,11 @@ export type { ThreadMessage } from './bindings/ThreadMessage.js'
 export type { Timestamp } from './bindings/Timestamp.js'
 export type { WaitingOn } from './bindings/WaitingOn.js'
 export type { WorkItem } from './bindings/WorkItem.js'
+export type { OpenPullRequest } from './bindings/OpenPullRequest.js'
+export type { Priority } from './bindings/Priority.js'
+export type { PriorityChoice } from './bindings/PriorityChoice.js'
+export type { Ticket } from './bindings/Ticket.js'
+export type { Tickets } from './bindings/Tickets.js'
 export type { WorkStatus } from './bindings/WorkStatus.js'
 
 export const RUNTIME_VERSION = 'agency-runtime/1'
@@ -115,4 +120,6 @@ export type ParticipantMetrics = {
   readonly pullRequests: readonly PullRequestAuthor[]
 }
 
-export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest | ParticipantMetricsRequest
+export type TicketsRequest = { readonly runtime: string; readonly org: string; readonly team: string; readonly op: 'tickets' }
+
+export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest | ParticipantMetricsRequest | TicketsRequest

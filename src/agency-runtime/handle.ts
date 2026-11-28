@@ -12,6 +12,7 @@ import { isRuntimeError, parseRuntimeRequest } from './request.ts'
 import { activity } from './activity.ts'
 import { participantMetrics } from './participant-metrics.ts'
 import { harnessRelease } from './release.ts'
+import { tickets } from './tickets.ts'
 import { tokenUsage } from './token-usage.ts'
 import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeInput, type RuntimeResponse } from './types.ts'
 import { teamViewProblem } from './validate.ts'
@@ -28,7 +29,7 @@ export type RuntimeDeps = {
   readonly spawnUsageIndex: () => void
 }
 
-const OPS = ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics']
+const OPS = ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics', 'tickets']
 const fail = (status: number, message: string): { readonly error: RuntimeError } => ({ error: { status, message } })
 
 function labelOf(request: RuntimeInput, config: Config): string {
@@ -57,6 +58,8 @@ function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unkno
   if (request.op === 'tokenUsage') return tokenUsage(request, deps)
   if (request.op === 'activity') return activity(request, deps)
   if (request.op === 'participantMetrics') return participantMetrics(request, deps)
+  if (request.op === 'tickets') return tickets(request, deps)
+  if (request.op === 'prioritize') return fail(400, 'op must be one of the operations describe lists')
   const error = decide(deps, request.decision)
   return error === null ? { result: {} } : { error }
 }

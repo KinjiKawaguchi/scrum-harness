@@ -41,7 +41,7 @@ export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError 
   if (typeof raw.org !== 'string' || !ID.test(raw.org)) return malformed('org must be an id')
   if (typeof raw.team !== 'string' || !ID.test(raw.team)) return malformed('team must be an id')
   const base = { runtime: RUNTIME_VERSION, org: raw.org, team: raw.team }
-  if (raw.op === 'describe' || raw.op === 'view') return { ...base, op: raw.op }
+  if (raw.op === 'describe' || raw.op === 'view' || raw.op === 'tickets') return { ...base, op: raw.op }
   if (raw.op === 'tokenUsage') {
     const days = raw.days
     const isDays = typeof days === 'number' && Number.isInteger(days) && days >= 1 && days <= MAX_USAGE_DAYS
@@ -60,7 +60,7 @@ export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError 
     const isOffset = typeof utcOffsetMinutes === 'number' && Number.isInteger(utcOffsetMinutes) && utcOffsetMinutes >= MIN_UTC_OFFSET_MINUTES && utcOffsetMinutes <= MAX_UTC_OFFSET_MINUTES
     return isOffset ? { ...base, op: 'participantMetrics', days, utcOffsetMinutes } : malformed(`utcOffsetMinutes must be a whole number from ${MIN_UTC_OFFSET_MINUTES} to ${MAX_UTC_OFFSET_MINUTES}`)
   }
-  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", "activity", or "participantMetrics"')
+  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", "activity", "participantMetrics", or "tickets"')
   const decision = parseDecision(raw.decision)
   return 'status' in decision ? decision : { ...base, op: 'decide', decision }
 }

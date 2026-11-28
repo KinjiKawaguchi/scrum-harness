@@ -120,10 +120,12 @@ describe('reading what the board events need from GitHub', () => {
     assert.match(itemNodeSelection({ ...config, host: 'ghe.example.test', runtime: { activity: true } }), /subIssuesSummary\{ total \}/)
   })
 
-  it('asks for the parent (the epic) only when the runtime asks for activity, or dispatch or alerts are on', () => {
-    assert.doesNotMatch(itemNodeSelection(config), /parent\{/)
-    assert.match(itemNodeSelection(withActivity), /parent\{/)
-    assert.match(itemNodeSelection({ ...config, alerts: { enabled: true } as never }), /parent\{/)
+  it('asks for the parent (the epic) on github.com always, and elsewhere only when the runtime asks for activity, or dispatch or alerts are on', () => {
+    const elsewhere = { ...config, host: 'ghe.example.test' }
+    assert.match(itemNodeSelection(config), /parent\{/)
+    assert.doesNotMatch(itemNodeSelection(elsewhere), /parent\{/)
+    assert.match(itemNodeSelection({ ...elsewhere, runtime: withActivity.runtime }), /parent\{/)
+    assert.match(itemNodeSelection({ ...elsewhere, alerts: { enabled: true } as never }), /parent\{/)
   })
 
   it('keeps the times and the closed issue on the item', () => {

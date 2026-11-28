@@ -1,4 +1,5 @@
 import type { StatusEvent } from '../sprint/effort.ts'
+import type { Priority } from './priority.ts'
 
 export type ItemKind = 'issue' | 'pr' | 'draft'
 
@@ -42,6 +43,8 @@ export type BoardItem = {
   readonly overrun?: number | null
   /** The record of Status changes. Fetched only for In Progress issues */
   readonly statusEvents?: readonly StatusEvent[]
+  /** The priority field's value: one of the five words, null when the item has none or an option that is none of them. Absent when the tracker has no such field */
+  readonly priority?: Priority | null
   /** The hand-over order field (fetched only when there is a dispatch config). Smaller comes first */
   readonly order?: number | null
   /** The names of the issue's labels (fetched only when there is a dispatch config) */

@@ -1,5 +1,6 @@
 import { alertsOf } from '../../alerts/config.ts'
 import { shortRepo, type Config } from '../../config.ts'
+import { parsePriority } from '../../board/priority.ts'
 import type { BoardItem, ContentState, ItemKind } from '../../board/types.ts'
 
 /** One item of the board that GraphQL returns (ProjectV2Item). */
@@ -16,6 +17,7 @@ export type RawNode = {
   readonly team?: { readonly name?: string } | null
   readonly workType?: { readonly name?: string } | null
   readonly points?: { readonly number?: number } | null
+  readonly priority?: { readonly name?: string } | null
   readonly overrun?: { readonly number?: number } | null
   readonly order?: { readonly number?: number } | null
   readonly content?: {
@@ -82,6 +84,7 @@ function normalizeNode(node: RawNode): BoardItem {
     assignee: node.assignee?.name ?? null,
     ...(node.team === undefined ? {} : { team: node.team?.name ?? null }),
     ...(node.workType === undefined ? {} : { workType: node.workType?.name ?? null }),
+    ...(node.priority === undefined ? {} : { priority: parsePriority(node.priority?.name) }),
     points: node.points?.number ?? null,
     overrun: node.overrun?.number ?? null,
     ...(typeof node.createdAt === 'string' ? { addedAt: node.createdAt } : {}),
@@ -122,10 +125,13 @@ export function itemNodeSelection(config: Config): string {
   const wantsFamily = config.dispatch?.enabled === true || alertsOf(config).enabled || config.runtime?.activity === true
   // The sub-issues are read from github.com always, since the In Progress limit leaves epics out; another host (an older GitHub Enterprise Server may lack the field) only when a config already reads the parent
   const subIssues = wantsFamily || config.host === undefined ? ' subIssuesSummary{ total }' : ''
-  const issueExtra = `${wantsFamily ? ' labels(first:20){ nodes{ name } } parent{ number repository{ nameWithOwner } }' : ''}${subIssues}`
+  // The parent is one object, not a list, so it adds no points to a read; it is asked on github.com always (the tickets op needs every item's epic), elsewhere when a config reads it
+  const parent = wantsFamily || config.host === undefined ? ' parent{ number repository{ nameWithOwner } }' : ''
+  const issueExtra = `${wantsFamily ? ' labels(first:20){ nodes{ name } }' : ''}${parent}${subIssues}`
   return `id type createdAt
     ${single('status', config.fields.status)} ${single('reason', config.fields.reason)}
     ${single('owner', config.fields.owner)} ${single('assignee', config.fields.assignee)}
+    ${single('priority', config.fields.priority ?? 'Priority')}
     ${config.team === undefined ? '' : single('team', config.team.field)} ${config.fields.workType === undefined ? '' : single('workType', config.fields.workType)}
     since: fieldValueByName(name:"${config.fields.since}"){ ... on ProjectV2ItemFieldDateValue{ date } }
     ${sprintFields(config)} ${dispatchItemFields(config)}

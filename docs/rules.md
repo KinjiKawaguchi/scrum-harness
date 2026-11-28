@@ -73,7 +73,7 @@ When a member has been idle for `idleMinutes` minutes or more and none of the fo
 2. In Backlog, assigned to this member (blocked reason None).
 3. In Next, with no assignee.
 
-Within the same group: the board's number field (`dispatch.orderField`; smaller first; empty last), then the child of the Epic with the fewest people active on it, and last the issue number.
+Within the same group: the effective priority (the board's single-select field named in `fields.priority`, "Priority" by default: `highest`, `high`, `medium`, `low`; an item with none takes its epic's, and what has none comes after `low`, or is not handed over when `dispatch.unprioritized` is `skip`; `deferred` work is never handed over), then the board's number field (`dispatch.orderField`; smaller first; empty last), then the child of the Epic with the fewest people active on it, and last the issue number.
 
 **What is skipped**: items blocked for a reason other than None; everything when In Progress has reached `wipLimit` (nothing is handed over); items with a label in `dispatch.skipLabels` (a "do not hand over" mark); items whose title starts with `release/<number>` (a release issue is cut out by a person, so the hand-over text does not fit); issues of a repository other than `defaultRepo` (the scripts that rewrite the board point only by number); PRs; closed issues; and issues by an author in `excludeAuthors`.
 
