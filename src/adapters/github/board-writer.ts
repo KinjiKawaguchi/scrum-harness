@@ -6,7 +6,7 @@ import { dispatchOf, type Config } from '../../config.ts'
 import type { BoardWriter } from '../../ports/index.ts'
 import type { Mark } from '../../sprint/marks.ts'
 import { ghEnv, type GhRun } from './gh.ts'
-import { addIssueToBoard, setItemTeam } from './team-writer.ts'
+import { addIssueToBoard, setItemPriority, setItemTeam } from './team-writer.ts'
 
 /** Runs the script that rewrites the board. Throws on failure. */
 export type Exec = (script: string, args: readonly string[]) => void
@@ -77,6 +77,7 @@ export function githubBoardWriter(config: Config, exec: Exec, run: GhRun): Board
     },
     addToBoard: (repo, number) => addIssueToBoard(run, config, repo, number),
     setTeam: (item, team) => setItemTeam(run, config, item, team),
+    setPriority: (item, priority) => setItemPriority(run, config, item, priority),
     writeOverrun: (marks) => applyMarks(run, marks, config),
   }
 }

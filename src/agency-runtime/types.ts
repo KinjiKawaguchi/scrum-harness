@@ -36,6 +36,7 @@ export type { WorkStatus } from './bindings/WorkStatus.js'
 export const RUNTIME_VERSION = 'agency-runtime/1'
 
 import type { ActivityEvent } from '../activity/types.ts'
+import type { PriorityChoice } from './bindings/PriorityChoice.js'
 import type { RuntimeRequest } from './bindings/RuntimeRequest.js'
 
 /**
@@ -122,4 +123,15 @@ export type ParticipantMetrics = {
 
 export type TicketsRequest = { readonly runtime: string; readonly org: string; readonly team: string; readonly op: 'tickets' }
 
-export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest | ParticipantMetricsRequest | TicketsRequest
+export type PrioritizeRequest = {
+  readonly runtime: string
+  readonly org: string
+  readonly team: string
+  readonly op: 'prioritize'
+  readonly target: string
+  readonly priority: PriorityChoice
+  readonly by: string
+  readonly byParticipant?: string
+}
+
+export type RuntimeInput = RuntimeRequest | TokenUsageRequest | ActivityRequest | ParticipantMetricsRequest | TicketsRequest | PrioritizeRequest

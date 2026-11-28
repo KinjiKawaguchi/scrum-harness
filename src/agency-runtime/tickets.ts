@@ -6,6 +6,7 @@ import { isOwn } from '../board/team-scope.ts'
 import type { BoardItem } from '../board/types.ts'
 import type { Config } from '../config.ts'
 import type { RuntimeDeps } from './handle.ts'
+import { isTarget } from './request.ts'
 import type { RuntimeError, Ticket, Tickets, TicketsRequest, WorkStatus } from './types.ts'
 import { workStatusOf } from './work.ts'
 
@@ -37,8 +38,8 @@ function pullRequestsOf(ref: string, openByIssue: ReadonlyMap<string, readonly B
     .slice(0, MOST_PULL_REQUESTS)
 }
 
-/** The tickets the team answers for, from the whole board (every team's items): the epics whose Team is the team's with every child, and the team's tickets in no epic. */
-export function ticketsOf(items: readonly BoardItem[], config: Config, org: string, team: string, generatedAt: string): Tickets | RuntimeError {
+/** The tickets the team answers for (with `prioritizeWith` when `canPrioritize`), from the whole board (every team's items): the epics whose Team is the team's with every child, and the team's tickets in no epic. */
+export function ticketsOf(items: readonly BoardItem[], config: Config, org: string, team: string, generatedAt: string, canPrioritize = false): Tickets | RuntimeError {
   const itemOf = itemsByRef(items)
   const tickets = items.filter((item) => isTicket(item, config))
   const refs = new Set(tickets.map(label))
@@ -65,6 +66,7 @@ export function ticketsOf(items: readonly BoardItem[], config: Config, org: stri
       ...(typeof item.points === 'number' && Number.isInteger(item.points) && item.points >= 0 ? { points: item.points } : {}),
       ...(priority === undefined ? {} : { priority }),
       ...(effective === undefined ? {} : { effectivePriority: effective }),
+      ...(canPrioritize && isTarget(ref) ? { prioritizeWith: ref } : {}),
       pullRequests: pullRequestsOf(ref, openByIssue),
     }
   }
@@ -102,6 +104,6 @@ export function tickets(request: TicketsRequest, deps: RuntimeDeps): { readonly 
   if (whole === null && snapshot === null) return { error: { status: 503, message: 'the board has not been read yet; a refresh was started' } }
   const items = whole === null ? (snapshot?.items ?? []) : whole.board.items
   const generatedAt = new Date(whole === null ? (snapshot?.fetchedAt ?? now.toISOString()) : whole.fetchedAt).toISOString()
-  const answer = ticketsOf(items, config, request.org, request.team, generatedAt)
+  const answer = ticketsOf(items, config, request.org, request.team, generatedAt, ports.writer.setPriority !== undefined)
   return 'status' in answer ? { error: answer } : { result: answer }
 }

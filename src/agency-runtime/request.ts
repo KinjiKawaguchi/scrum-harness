@@ -1,5 +1,10 @@
+import type { PriorityChoice } from './bindings/PriorityChoice.js'
 import { MAX_ACTIVITY_LIMIT, MAX_USAGE_DAYS, MAX_UTC_OFFSET_MINUTES, MIN_UTC_OFFSET_MINUTES, RUNTIME_VERSION, type RuntimeDecision, type RuntimeError, type RuntimeInput } from './types.ts'
 
+/** A decision's target: 1 to 120 ASCII letters, digits, and `.`, `_`, `#`, `-` (Agency's rule for an envelope's target). */
+const TARGET = /^[A-Za-z0-9._#-]{1,120}$/
+export const isTarget = (value: unknown): value is string => typeof value === 'string' && TARGET.test(value)
+const PRIORITY_CHOICES = ['highest', 'high', 'medium', 'low', 'deferred', 'none'] as const
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 /** RFC 3339 in UTC, ending in Z, as the protocol's `Timestamp` */
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
@@ -60,7 +65,15 @@ export function parseRuntimeRequest(input: string): RuntimeInput | RuntimeError 
     const isOffset = typeof utcOffsetMinutes === 'number' && Number.isInteger(utcOffsetMinutes) && utcOffsetMinutes >= MIN_UTC_OFFSET_MINUTES && utcOffsetMinutes <= MAX_UTC_OFFSET_MINUTES
     return isOffset ? { ...base, op: 'participantMetrics', days, utcOffsetMinutes } : malformed(`utcOffsetMinutes must be a whole number from ${MIN_UTC_OFFSET_MINUTES} to ${MAX_UTC_OFFSET_MINUTES}`)
   }
-  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", "activity", "participantMetrics", or "tickets"')
+  if (raw.op === 'prioritize') {
+    const { target, priority, by, byParticipant } = raw
+    if (!isTarget(target)) return malformed('target must be 1 to 120 ASCII letters, digits, ".", "_", "#", or "-"')
+    if (typeof priority !== 'string' || !(PRIORITY_CHOICES as readonly string[]).includes(priority)) return malformed(`priority must be one of ${PRIORITY_CHOICES.join(', ')}`)
+    if (typeof by !== 'string' || !ID.test(by)) return malformed('by must be an id')
+    if (byParticipant !== undefined && !(typeof byParticipant === 'string' && byParticipant.trim() !== '' && byParticipant.length <= MAX_NAME_LENGTH)) return malformed('byParticipant must be a name')
+    return { ...base, op: 'prioritize', target, priority: priority as PriorityChoice, by, ...(byParticipant === undefined ? {} : { byParticipant }) }
+  }
+  if (raw.op !== 'decide') return malformed('op must be "describe", "view", "decide", "tokenUsage", "activity", "participantMetrics", "tickets", or "prioritize"')
   const decision = parseDecision(raw.decision)
   return 'status' in decision ? decision : { ...base, op: 'decide', decision }
 }

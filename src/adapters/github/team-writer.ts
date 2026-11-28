@@ -1,3 +1,4 @@
+import { parsePriority, type Priority } from '../../board/priority.ts'
 import type { BoardItem } from '../../board/types.ts'
 import type { Config } from '../../config.ts'
 import { optionIdOf, singleSelectField, type SingleSelectField } from './field-options.ts'
@@ -20,6 +21,19 @@ export function setItemTeam(run: GhRun, config: Config, item: BoardItem, team: s
   const scope = config.team
   if (scope === undefined) throw new Error('there is no team section in the configuration, so there is no team field to set')
   setOption(run, config, item.itemId, requiredField(run, config, scope.field), scope.field, team)
+}
+
+/** Sets the board's priority field of an item to one of the five words (the option of that name, in any case), or clears it with null. */
+export function setItemPriority(run: GhRun, config: Config, item: BoardItem, priority: Priority | null): void {
+  const name = config.fields.priority ?? 'Priority'
+  const field = requiredField(run, config, name)
+  if (priority === null) {
+    run(['project', 'item-edit', '--project-id', config.projectId, '--id', item.itemId, '--field-id', field.id, '--clear'])
+    return
+  }
+  const option = field.options.find((one) => parsePriority(one.name) === priority)
+  if (option === undefined) throw new Error(`"${priority}" is not an option of the board's "${name}" field (${field.options.map((one) => one.name).join(', ')})`)
+  run(['project', 'item-edit', '--project-id', config.projectId, '--id', item.itemId, '--field-id', field.id, '--single-select-option-id', option.id])
 }
 
 function currentStatus(run: GhRun, config: Config, itemId: string): string | null {
