@@ -48,6 +48,8 @@ export type BoardItem = {
   readonly labels?: readonly string[]
   /** The parent issue (Epic)'s "<repository name>#number" (fetched only when there is a dispatch config) */
   readonly epic?: string | null
+  /** How many sub-issues an issue has (fetched from github.com, and elsewhere with a dispatch, alerts, or activity config). An issue with some is an epic: nobody works on it itself */
+  readonly subIssues?: number
 }
 
 /** Open issues of the target repositories, including those outside the board. */

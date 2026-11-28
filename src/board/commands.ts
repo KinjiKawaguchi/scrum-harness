@@ -1,5 +1,5 @@
 import { shortRepo, type Config } from '../config.ts'
-import { label } from './rules.ts'
+import { isEpic, label } from './rules.ts'
 import type { BoardItem, Snapshot } from './types.ts'
 
 export type BoardCommand =
@@ -66,9 +66,19 @@ function statusTargets(commands: readonly BoardCommand[]): readonly { readonly l
 const isDoingIssue = (item: BoardItem | undefined, config: Config): boolean =>
   item?.kind === 'issue' && item.state === 'OPEN' && item.status === config.statuses.doing
 
-/** The number of In Progress issues. The In Progress limit guard (checkGuard) and the hand-over side (chooseNext) use the same way of counting (issues by excluded authors are also counted). */
+/** The In Progress issues the limit counts: open issues In Progress that are not epics (issues by excluded authors are also counted). */
+export function countedDoing(snapshot: Snapshot, config: Config): readonly BoardItem[] {
+  return snapshot.items.filter((item) => isDoingIssue(item, config) && !isEpic(item, snapshot.items))
+}
+
+/** The In Progress epics, which the limit does not count. */
+export function doingEpics(snapshot: Snapshot, config: Config): readonly BoardItem[] {
+  return snapshot.items.filter((item) => isDoingIssue(item, config) && isEpic(item, snapshot.items))
+}
+
+/** The number of In Progress issues that the limit counts. The In Progress limit guard (checkGuard), the hand-over side (chooseNext), and the board rule (B-WIP-OVER) use the same way of counting. */
 export function countDoing(snapshot: Snapshot, config: Config): number {
-  return snapshot.items.filter((item) => isDoingIssue(item, config)).length
+  return countedDoing(snapshot, config).length
 }
 
 /** Before a write, stops states that must not be created (exceeding the In Progress limit, the PR's Status). Returns the reason for stopping, or null. */
@@ -80,10 +90,17 @@ export function checkGuard(snapshot: Snapshot, commands: readonly BoardCommand[]
   if (prTarget !== undefined) {
     return `${prTarget.label} is a PR. A PR must not have a Status. Check the issue number`
   }
-  const current = countDoing(snapshot, config)
-  const added = new Set(targets.filter((t) => t.status === config.statuses.doing && !isDoingIssue(byLabel.get(t.label), config)).map((t) => t.label)).size
+  const counted = countedDoing(snapshot, config)
+  const current = counted.length
+  // An epic that is moved to In Progress, or is already there, is not counted: nobody works on it itself
+  const isNew = (target: { readonly label: string }): boolean => {
+    const item = byLabel.get(target.label)
+    return !isDoingIssue(item, config) && !(item !== undefined && isEpic(item, snapshot.items))
+  }
+  const added = new Set(targets.filter((t) => t.status === config.statuses.doing && isNew(t)).map((t) => t.label)).size
   if (added === 0 || current + added <= config.wipLimit) return null
-  return `${current} items are In Progress, at the limit of ${config.wipLimit}. Before starting another, review the blocked ones and move them back to Backlog. To exceed the limit on purpose, add SCRUM_GUARD=off and record the reason`
+  const epics = doingEpics(snapshot, config)
+  return `${current} items are In Progress, at the limit of ${config.wipLimit}. Counted: ${counted.map(label).join(' ')}.${epics.length === 0 ? '' : ` Not counted, as they have sub-issues: ${epics.map(label).join(' ')}.`} Before starting another, review the blocked ones and move them back to Backlog. To exceed the limit on purpose, add SCRUM_GUARD=off and record the reason`
 }
 
 export function mergeContext(snapshot: Snapshot, prLabel: string, refs: readonly string[], config: Config): string | null {

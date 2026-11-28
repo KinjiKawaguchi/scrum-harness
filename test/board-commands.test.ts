@@ -2,7 +2,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseBoardCommands, shellPatterns } from '../src/adapters/github/action-reader.ts'
 import { referencedLabels } from '../src/adapters/github/pull-requests.ts'
-import { applyCommands, checkGuard, mergeContext } from '../src/board/commands.ts'
+import { applyCommands, checkGuard, countDoing, mergeContext } from '../src/board/commands.ts'
+import { isEpic } from '../src/board/rules.ts'
 import { config, issue, pr, snapshot } from './helpers.ts'
 
 const parse = (command: string) => parseBoardCommands(command, config)
@@ -97,6 +98,40 @@ describe('checkGuard', () => {
   it('refuses to increase In Progress when the limit has been reached', () => {
     const reason = checkGuard(snapshot([...full.items, issue(50)]), parse('set-status 50 "In Progress"'), config)
     assert.match(reason ?? '', /10 items are In Progress, at the limit of 10/)
+  })
+
+  describe('with epics (issues that have sub-issues) In Progress', () => {
+    // three epics, each with a child, and seven real items: ten In Progress by the column, seven that anybody works on
+    const epics = [1, 2, 3].map((n) => issue(n, { status: 'In Progress', assignee: 'SWE1', subIssues: 2 }))
+    const real = Array.from({ length: 7 }, (_, i) => issue(i + 10, { status: 'In Progress', assignee: 'SWE1' }))
+    const board = snapshot([...epics, ...real, issue(50), issue(51), issue(52), issue(53)])
+
+    it('does not count them, so a real item can be moved while the column holds ten', () => {
+      assert.equal(countDoing(board, config), 7)
+      assert.equal(checkGuard(board, parse('set-status 50 "In Progress"'), config), null)
+      assert.equal(checkGuard(board, parse('bulk-status "In Progress" 50 51 52'), config), null)
+    })
+
+    it('still refuses when the items that are counted reach the limit, and says which items were counted and which were not', () => {
+      const reason = checkGuard(board, parse('bulk-status "In Progress" 50 51 52 53'), config) ?? ''
+      assert.match(reason, /^7 items are In Progress, at the limit of 10\. Counted: app#10 .* app#16\. Not counted/)
+      const full = snapshot([...epics, ...Array.from({ length: 10 }, (_, i) => issue(i + 10, { status: 'In Progress', assignee: 'SWE1' })), issue(50)])
+      const refused = checkGuard(full, parse('set-status 50 "In Progress"'), config) ?? ''
+      assert.match(refused, /10 items are In Progress, at the limit of 10\. Counted: app#10 app#11 app#12 app#13 app#14 app#15 app#16 app#17 app#18 app#19\. Not counted, as they have sub-issues: app#1 app#2 app#3\./)
+    })
+
+    it('does not count an epic that is moved to In Progress, and does not say "not counted" when there is none', () => {
+      const tight = snapshot([...Array.from({ length: 10 }, (_, i) => issue(i + 10, { status: 'In Progress', assignee: 'SWE1' })), issue(60, { subIssues: 3 })])
+      assert.equal(checkGuard(tight, parse('set-status 60 "In Progress"'), config), null)
+      const reason = checkGuard(snapshot([...tight.items, issue(61)]), parse('set-status 61 "In Progress"'), config) ?? ''
+      assert.doesNotMatch(reason, /Not counted/)
+      assert.match(reason, /Counted: app#10 .* app#19\./)
+    })
+
+    it('knows an epic by the children that name it as their parent too, when the sub-issues were not read', () => {
+      const withChildren = snapshot([issue(1, { status: 'In Progress', assignee: 'SWE1' }), issue(2, { status: 'In Progress', assignee: 'SWE1', epic: 'app#1' })])
+      assert.deepEqual([countDoing(withChildren, config), isEpic(withChildren.items[0] as never, withChildren.items), isEpic(withChildren.items[1] as never, withChildren.items)], [1, true, false])
+    })
   })
 
   it('allows setting an issue that is already In Progress to In Progress again', () => {
