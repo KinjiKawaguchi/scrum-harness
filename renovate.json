@@ -74,6 +74,13 @@
       "groupSlug": "github-actions"
     },
     {
+      "description": "@types/node stays at the oldest Node that `engines.node` supports, so code cannot use an API that Node lacks there and still type-check. Newer Node versions are tested in the CI matrix.",
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "allowedVersions": "24.x"
+    },
+    {
       "description": "A major update is a pull request for a person to read and merge.",
       "matchUpdateTypes": [
         "major"
