@@ -7,7 +7,7 @@ import { readPrAuthors, trimPrAuthors } from '../team/pr-authors.ts'
 import { trimStateLog } from '../team/state-log.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
-import { obtainBoard, recordCost } from './shared.ts'
+import { BoardReadHeld, obtainBoard, recordCost } from './shared.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { withAssignee } from '../compat.ts'
 import { pruneStandby } from '../members/standby.ts'
@@ -98,6 +98,8 @@ export function refreshSnapshot(p: Paths, config: Config, now: Date, source: Boa
     if (noteCompletions(p, previous, snapshot, config, now, source)) writeJson(p.fetchedSnapshot, snapshot)
     return snapshot
   } catch (error) {
+    // Held back to leave the hour's points to others, with no copy to use: the board copy there is stays as it is, and that is no error.
+    if (error instanceof BoardReadHeld) return loadSnapshot(p)
     logError(p, 'refresh', error)
     if (error instanceof FetchError) saveFailedFetch(p, now, error.raw)
     return null
