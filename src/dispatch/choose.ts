@@ -68,7 +68,7 @@ function compare(a: number | null | undefined, b: number | null | undefined): nu
   return a - b
 }
 
-/** The order of issues to hand over: tier, the effective priority (highest first; none after low; deferred is not handed over), the board's "order" (smaller first, none last), Epics with fewer people working, then number. */
+/** The order of issues to hand over: tier, the effective priority (highest first; none after low, or not handed over when `dispatch.unprioritized` is `skip`; deferred is never handed over), the board's "order" (smaller first, none last), Epics with fewer people working, then number. */
 export function chooseNext(snapshot: Snapshot, member: string, config: Config): ChooseResult {
   // In Progress is counted the same way as the guard before a write (checkGuard). In Progress by excluded authors (a different development party) is also counted
   if (countDoing(snapshot, config) >= config.wipLimit) return { kind: 'none', reason: 'wip-limit' }
@@ -79,7 +79,8 @@ export function chooseNext(snapshot: Snapshot, member: string, config: Config): 
     .flatMap((item) => {
       const tier = tierOf(item, member, config)
       const priority = effectivePriority(item, itemOf)
-      return tier === null || priority === 'deferred' ? [] : [{ item, tier, rank: priorityRank(priority) }]
+      const isHeld = priority === 'deferred' || (priority === null && dispatchOf(config).unprioritized === 'skip')
+      return tier === null || isHeld ? [] : [{ item, tier, rank: priorityRank(priority) }]
     })
   const sorted = candidates.toSorted(
     (a, b) =>

@@ -125,6 +125,8 @@ export type DispatchConfig = {
   readonly scriptDir?: string
   /** On handover, creates a branch linked to the issue as `<this>/<number>` from the head of baseBranch. If absent, none is created */
   readonly linkedBranchPrefix?: string
+  /** What is done with work that has no priority (its own or its epic's): `last` hands it over after `low` (the default), `skip` does not hand it over. `deferred` work is never handed over */
+  readonly unprioritized?: 'last' | 'skip'
 }
 
 export const DEFAULT_DISPATCH: DispatchConfig = { enabled: false, baseBranch: 'main', skipLabels: [], utcOffset: '+09:00', notes: [] }
@@ -189,7 +191,7 @@ const isStringList = (value: unknown): value is readonly string[] => Array.isArr
 /** Reads the dispatch config. If the shape differs, only this feature is stopped (undefined). Missing items are filled with defaults. */
 function parseDispatch(raw: unknown): DispatchConfig | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
-  const { enabled, baseBranch, skipLabels, orderField, utcOffset, notes, members, scriptDir, linkedBranchPrefix } = raw as Record<string, unknown>
+  const { enabled, baseBranch, skipLabels, orderField, utcOffset, notes, members, scriptDir, linkedBranchPrefix, unprioritized } = raw as Record<string, unknown>
   const isValid =
     typeof enabled === 'boolean' &&
     (baseBranch === undefined || (typeof baseBranch === 'string' && baseBranch !== '')) &&
@@ -199,6 +201,7 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
     (notes === undefined || isStringList(notes)) &&
     (members === undefined || isStringList(members)) &&
     (scriptDir === undefined || (typeof scriptDir === 'string' && scriptDir !== '')) &&
+    (unprioritized === undefined || unprioritized === 'last' || unprioritized === 'skip') &&
     (linkedBranchPrefix === undefined || (typeof linkedBranchPrefix === 'string' && /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(linkedBranchPrefix)))
   if (!isValid) return undefined
   return {
@@ -211,6 +214,7 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
     ...(members === undefined ? {} : { members: members as readonly string[] }),
     ...(scriptDir === undefined ? {} : { scriptDir: scriptDir as string }),
     ...(linkedBranchPrefix === undefined ? {} : { linkedBranchPrefix: linkedBranchPrefix as string }),
+    ...(unprioritized === undefined ? {} : { unprioritized: unprioritized as 'last' | 'skip' }),
   }
 }
 

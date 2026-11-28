@@ -66,6 +66,19 @@ describe('the dispatch with priorities', () => {
     assert.equal(picked([own(10, { priority: 'deferred' }), next(2, { epic: 'app#10' }), next(3)]), 3)
   })
 
+  it('does not hand out work with no priority when the team says to skip it, and still hands out what has one, its own or its epic\'s', () => {
+    const skip = { ...dispatch, dispatch: { ...dispatch.dispatch, unprioritized: 'skip' as const } }
+    const pick = (items: readonly BoardItem[], cfg: Config) => {
+      const result = chooseNext(snapshot(items), 'SWE1', cfg)
+      return result.kind === 'chosen' ? result.item.number : result.reason
+    }
+    assert.equal(pick([next(1), next(2)], skip), 'no-candidate')
+    assert.equal(pick([next(1), next(2, { priority: 'low' })], skip), 2)
+    assert.equal(pick([own(10, { priority: 'medium' }), next(1, { epic: 'app#10' })], skip), 1)
+    assert.equal(pick([next(1), next(2)], { ...skip, dispatch: { ...skip.dispatch, unprioritized: 'last' } }), 1)
+    assert.equal(pick([next(1), next(2)], dispatch), 1)
+  })
+
   it('orders as before when the board has no priorities', () => {
     assert.equal(picked([next(5, { order: 2 }), next(6, { order: 1 })]), 6)
   })
