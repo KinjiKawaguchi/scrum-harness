@@ -40,6 +40,10 @@ describe('the time requests waited for the owner', () => {
     assert.deepEqual(ownerWaits([close(open, 'no longer needed', at('04:20'))], at('05:00')), [{ name: 'SWE1', from: ms('04:00'), to: ms('04:20') }])
   })
 
+  it('counts a request addressed to the owner by name, like one addressed to nobody', () => {
+    assert.deepEqual(ownerWaits([filed('SWE1', '02:00', { to: 'owner' })], at('05:00')), [{ name: 'SWE1', from: ms('02:00'), to: ms('05:00') }])
+  })
+
   it('leaves out a request addressed to another member of the team, which waits for an agent and not for a person', () => {
     assert.deepEqual(ownerWaits([filed('SWE1', '02:00', { to: 'TechLead' })], NOW), [])
   })

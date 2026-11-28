@@ -115,6 +115,19 @@ describe('a stored message that does not record the participant', () => {
     assert.equal(authorOf(filed('reviewer'), stored({ by: 'alice' })), 'unverified')
   })
 
+  it('is the owner\'s when the request is addressed to the owner by name, as it is when it is addressed to nobody (the answer was stored with no participant)', () => {
+    // the shape the live harness stored before the participant was recorded
+    const answeredAt = new Date(NOW.getTime() + 1_800_000)
+    const stored = { from: 'owner', text: 'Go.', choice: 'a', by: 'alice', at: answeredAt.toISOString() }
+    assert.equal(deciderOf(filed('owner'), stored)?.participant, 'owner')
+    assert.equal(isOwnerDecision(filed('owner'), stored), true)
+    assert.equal(authorOf(filed('owner'), stored), 'owner')
+    const request = { ...filed('owner'), waiting: 'team' as const, messages: [stored] }
+    assert.equal(storedRequestOf(request).thread?.[0]?.from, 'owner')
+    assert.match(lintRequests([request], config)[0]?.message ?? '', new RegExp(`^${config.ownerLabel} \\(member alice\\) answered`))
+    assert.equal(ownerWaits([request], new Date(NOW.getTime() + 3_600_000))[0]?.to, answeredAt.getTime())
+  })
+
   it('is unverified without a member id, or when it says one participant and records another', () => {
     assert.equal(authorOf(filed(), stored({})), 'unverified')
     assert.equal(authorOf(filed(), stored({ by: 'alice', byParticipant: 'reviewer' })), 'unverified')
