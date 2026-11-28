@@ -1,12 +1,12 @@
 import { beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { costOfPages, itemsQuery, parseItemPages, shareKey } from '../src/adapters/github/project-board.ts'
 import { describeCost, lintGraphqlAllowance } from '../src/board/allowance.ts'
 import { loadSnapshot, refreshSnapshot } from '../src/board/snapshot.ts'
-import { obtainBoard, readCostRecord, sharedDir, type CostRecord } from '../src/board/shared.ts'
+import { obtainBoard, pruneSharedCopies, readCostRecord, sharedDir, type CostRecord } from '../src/board/shared.ts'
 import type { BoardItem, Snapshot } from '../src/board/types.ts'
 import type { Config } from '../src/config.ts'
 import { lintAll } from '../src/findings/lint.ts'
@@ -202,5 +202,33 @@ describe('the warning that the allowance is low', () => {
   it('reaches the lead through lintAll', () => {
     const result = lintAll({ snapshot: null, members: [], acks: [], config: base, now: NOW, graphqlCost: record({ ...COST, remaining: 50 }) })
     assert.equal(result.active.some((one) => one.rule === 'B-GRAPHQL-LOW'), true)
+  })
+})
+
+describe('the shared copies of boards that are not read any more', () => {
+  const touch = (directory: string, name: string, hoursAgo: number) => {
+    const path = join(directory, name)
+    writeFileSync(path, '{}')
+    const time = new Date(Date.now() - hoursAgo * 3_600_000)
+    utimesSync(path, time, time)
+  }
+
+  it('are removed after a day without a write, and a copy that is current, and what is not a board copy, stay', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'scrum-prune-'))
+    touch(directory, 'board-aaaa0000.json', 30)
+    touch(directory, 'board-bbbb1111.json', 2)
+    touch(directory, 'graphql-use.jsonl', 30)
+    touch(directory, 'notes.json', 30)
+    pruneSharedCopies(directory, new Date())
+    assert.deepEqual(readdirSync(directory).toSorted(), ['board-bbbb1111.json', 'graphql-use.jsonl', 'notes.json'])
+  })
+
+  it('go when a team reads the board again, and the read does not fail for a missing directory', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'scrum-prune-'))
+    touch(directory, 'board-old00000.json', 48)
+    const reads = { count: 0 }
+    obtainBoard(paths(mkdtempSync(join(tmpdir(), 'scrum-prune-team-'))), base, new Date(), source('agency', reads), directory)
+    assert.equal(readdirSync(directory).some((name) => name === 'board-old00000.json'), false)
+    assert.doesNotThrow(() => pruneSharedCopies(join(directory, 'missing'), NOW))
   })
 })
