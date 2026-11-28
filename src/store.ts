@@ -16,6 +16,8 @@ export function paths(dir: string = stateDir()) {
     shellPatterns: join(dir, 'cache', 'shell-patterns'),
     /** The time a re-fetch was last attempted. Even if failures continue, it is attempted once per refreshSeconds */
     refreshAttempt: join(dir, 'cache', 'refresh-attempt.json'),
+    /** How the last refresh got the board (read, shared with another team, or on its own) and what it cost in GraphQL points (see board/shared.ts) */
+    graphqlCost: join(dir, 'cache', 'graphql-cost.json'),
     /** What reading the agents' transcripts left behind (see usage/index-store.ts). Delete it to count again from scratch */
     usageIndex: join(dir, 'cache', 'usage-index.json'),
     /** A lock held while the transcripts are read, so that two readers do not count the same lines */

@@ -2,7 +2,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { connect } from 'node:net'
 import { fileURLToPath } from 'node:url'
+import { describeCost } from './board/allowance.ts'
 import { isRefreshDue, refreshSnapshot } from './board/snapshot.ts'
+import { readCostRecord } from './board/shared.ts'
 import {
   ackCommand,
   checkpointCommand,
@@ -268,7 +270,8 @@ async function main(argv: readonly string[]): Promise<number> {
         const moved = snapshot === null ? null : autoMove(c, ports, { startFailuresPath: p.startFailures, memberSourcesPath: p.memberSources, memberMovesPath: p.memberMoves, memberOverPath: p.memberOver, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
         const told = continueIdle(c, ports, { startFailuresPath: p.startFailures, paths: p, now: () => new Date(), sleep: sleepSync, signals: () => collectSignals(p, new Date(), ports.sessions) })
         const note = `${told.map((line) => `\n${line}`).join('')}${fundingProblem === null ? '' : ` (the funding sources could not be read: ${fundingProblem})`}${budgetProblem === null ? '' : ` (the weekly budget could not be read: ${budgetProblem})`}${moved === null ? '' : `\n${moved}`}${asked === null ? '' : `\n${asked}`}`
-        return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${note}`
+        const cost = snapshot === null ? '' : describeCost(readCostRecord(p.graphqlCost), new Date())
+        return snapshot === null ? `Could not refresh (another process is refreshing, or an error; see ${p.errors})${note}` : `Refreshed ${snapshot.items.length} items${cost === '' ? '' : ` (${cost})`}${note}`
       })
     }
     case 'lint':

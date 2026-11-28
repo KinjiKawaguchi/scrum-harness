@@ -1,5 +1,6 @@
 import type { Config } from '../../config.ts'
-import type { BoardSource } from '../../ports/index.ts'
+import { createHash } from 'node:crypto'
+import type { BoardSource, GraphqlCost, WholeBoard } from '../../ports/index.ts'
 import { FetchError } from '../../board/fetch-log.ts'
 import { watchedIssues } from '../../board/off-board-scope.ts'
 import { scopeToTeam } from '../../board/team-scope.ts'
@@ -12,8 +13,26 @@ import { relationsFor } from './relations.ts'
 import { statusEventsFor, withStatusHistory } from './status-history.ts'
 
 export function itemsQuery(config: Config): string {
-  return `query($projectId:ID!, $endCursor:String){ node(id:$projectId){ ... on ProjectV2 { items(first:100, after:$endCursor){
+  return `query($projectId:ID!, $endCursor:String){ rateLimit{ cost remaining limit resetAt } node(id:$projectId){ ... on ProjectV2 { items(first:100, after:$endCursor){
     totalCount pageInfo{ hasNextPage endCursor } nodes{ ${itemNodeSelection(config)} } } } } }`
+}
+
+type RawRateLimit = { readonly cost?: unknown; readonly remaining?: unknown; readonly limit?: unknown; readonly resetAt?: unknown }
+
+/**
+ * What reading the board's items cost: the points of every page added up, and what was left after the last one. Undefined when the pages do not say
+ * (a host that has no rateLimit field).
+ */
+export function costOfPages(output: string): GraphqlCost | undefined {
+  try {
+    const pages = JSON.parse(output) as readonly { readonly data?: { readonly rateLimit?: RawRateLimit | null } | null }[]
+    const limits = pages.flatMap((page) => (page?.data?.rateLimit === null || page?.data?.rateLimit === undefined ? [] : [page.data.rateLimit]))
+    const last = limits.at(-1)
+    if (last === undefined || typeof last.remaining !== 'number' || typeof last.limit !== 'number' || typeof last.resetAt !== 'string') return undefined
+    return { cost: limits.reduce((sum, one) => sum + (typeof one.cost === 'number' ? one.cost : 0), 0), remaining: last.remaining, limit: last.limit, resetAt: last.resetAt }
+  } catch {
+    return undefined
+  }
 }
 
 
@@ -95,23 +114,47 @@ function listOpen(run: GhRun, kind: 'issue' | 'pr', config: Config): readonly Op
   })
 }
 
-export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
-  assertTeamValue(run, config)
-  const pagedItems = parseOrCarry(
-    run(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${itemsQuery(config)}`, '-F', `projectId=${config.projectId}`]),
-  )
+/** The board as it is read, before it is narrowed to a team. Does not depend on the team, so teams on one board can share it. */
+export function readWholeBoard(run: GhRun, config: Config): WholeBoard {
+  const raw = run(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${itemsQuery(config)}`, '-F', `projectId=${config.projectId}`])
+  const pagedItems = parseOrCarry(raw)
   // Only the issues the scope watches are read, so a team in a large shared repository does not list or flag every other team's issue.
   const openIssues = config.offBoard?.scope === 'none' ? [] : watchedIssues(listOpen(run, 'issue', config), config.offBoard)
   // A PR is not a target of B-OFF-BOARD, so it is not put into the board copy's openIssues and is used only as a candidate to read and add.
   const openPullRequests = listOpen(run, 'pr', config)
   // An item on the board may appear neither in the list nor in the total (it can last for hours after it is added). Before flagging it as not on the board, read it one by one and add it.
-  const wholeBoard = [...pagedItems, ...readMissingItems(pagedItems, openIssues, config, run, openPullRequests)]
+  const cost = costOfPages(raw)
+  return { items: [...pagedItems, ...readMissingItems(pagedItems, openIssues, config, run, openPullRequests)], openIssues, ...(cost === undefined ? {} : { cost }) }
+}
+
+/** Narrows the whole board to the team and attaches what is the team's own (the Status changes of its In Progress issues). */
+export function scopeWholeBoard(run: GhRun, config: Config, whole: WholeBoard, now: Date): Snapshot {
   // The whole board is read and checked first, then narrowed to the team, so a failed read is caught and another team's issues are not reported as off the board.
-  const scoped = scopeToTeam(wholeBoard, openIssues, config.team)
+  const scoped = scopeToTeam(whole.items, whole.openIssues, config.team)
   return { fetchedAt: now.toISOString(), items: withStatusHistory(scoped.items, config, run), openIssues: scoped.openIssues }
+}
+
+export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
+  assertTeamValue(run, config)
+  return scopeWholeBoard(run, config, readWholeBoard(run, config), now)
+}
+
+/** What makes two teams' reads the same: the host, the board, what is asked of each item, the repositories, and the off-board scope. A team's own value is not in it. */
+export function shareKey(config: Config): string {
+  const parts = [config.host ?? '', config.projectId, itemsQuery(config), [...config.repos].sort().join(','), JSON.stringify(config.offBoard ?? null)]
+  return createHash('sha1').update(parts.join('\u0000')).digest('hex').slice(0, 16)
 }
 
 /** Reads the GitHub Project board with gh. */
 export function projectBoardSource(run: GhRun, config: Config): BoardSource {
-  return { fetchSnapshot: (now) => fetchSnapshot(run, config, now), statusEvents: (items) => statusEventsFor(items, config, run), relations: (items) => relationsFor(items, run) }
+  return {
+    fetchSnapshot: (now) => fetchSnapshot(run, config, now),
+    statusEvents: (items) => statusEventsFor(items, config, run),
+    relations: (items) => relationsFor(items, run),
+    shared: {
+      key: shareKey(config),
+      readWhole: () => readWholeBoard(run, config),
+      scope: (whole, now) => (assertTeamValue(run, config), scopeWholeBoard(run, config, whole, now)),
+    },
+  }
 }

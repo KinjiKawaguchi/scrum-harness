@@ -1,7 +1,16 @@
 import type { BoardCommand } from '../board/commands.ts'
-import type { BoardItem, Snapshot } from '../board/types.ts'
+import type { BoardItem, OpenIssue, Snapshot } from '../board/types.ts'
 import type { StatusEvent } from '../sprint/effort.ts'
 import type { Mark } from '../sprint/marks.ts'
+
+/** What a read of the tracker cost, and how much of the hour's allowance is left: GitHub's GraphQL points, which every harness, member, and daemon using one login spends from the same hour. */
+export type GraphqlCost = { readonly cost: number; readonly remaining: number; readonly limit: number; readonly resetAt: string }
+
+/**
+ * The whole board as a read of the tracker gives it, before it is narrowed to a team: every item, and the open issues the scope watches. It is what teams that
+ * use the same board can share, since it does not depend on the team.
+ */
+export type WholeBoard = { readonly items: readonly BoardItem[]; readonly openIssues: readonly OpenIssue[]; readonly cost?: GraphqlCost }
 
 /** What a tracker says of an issue besides its Status: its labels, and the issues that still block it (its dependencies, in the same `<repo>#<number>` form). */
 export type ItemRelations = { readonly labels: readonly string[]; readonly blockedBy: readonly string[] }
@@ -15,6 +24,16 @@ export type BoardSource = {
   readonly fetchSnapshot: (now: Date) => Snapshot
   /** Reads each issue's Status changes, keyed by label. null if it cannot be read (so "no record" and "period is 0" are not confused) */
   readonly statusEvents: (items: readonly BoardItem[]) => ReadonlyMap<string, readonly StatusEvent[]> | null
+  /**
+   * Optional (a tracker may not be shared). Lets teams that read the same board read it once: `key` is the same for teams whose read is the same (the same
+   * board, the same fields asked for, the same repositories), `readWhole` is that read, and `scope` narrows it to this team and attaches what is the team's own.
+   * `fetchSnapshot` is `scope(readWhole())`.
+   */
+  readonly shared?: {
+    readonly key: string
+    readonly readWhole: (now: Date) => WholeBoard
+    readonly scope: (whole: WholeBoard, now: Date) => Snapshot
+  }
   /**
    * Optional (a tracker may have no dependencies). Reads the labels and the open blockers of the issues among `items`, keyed by label. An issue it could not read is not
    * in the map. Used by `scrum forecast`; throws if it cannot be asked.

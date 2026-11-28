@@ -7,6 +7,7 @@ import { readPrAuthors, trimPrAuthors } from '../team/pr-authors.ts'
 import { trimStateLog } from '../team/state-log.ts'
 import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
+import { obtainBoard, recordCost } from './shared.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { withAssignee } from '../compat.ts'
 import { pruneStandby } from '../members/standby.ts'
@@ -87,7 +88,9 @@ export function refreshSnapshot(p: Paths, config: Config, now: Date, source: Boa
     // The comparison baseline is the board copy from the last successful re-fetch. The board copy (loadSnapshot) in which the hook corrected Status after a script that rewrites Status (scripts.setStatus)
     // is already Done, so the change from In Progress to Done is not visible and it is not used. If there is none yet (the very first run), the current board copy is used
     const previous = loadFetchedSnapshot(p) ?? loadSnapshot(p)
-    const snapshot = source.fetchSnapshot(now)
+    const obtained = obtainBoard(p, config, now, source)
+    const snapshot = obtained.snapshot
+    recordCost(p.graphqlCost, obtained, now)
     saveSnapshot(p, snapshot)
     noteActivity(p, previous, snapshot, config, now)
     pruneStandby(p.memberStandby, snapshot, config, now)

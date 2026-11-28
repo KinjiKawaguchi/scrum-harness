@@ -25,6 +25,8 @@ import { currentBudget, readBudgetRecord } from '../budget/record.ts'
 import { lintBudget } from '../budget/rules.ts'
 import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
+import { lintGraphqlAllowance } from '../board/allowance.ts'
+import { readCostRecord, type CostRecord } from '../board/shared.ts'
 import { readContinued, type Continued } from '../members/continued.ts'
 import { readOver, type OverRecord } from '../members/over-threshold.ts'
 import { lintContinued, lintOverThreshold, lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
@@ -54,6 +56,8 @@ export type LintContext = {
   readonly requests?: readonly OwnerRequest[]
   /** Members that were started and showed no sign of life (M-START-FAILED) */
   readonly startFailures?: readonly StartFailure[]
+  /** What the last refresh cost in GraphQL points */
+  readonly graphqlCost?: CostRecord | null
   /** The members the lead keeps idle on purpose */
   readonly standby?: readonly Standby[]
   /** The members left on a source past its threshold */
@@ -107,6 +111,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintContinued(ctx.continued ?? {}, ctx.now),
+    ...lintGraphqlAllowance(ctx.graphqlCost ?? null, ctx.now),
     ...lintStandbyBusy(onStandby, subordinates, ctx.config, ctx.now),
     ...lintOverThreshold(ctx.overThreshold ?? [], ctx.now),
     ...lintBudget(ctx.budget ?? null),
@@ -143,6 +148,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     requests: readRequests(p),
     startFailures: readStartFailures(p.startFailures),
     continued: readContinued(p.memberContinued),
+    graphqlCost: readCostRecord(p.graphqlCost),
     standby: readStandby(p.memberStandby),
     overThreshold: readOver(p.memberOver),
     memberSources: readMemberSources(p.memberSources),
