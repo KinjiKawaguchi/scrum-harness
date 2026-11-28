@@ -21,4 +21,10 @@ by: Id,
  * only from the request's addressee, and sends this so the runtime can check it too without
  * knowing org member ids.
  */
-byParticipant?: string, payload: Payload, };
+byParticipant?: string, 
+/**
+ * The id of the seat or external party the request was addressed to, when `by` answered for it (a
+ * member in its `relays`). Absent when the request was `by`'s own. A runtime that does not know it
+ * ignores it.
+ */
+onBehalfOf?: string, payload: Payload, };

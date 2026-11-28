@@ -4,4 +4,4 @@
  * What a push notification is about: a request that waits for the owner, a device that asks to be
  * added, or a decision of the owner's that the team's node refused.
  */
-export type PushEvent = "request" | "device" | "decision";
+export type PushEvent = "request" | "device" | "decision" | "recovery" | "root";
