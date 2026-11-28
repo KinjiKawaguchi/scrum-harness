@@ -8,4 +8,9 @@ export type Describe = { runtimes: Array<string>,
 /**
  * Operation names. Unknown names are ignored, so a newer runtime still describes itself.
  */
-ops: Array<string>, label: string, };
+ops: Array<string>, label: string, 
+/**
+ * The harness release that runs the team, as a short text. Optional: a runtime without it is read as
+ * before. Read it through `release`, which leaves out a value beyond `MOST_RELEASE_CHARS`.
+ */
+version?: string, };

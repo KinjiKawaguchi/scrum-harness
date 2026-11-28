@@ -3,6 +3,8 @@ import type { Date } from "./Date.js";
 import type { DayEvaluation } from "./DayEvaluation.js";
 import type { EvaluationSummary } from "./EvaluationSummary.js";
 import type { Id } from "./Id.js";
+import type { ParticipantEvaluation } from "./ParticipantEvaluation.js";
+import type { RepositoryEvaluation } from "./RepositoryEvaluation.js";
 
 export type TeamEvaluation = { team: Id, 
 /**
@@ -13,4 +15,20 @@ from: Date, until: Date, summary: EvaluationSummary,
 /**
  * Oldest day first; days with nothing in them may be left out.
  */
-byDay: Array<DayEvaluation>, };
+byDay: Array<DayEvaluation>, 
+/**
+ * The team's participants, by name, when its runtime reports them: none otherwise (also from a node
+ * that does not know of them).
+ */
+participants?: Array<ParticipantEvaluation>, 
+/**
+ * The pull requests merged in the period that no participant is named the author of. The merged pull
+ * requests of `participants` and these add up to the summary's `merged` and `reverts`. Left out when
+ * it is 0.
+ */
+unattributedMerged?: number, 
+/**
+ * The summary of each repository that had a merged pull request or a CI run in the period, by name; left
+ * out unless at least two had, since one would repeat the team's summary.
+ */
+byRepository?: Array<RepositoryEvaluation>, };

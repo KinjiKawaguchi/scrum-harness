@@ -14,4 +14,10 @@ mine: Array<string>,
 /**
  * The `id`s of the team's people whose `waitingOn` is the viewer (see "People" in docs/protocol.md).
  */
-waitingOnViewer: Array<string>, source: SnapshotSource, };
+waitingOnViewer: Array<string>, 
+/**
+ * For each of the viewer's `mine` requests that is addressed to a seat or an external party the viewer
+ * answers for: the request id and the label of whom it is for, exactly as the org
+ * definition has it, so that a client can say "Answer for <label>". Left out when there is none.
+ */
+relayedFor?: { [key in string]: string }, source: SnapshotSource, };

@@ -1,18 +1,20 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { saveSnapshot } from '../src/board/snapshot.ts'
 import { runRuntime, type RuntimeDeps } from '../src/agency-runtime/handle.ts'
+import { isReadableRelease } from '../src/agency-runtime/release.ts'
 import { teamViewProblem } from '../src/agency-runtime/validate.ts'
 import { paths } from '../src/store.ts'
 import { board, config } from './agency-runtime-board.ts'
 import { fakePorts } from './fake-ports.ts'
 import { NOW } from './helpers.ts'
 
+const PACKAGE_VERSION = (JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as { version: string }).version
 const CLI = fileURLToPath(new URL('../src/cli.ts', import.meta.url))
 const deps = (): RuntimeDeps => ({ p: paths(mkdtempSync(join(tmpdir(), 'scrum-runtime-cmd-'))), config, now: NOW, ports: fakePorts(), spawnRefresh: () => undefined, spawnUsageIndex: () => undefined })
 const call = (op: string, extra: object = {}) => JSON.stringify({ runtime: 'agency-runtime/1', org: 'acme', team: 'app', op, ...extra })
@@ -22,7 +24,13 @@ describe('agency-runtime/1 describe', () => {
   it('reports the version, the operations (tokenUsage and participantMetrics included), and the team label', () => {
     const output = runRuntime(call('describe'), deps())
     assert.equal(output.exitCode, 0)
-    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics'], label: 'app' } })
+    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics'], label: 'app', version: PACKAGE_VERSION } })
+  })
+
+  it('says the harness release, which is the version of the package, in a form a node reads', () => {
+    const version = parse(runRuntime(call('describe'), deps()).stdout).result?.version
+    assert.equal(version, PACKAGE_VERSION)
+    assert.equal(isReadableRelease(version), true)
   })
 
   it('is one JSON line on stdout', () => {

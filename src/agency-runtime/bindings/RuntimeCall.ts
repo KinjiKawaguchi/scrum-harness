@@ -3,7 +3,7 @@ import type { RuntimeDecision } from "./RuntimeDecision.js";
 import type { Timestamp } from "./Timestamp.js";
 
 /**
- * The operation and its input. `describe`, `view`, and `decide` are required; `tokenUsage` and `activity`
- * are optional, and the node calls one only when `Describe::ops` lists it.
+ * The operation and its input. `describe`, `view`, and `decide` are required; `tokenUsage`, `activity`,
+ * and `participantMetrics` are optional, and the node calls one only when `Describe::ops` lists it.
  */
-export type RuntimeCall = { "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, } | { "op": "tokenUsage", days: number, } | { "op": "activity", since: Timestamp, limit: number, };
+export type RuntimeCall = { "op": "describe" } | { "op": "view" } | { "op": "decide", decision: RuntimeDecision, } | { "op": "tokenUsage", days: number, } | { "op": "activity", since: Timestamp, limit: number, } | { "op": "participantMetrics", days: number, utcOffsetMinutes?: number, };

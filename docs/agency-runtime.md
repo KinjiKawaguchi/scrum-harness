@@ -16,12 +16,14 @@ The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, 
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics"],"label":"<team label>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics"],"label":"<team label>","version":"<harness release>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
 | `tokenUsage` | a TokenUsage (below) |
 | `activity` | an Activity (below) |
 | `participantMetrics` | a ParticipantMetrics (below) |
+
+`version` in the `describe` answer is the harness's own release (the `version` of its `package.json`, for example `0.7.2`), so a node can tell which release hosts a team. It is at most 64 characters with no control character, and it is left out when the harness cannot read its release.
 
 Errors use the specification's statuses: 400 for malformed input (not JSON, wrong runtime version, unknown op, an id that is not an id, a decision without text or a choice), 404 for a target that does not exist or is not waiting for a decision, and 503 when the harness cannot act now (not configured, no board read yet, a script or `gh` failed). The node does not retry 400 and 404.
 
