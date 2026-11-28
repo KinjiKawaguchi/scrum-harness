@@ -23,8 +23,10 @@ export type WatchdogDeps = WaitDeps & {
   readonly fundingDirsPath?: string
   /** Where what the node last said of the weekly budget is kept (used when the node cannot be asked at a start) */
   readonly budgetPath?: string
-  /** Where the time of the last automatic move is kept */
+  /** Where the time of the last try to move each member is kept */
   readonly memberMovesPath?: string
+  /** Where the members left on a source past its threshold are kept, for the finding M-OVER-THRESHOLD */
+  readonly memberOverPath?: string
   /** The state directory's paths, for what reads the board copy, the acknowledgements, and the event log (telling a Codex member to go on) */
   readonly paths?: Paths
 }

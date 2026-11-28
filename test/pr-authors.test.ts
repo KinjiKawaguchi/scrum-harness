@@ -83,6 +83,7 @@ describe('the hook', () => {
     ports: { actions: bashActionReader(config), code: fakePorts().code, sessions: fakePorts().sessions },
     spawnRefresh: () => undefined,
     spawnCheckpoint: () => undefined,
+    spawnMoveRefused: () => undefined,
   })
   const input = (command: string, stdout: string) => ({ session_id: 'sid', tool_name: 'Bash', tool_input: { command }, tool_response: { stdout } })
   beforeEach(() => {

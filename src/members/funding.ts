@@ -51,6 +51,8 @@ export function pickFor(ports: Ports, spec: MemberSpec): FundingOutcome {
   try {
     const pick = ports.funding(toolOf(spec))
     if (pick.state === 'none') return { kind: 'none', reason: pick.reason ?? 'every funding source is at its limit' }
+    // The owner's rule: no member runs on a subscription past its threshold. The node picks the source with most room when every one is past it; a member is not started there.
+    if (pick.state === 'overThreshold') return { kind: 'none', reason: `every funding source is past its weekly threshold${pick.source === undefined ? '' : ` (the one with most room is ${pick.source})`}${pick.reason === undefined ? '' : `: ${pick.reason}`}; no member is started on one` }
     const unguarded = missingHooksReason(ports, spec, pick)
     return unguarded === null ? { kind: 'picked', pick } : { kind: 'unguarded', reason: unguarded }
   } catch (error) {
@@ -70,7 +72,7 @@ export function missingHooksReason(ports: Ports, spec: MemberSpec, pick: Funding
 
 /** The words that say which source a member runs on, for the line a start prints. */
 export function describePick(pick: FundingPick): string {
-  const label = pick.state === 'overThreshold' ? 'every source is past its threshold; the one with most room' : pick.state === 'unknown' ? 'usage unknown' : 'under its threshold'
+  const label = pick.state === 'unknown' ? 'usage unknown' : 'under its threshold'
   return `on source ${pick.source ?? 'the default'} (${label}${pick.reason === undefined ? '' : `: ${pick.reason}`})`
 }
 

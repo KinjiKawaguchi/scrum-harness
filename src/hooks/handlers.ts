@@ -5,6 +5,7 @@ import type { Ports, ToolCall } from '../ports/index.ts'
 import type { Paths } from '../store.ts'
 import { dueCheckpoint, loadRecords } from '../sprint/record.ts'
 import { writeHeartbeat } from '../team/heartbeat.ts'
+import { baseName } from '../usage/attribution.ts'
 import { openedPullRequest, recordPrAuthor } from '../team/pr-authors.ts'
 import { roleOf, type Identity } from '../team/identity.ts'
 import type { ActivityState } from '../team/types.ts'
@@ -21,6 +22,8 @@ export type HookDeps = {
   readonly spawnRefresh: () => void
   /** Starts the checkpoint recording in the background */
   readonly spawnCheckpoint: () => void
+  /** Moves a member that its source refused to another login, in a process of its own */
+  readonly spawnMoveRefused: (name: string) => void
 }
 
 export type HookInput = Record<string, unknown>
@@ -94,6 +97,14 @@ function techlead(event: string, input: HookInput, deps: HookDeps): HookResult {
   }
 }
 
+/**
+ * Whether a turn ended because the subscription refused it (`StopFailure` with the error `rate_limit`: the weekly limit, or a rate limit). The session then
+ * waits at its prompt for a message that cannot be answered, so the harness moves the member to a login that has room, at once.
+ */
+export function isUsageRefusal(input: HookInput): boolean {
+  return input.hook_event_name === 'StopFailure' && input.error === 'rate_limit'
+}
+
 /** Records the member whose session opened a pull request, from the tool result. */
 function notePullRequest(identity: Identity, input: HookInput, deps: HookDeps): void {
   const call = toolCall(input)
@@ -114,6 +125,7 @@ export function handleHook(event: string, input: HookInput, deps: HookDeps): Hoo
   const state = heartbeatState(event, input)
   if (state !== null) writeHeartbeat(deps.p, identity, state, deps.now)
   if (event === 'PostToolUse') notePullRequest(identity, input, deps)
+  if (event === 'StopFailure' && isUsageRefusal(input) && deps.config.launch?.funding?.autoMove === true) deps.spawnMoveRefused(baseName(identity.name))
   if (dueCheckpoint(loadRecords(deps.p), deps.config, deps.now) !== null) deps.spawnCheckpoint()
   return role === 'techlead' ? techlead(event, input, deps) : NOTHING
 }

@@ -6,7 +6,9 @@ import { join } from 'node:path'
 import { bashActionReader } from '../src/adapters/github/action-reader.ts'
 import { referencedLabels } from '../src/adapters/github/pull-requests.ts'
 import { loadSnapshot, saveSnapshot } from '../src/board/snapshot.ts'
-import { handleHook, type HookDeps } from '../src/hooks/handlers.ts'
+import { handleHook, isUsageRefusal, type HookDeps } from '../src/hooks/handlers.ts'
+import { parseLaunch } from '../src/members/config.ts'
+import type { Config } from '../src/config.ts'
 import { paths, readJson, writeJson, type Paths } from '../src/store.ts'
 import { fakePorts } from './fake-ports.ts'
 import { config, issue, NOW, pr, snapshot } from './helpers.ts'
@@ -34,6 +36,7 @@ function deps(name: string | null, overrides: DepsOverrides = {}): HookDeps {
     spawnRefresh: () => {
       refreshes += 1
     },
+    spawnMoveRefused: () => undefined,
     spawnCheckpoint: () => {
       checkpoints += 1
     },
@@ -181,5 +184,34 @@ describe('starting the checkpoint record', () => {
     handleHook('Stop', { stop_hook_active: false }, withSprint(null))
     handleHook('Stop', { stop_hook_active: false }, deps('SWE1'))
     assert.equal(checkpoints, 0)
+  })
+})
+
+describe('a turn that ended because the subscription refused it', () => {
+  const funding = (isAutoMove: boolean): Config => ({ ...config, members: ['SWE1'], launch: parseLaunch({ tmuxSession: 'team', funding: { command: ['/usr/local/bin/agency'], ...(isAutoMove ? { autoMove: true } : {}) }, members: { SWE1: {} } }) })
+  const refusal = { hook_event_name: 'StopFailure', session_id: 'sid', error: 'rate_limit', last_assistant_message: "You've hit your weekly limit" }
+
+  it('moves the member that was refused, by name, in a process of its own', () => {
+    const moved: string[] = []
+    handleHook('StopFailure', refusal, deps('SWE1', { config: funding(true), spawnMoveRefused: (name: string) => void moved.push(name) }))
+    assert.deepEqual(moved, ['SWE1'])
+  })
+
+  it('moves the team\'s lead too when it is refused: the rule has no exception for it', () => {
+    const moved: string[] = []
+    handleHook('StopFailure', refusal, deps('TechLead', { config: funding(true), spawnMoveRefused: (name: string) => void moved.push(name) }))
+    assert.deepEqual(moved, ['TechLead'])
+  })
+
+  it('does nothing for another error, without autoMove, or for a session outside the team', () => {
+    const moved: string[] = []
+    const spawnMoveRefused = (name: string) => void moved.push(name)
+    handleHook('StopFailure', { ...refusal, error: 'server_error' }, deps('SWE1', { config: funding(true), spawnMoveRefused }))
+    handleHook('StopFailure', refusal, deps('SWE1', { config: funding(false), spawnMoveRefused }))
+    handleHook('StopFailure', refusal, deps('Stranger', { config: funding(true), spawnMoveRefused }))
+    handleHook('StopFailure', refusal, deps(null, { config: funding(true), spawnMoveRefused }))
+    assert.deepEqual(moved, [])
+    assert.equal(isUsageRefusal(refusal), true)
+    assert.equal(isUsageRefusal({ ...refusal, hook_event_name: 'Stop' }), false)
   })
 })
