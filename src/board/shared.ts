@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Config } from '../config.ts'
@@ -61,6 +61,21 @@ function writeEntry(path: string, entry: Entry): void {
   renameSync(tmp, path)
 }
 
+/** A shared copy that nobody has written for this long belongs to a read that no team makes any more (the board's query or the repositories changed, so its key did). */
+const STALE_COPY_MS = 24 * 60 * 60_000
+
+/** Removes the shared copies that no team has written to for a day. Never throws: a copy that stays is only a file. */
+export function pruneSharedCopies(directory: string, now: Date): void {
+  try {
+    readdirSync(directory)
+      .filter((name) => /^board-[0-9a-z-]+\.json$/.test(name))
+      .filter((name) => now.getTime() - statSync(join(directory, name)).mtimeMs > STALE_COPY_MS)
+      .forEach((name) => rmSync(join(directory, name), { force: true }))
+  } catch {
+    // The directory may be gone or busy; the next read tries again.
+  }
+}
+
 /**
  * The board for a refresh. Teams that read the same board (the source's `shared.key`) share one read: the first refresh that finds the shared copy older
  * than the team's `refreshSeconds` reads the board, under a lock, and writes it for the others, who narrow it to their own team. A refresh that finds
@@ -100,6 +115,7 @@ export function obtainBoard(p: Paths, config: Config, now: Date, source: BoardSo
     const board = shared.readWhole(now)
     const entry: Entry = { version: 1, key: shared.key, fetchedAt: now.toISOString(), board }
     writeEntry(path, entry)
+    pruneSharedCopies(directory, now)
     return from(entry, 'fetched')
   } finally {
     releaseLock(lock)
