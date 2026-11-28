@@ -18,6 +18,14 @@ describe('lintBoard', () => {
     assert.deepEqual(rulesOf(doing), [])
   })
 
+  it('does not count an epic (an issue with sub-issues, or one that others name as their parent) toward the limit, so ten real items and three epics are not over it', () => {
+    const real = Array.from({ length: 10 }, (_, i) => issue(i + 10, { status: 'In Progress', assignee: 'SWE1' }))
+    const epics = [issue(1, { status: 'In Progress', assignee: 'SWE1', subIssues: 4 }), issue(2, { status: 'In Progress', assignee: 'SWE1' }), issue(3, { status: 'In Progress', assignee: 'SWE1', subIssues: 1 })]
+    const child = issue(30, { epic: 'app#2' })
+    assert.deepEqual(rulesOf([...real, ...epics, child]), [])
+    assert.deepEqual(rulesOf([...real, issue(11, { status: 'In Progress', assignee: 'SWE1' }), ...epics, child]), ['B-WIP-OVER board'])
+  })
+
   it('does not count the In Progress of a closed issue toward the limit', () => {
     const doing = Array.from({ length: 10 }, (_, i) => issue(i + 1, { status: 'In Progress', assignee: 'SWE1' }))
     const closed = issue(99, { status: 'In Progress', state: 'CLOSED', assignee: 'SWE1' })

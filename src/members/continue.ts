@@ -9,6 +9,7 @@ import { baseName } from '../usage/attribution.ts'
 import { continuedNotice, readContinued, type ContinuedRecord } from './continued.ts'
 import type { Continuation } from './config.ts'
 import { memberReport } from './list.ts'
+import { isOnStandby, readStandby } from './standby.ts'
 import type { WatchdogDeps } from './lifecycle.ts'
 
 /** How long after the line is typed the window is looked at, to see whether the line left the input box. */
@@ -52,7 +53,7 @@ function typeContinuation(ports: Ports, deps: WatchdogDeps, session: string, nam
 /**
  * Codex ends its turn and waits for a message that no one sends ("continuing...", and nothing follows). A member with `continuation` that has been idle at
  * its prompt for its `afterMinutes` is told to go on: the text is typed into its window, at most once for each stretch of idleness, whether or not it has
- * an issue In Progress, and not while an acknowledgement of its idleness (T-IDLE) is in force. Claude Code members are not given the setting.
+ * an issue In Progress, and not while an acknowledgement of its idleness (T-IDLE) or a standby the lead set is in force. Claude Code members are not given the setting.
  * Returns the lines to print: one for each member that was told, and (with `--dry-run`) for each that would be. The notice is also the finding M-CONTINUED
  * (`members/rules.ts`), which is how the TechLead hears of it.
  */
@@ -66,12 +67,14 @@ export function continueIdle(config: Config, ports: Ports, deps: WatchdogDeps, i
   const continued = readContinued(deps.paths.memberContinued)
   const acks = readJson<readonly Ack[]>(deps.paths.acks, [])
   const now = deps.now()
+  const standby = readStandby(deps.paths.memberStandby)
+  const snapshot = loadSnapshot(deps.paths)
   return configured.flatMap(({ name, continuation }): readonly string[] => {
     const row = report.rows.find((one) => one.name === name)
     const signal = liveSignal(signals, name)
     if (row === undefined || !row.hasWindow || signal === undefined || signal.state !== 'idle') return []
     const idleMinutes = Math.floor((now.getTime() - Date.parse(signal.since)) / 60_000)
-    if (idleMinutes < continuation.afterMinutes || continued[name]?.idleSince === signal.since || isAcknowledged(acks, name, now)) return []
+    if (idleMinutes < continuation.afterMinutes || continued[name]?.idleSince === signal.since || isAcknowledged(acks, name, now) || isOnStandby(standby, snapshot, config, name, now)) return []
     const doing = doingOf(deps, config, name)
     if (isDryRun) return [`${name}: would be told to go on (idle ${idleMinutes} minutes; ${doing.length === 0 ? 'no In Progress item' : `${doing.join(', ')} In Progress`})`]
     try {

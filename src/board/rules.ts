@@ -9,6 +9,13 @@ export function label(item: { readonly repo: string; readonly number: number | n
   return item.ref ?? `${shortRepo(item.repo)}#${item.number ?? '?'}`
 }
 
+/** Whether an issue is an epic: it has sub-issues (the board's own read of them), or another item on the board names it as its parent. Nobody works on an epic itself. */
+export function isEpic(item: BoardItem, items: readonly BoardItem[]): boolean {
+  if ((item.subIssues ?? 0) > 0) return true
+  const ref = label(item)
+  return items.some((one) => one.epic === ref)
+}
+
 /**
  * How to fix it. If the script is configured and the issue is in the default repository, the command; otherwise it is returned as text
  * (the script accepts only numbers of the default repository).
@@ -147,7 +154,7 @@ function lintItem(item: BoardItem, config: Config, now: Date): readonly Finding[
 }
 
 function lintWip(items: readonly BoardItem[], config: Config): readonly Finding[] {
-  const doing = items.filter((item) => isOpenIssue(item) && item.status === config.statuses.doing)
+  const doing = items.filter((item) => isOpenIssue(item) && item.status === config.statuses.doing && !isEpic(item, items))
   if (doing.length <= config.wipLimit) return []
   return [
     makeFinding({

@@ -114,6 +114,12 @@ describe('reading what the board events need from GitHub', () => {
     assert.match(selection, /on PullRequest\{.*createdAt mergedAt closingIssuesReferences\(first:3\)/s)
   })
 
+  it('asks for the number of sub-issues of an issue, which the In Progress limit leaves epics out by, on github.com, and on another host only when the parent is read', () => {
+    assert.match(itemNodeSelection(config), /subIssuesSummary\{ total \}/)
+    assert.doesNotMatch(itemNodeSelection({ ...config, host: 'ghe.example.test' }), /subIssuesSummary/)
+    assert.match(itemNodeSelection({ ...config, host: 'ghe.example.test', runtime: { activity: true } }), /subIssuesSummary\{ total \}/)
+  })
+
   it('asks for the parent (the epic) only when the runtime asks for activity, or dispatch or alerts are on', () => {
     assert.doesNotMatch(itemNodeSelection(config), /parent\{/)
     assert.match(itemNodeSelection(withActivity), /parent\{/)
@@ -126,6 +132,12 @@ describe('reading what the board events need from GitHub', () => {
     const [issueItem, prItem] = parseItemPages(pages)
     assert.deepEqual([issueItem?.addedAt, issueItem?.openedAt, issueItem?.closes], ['2026-11-24T10:00:00Z', undefined, undefined])
     assert.deepEqual([prItem?.openedAt, prItem?.mergedAt, prItem?.closes], ['2026-11-24T09:00:00Z', '2026-11-24T09:30:00Z', 'app#3'])
+  })
+
+  it('keeps the number of sub-issues of an issue that has some, and leaves it out of an item that has none or that the read did not ask about', () => {
+    const node = (number: number, content: object) => ({ id: `PVTI_${number}`, type: 'ISSUE', createdAt: '2026-11-24T10:00:00Z', status: null, content: { number, title: 't', state: 'OPEN', author: { login: 'a' }, repository: { nameWithOwner: REPO }, ...content } })
+    const pages = JSON.stringify([{ data: { node: { items: { totalCount: 3, nodes: [node(1, { subIssuesSummary: { total: 3 } }), node(2, { subIssuesSummary: { total: 0 } }), node(3, {})] } } } }])
+    assert.deepEqual(parseItemPages(pages).map((item) => item.subIssues), [3, 0, undefined])
   })
 
   it('reads runtime.activity as a switch, and ignores a section where it is not one', () => {

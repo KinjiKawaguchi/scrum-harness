@@ -5,6 +5,7 @@ import type { SessionSignal } from '../team/types.ts'
 import { baseName } from '../usage/attribution.ts'
 import { aggregateMembers } from '../team/state.ts'
 import type { MemberSource } from './funding.ts'
+import { standbyNote, type Standby } from './standby.ts'
 import { questionOf } from './trust.ts'
 
 export type MemberRow = {
@@ -78,8 +79,8 @@ export function waitingQuestions(report: MemberReport, screenOf: (name: string) 
   return new Map(asked)
 }
 
-export function formatReport(report: MemberReport, sources: readonly MemberSource[] = [], versions: ReadonlyMap<string, string> = new Map(), waiting: ReadonlyMap<string, string> = new Map()): string {
-  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state}${waiting.has(row.name) ? `, waiting at ${waiting.get(row.name)}` : ''})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}${versions.has(row.name) ? ` [claude ${versions.get(row.name)}]` : ''}`)
+export function formatReport(report: MemberReport, sources: readonly MemberSource[] = [], versions: ReadonlyMap<string, string> = new Map(), waiting: ReadonlyMap<string, string> = new Map(), standby: readonly Standby[] = []): string {
+  const lines = report.rows.map((row) => `${row.name.padEnd(20)} ${row.role.padEnd(8)} ${row.isRunning ? `running (${row.state}${waiting.has(row.name) ? `, waiting at ${waiting.get(row.name)}` : ''})` : 'not running'}${row.hasWindow ? '' : report.isHostKnown ? ' [no window]' : ''}${sourceNote(row, sources)}${versions.has(row.name) ? ` [claude ${versions.get(row.name)}]` : ''}${standbyNote(standby.find((one) => one.name === row.name))}`)
   const drift = [
     ...report.unlisted.map((window) => `running but not in the configuration: ${window}`),
     ...report.rows.filter((row) => !row.isRunning).map((row) => `listed but not running: ${row.name}`),
