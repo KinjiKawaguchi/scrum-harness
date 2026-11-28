@@ -114,6 +114,16 @@ export function readWholeCopy(source: BoardSource, directory: string | null = sh
   return isEntry(value, shared.key) ? { board: value.board, fetchedAt: value.fetchedAt } : null
 }
 
+/** Changes what the shared copy of the whole board says of one item, so that a write the harness just made is seen before the next read of the board. Does nothing when there is no copy. */
+export function patchWholeCopy(source: BoardSource, change: (item: WholeBoard['items'][number]) => WholeBoard['items'][number], directory: string | null = sharedDir()): void {
+  const shared = source.shared
+  if (shared === undefined || directory === null) return
+  const path = join(directory, `board-${shared.key}.json`)
+  const value = readJson<unknown>(path, null)
+  if (!isEntry(value, shared.key)) return
+  writeEntry(path, { ...value, board: { ...value.board, items: value.board.items.map(change) } })
+}
+
 /** Keeps what the refresh did and what it cost. */
 export function recordCost(path: string, obtained: Obtained, now: Date): void {
   writeJson(path, { at: now.toISOString(), via: obtained.via, boardAt: obtained.boardAt, ...(obtained.cost === undefined ? {} : { cost: obtained.cost }) } satisfies CostRecord)

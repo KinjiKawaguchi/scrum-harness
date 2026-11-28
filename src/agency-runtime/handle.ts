@@ -12,6 +12,7 @@ import { isRuntimeError, parseRuntimeRequest } from './request.ts'
 import { activity } from './activity.ts'
 import { participantMetrics } from './participant-metrics.ts'
 import { harnessRelease } from './release.ts'
+import { prioritize } from './prioritize.ts'
 import { tickets } from './tickets.ts'
 import { tokenUsage } from './token-usage.ts'
 import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeInput, type RuntimeResponse } from './types.ts'
@@ -30,6 +31,8 @@ export type RuntimeDeps = {
 }
 
 const OPS = ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics', 'tickets']
+/** The ops this harness offers: `prioritize` only when the board can take a priority. */
+const opsOf = (deps: RuntimeDeps): string[] => (deps.ports.writer.setPriority === undefined ? [...OPS] : [...OPS, 'prioritize'])
 const fail = (status: number, message: string): { readonly error: RuntimeError } => ({ error: { status, message } })
 
 function labelOf(request: RuntimeInput, config: Config): string {
@@ -51,7 +54,7 @@ function view(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown
 function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown> {
   if (request.op === 'describe') {
     const version = harnessRelease()
-    const description: Describe = { runtimes: [RUNTIME_VERSION], ops: OPS, label: labelOf(request, deps.config), ...(version === null ? {} : { version }) }
+    const description: Describe = { runtimes: [RUNTIME_VERSION], ops: opsOf(deps), label: labelOf(request, deps.config), ...(version === null ? {} : { version }) }
     return { result: description }
   }
   if (request.op === 'view') return view(request, deps)
@@ -59,7 +62,7 @@ function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unkno
   if (request.op === 'activity') return activity(request, deps)
   if (request.op === 'participantMetrics') return participantMetrics(request, deps)
   if (request.op === 'tickets') return tickets(request, deps)
-  if (request.op === 'prioritize') return fail(400, 'op must be one of the operations describe lists')
+  if (request.op === 'prioritize') return prioritize(request, deps)
   const error = decide(deps, request.decision)
   return error === null ? { result: {} } : { error }
 }

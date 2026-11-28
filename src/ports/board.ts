@@ -1,3 +1,4 @@
+import type { Priority } from '../board/priority.ts'
 import type { BoardCommand } from '../board/commands.ts'
 import type { BoardItem, OpenIssue, Snapshot } from '../board/types.ts'
 import type { StatusEvent } from '../sprint/effort.ts'
@@ -59,6 +60,8 @@ export type BoardWriter = {
   readonly addToBoard?: (repo: string, number: number) => void
   /** Optional (a tracker may have no teams on its board). Sets the team field of an item, handing it to that team. */
   readonly setTeam?: (item: BoardItem, team: string) => void
+  /** Optional (a tracker may have no priority field). Sets the item's own priority on the board, or clears it with null so that the item takes its epic's again. Throws when the board has no such option. */
+  readonly setPriority?: (item: BoardItem, priority: Priority | null) => void
   /** Writes the number of exceeded checkpoints. A single failure does not stop it; returns descriptions of the ones that failed */
   readonly writeOverrun: (marks: readonly Mark[]) => readonly string[]
 }

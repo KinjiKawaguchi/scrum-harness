@@ -12,17 +12,18 @@ The node runs `scrum runtime` with no further arguments and `SCRUM_STATE_DIR` se
 → {"error":{"status":503,"message":"..."}}                exit code 1
 ```
 
-The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, `participantMetrics`, and `tickets`) is in the request. Fields the harness does not know are ignored.
+The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, `participantMetrics`, `tickets`, and `prioritize`) is in the request. Fields the harness does not know are ignored.
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics","tickets"],"label":"<team label>","version":"<harness release>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics","tickets","prioritize"],"label":"<team label>","version":"<harness release>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
 | `tokenUsage` | a TokenUsage (below) |
 | `activity` | an Activity (below) |
 | `participantMetrics` | a ParticipantMetrics (below) |
 | `tickets` | a Tickets (below) |
+| `prioritize` | `{}` (see `prioritize` below) |
 
 `version` in the `describe` answer is the harness's own release (the `version` of its `package.json`, for example `0.7.2`), so a node can tell which release hosts a team. It is at most 64 characters with no control character, and it is left out when the harness cannot read its release.
 
@@ -134,7 +135,16 @@ For the owner's screen of all the work. The answer is `Tickets` of Agency's cont
 - **Priority.** The board's single-select field named by `fields.priority` (default `Priority`); its options are read as `highest`, `high`, `medium`, `low`, `deferred` (any case), and any other option is no priority. The dispatch (`scrum dispatch`) hands out work in the same order: by tier, then by effective priority, and it does not hand out `deferred` work (nor, with `dispatch.unprioritized` set to `skip`, work with no priority).
 - **Where it reads from.** Not from GitHub in the call: from the whole board as the teams of the machine last read it (`board-<key>.json` in the shared directory, see the README), so that a child of another team is in its epic; a team alone on its board (no `team` section) answers from its own copy. When the copy is not there yet the answer is a 503 and a refresh is started. `generatedAt` is when the board was read. With sharing off (`SCRUM_SHARED_DIR=off`) a team with a `team` section cannot answer.
 - Limits (an answer beyond them is a 503): 500 epics, 5,000 tickets in all, 50 pull requests per ticket, 200 characters of text.
-- `prioritizeWith` is not given yet: no ticket can take a priority from the screen until the `prioritize` op exists.
+- `prioritizeWith` is the ticket's reference when its reference fits a decision's target (1 to 120 ASCII letters, digits, `.`, `_`, `#`, `-`) and the board can take a priority (`describe` lists `prioritize`); otherwise it is left out.
+
+## `prioritize`: write a ticket's priority on the board
+
+Input `{ "op": "prioritize", "target", "priority", "by", "byParticipant"? }`: `target` is a ticket's `prioritizeWith`, `priority` is `highest`, `high`, `medium`, `low`, `deferred`, or `none` (clears the ticket's own value, so that it takes its epic's again). The node calls it only after it has verified the owner's signed envelope. The harness sets the board's Priority field (`fields.priority`) with its own login and answers `{}`.
+
+- Only a ticket that `tickets` lists is a target (any team's child of the team's epics included), so a reference that is not listed is a 404, as is a `byParticipant` that is not the owner. A board that cannot be written now, or a Priority option the board lacks, is a 503, which the node retries.
+- Setting the value a ticket already has writes nothing.
+- The shared copy of the whole board and the team's own copy take the new value at once, so the next `tickets` answer and the dispatch see it without a board read; the children of an epic take its new value as their effective priority.
+- `describe` lists `prioritize` only when the board can take a priority (the GitHub board can).
 
 ## `activity`: what the team did
 
