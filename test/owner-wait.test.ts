@@ -30,7 +30,7 @@ function filed(from: string, createdAt: string, raw: object = {}): OwnerRequest 
 
 describe('the time requests waited for the owner', () => {
   it('runs from the time a request was filed to the owner\'s verified answer', () => {
-    const request = answer(filed('SWE1', '02:00'), { text: 'SQLite' }, at('03:15'), 'alice')
+    const request = answer(filed('SWE1', '02:00'), { text: 'SQLite' }, at('03:15'), 'alice', 'owner')
     assert.deepEqual(ownerWaits([request], NOW), [{ name: 'SWE1', from: ms('02:00'), to: ms('03:15') }])
   })
 
@@ -94,7 +94,7 @@ describe('participantMetrics with a request that waited for the owner', () => {
   })
 
   it('reports the wait as waiting seconds of the member, as a node reads them, and keeps the day within 24 hours', () => {
-    writeRequest(p, answer(filed('SWE1', '02:00'), { text: 'SQLite' }, at('03:30'), 'alice'))
+    writeRequest(p, answer(filed('SWE1', '02:00'), { text: 'SQLite' }, at('03:30'), 'alice', 'owner'))
     const output = runRuntime(JSON.stringify({ runtime: 'agency-runtime/1', org: 'acme', team: 'app', op: 'participantMetrics', days: 1, utcOffsetMinutes: 0 }), deps())
     assert.equal(output.exitCode, 0)
     const day = (JSON.parse(output.stdout) as { result: ParticipantMetrics }).result.participants[0]?.byDay[0]

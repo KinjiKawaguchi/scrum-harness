@@ -22,7 +22,7 @@ function line(request: OwnerRequest): string {
 
 function show(request: OwnerRequest): string {
   const options = request.options.map((one) => `  ${one.key}: ${one.text}${one.isRecommended === true ? ' (recommended)' : ''}`)
-  const messages = request.messages.map((one) => `  [${one.at}] ${authorOf(one)}${one.by === undefined ? '' : ` (decided by ${one.by})`}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${quoteLine(one.text, LIMITS.text)}`)
+  const messages = request.messages.map((one) => `  [${one.at}] ${authorOf(request, one)}${one.by === undefined ? '' : ` (signed by the device of member ${one.by})`}${one.choice === undefined ? '' : ` (chose: ${one.choice})`}: ${quoteLine(one.text, LIMITS.text)}`)
   const parts = [line(request), request.context, ...(options.length > 0 ? ['Options:', ...options] : []), ...(messages.length > 0 ? ['Thread:', ...messages] : []), request.closeNote === undefined ? '' : `Closing note: ${request.closeNote}`]
   return parts.filter((part) => part !== '').join('\n')
 }
