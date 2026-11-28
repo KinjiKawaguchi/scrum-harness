@@ -9,6 +9,7 @@ import { recordCompletions } from '../sprint/completion.ts'
 import { FetchError, saveFailedFetch } from './fetch-log.ts'
 import { logError, readJson, releaseLock, tryLock, writeJson, type Paths } from '../store.ts'
 import { withAssignee } from '../compat.ts'
+import { pruneStandby } from '../members/standby.ts'
 import type { Snapshot } from './types.ts'
 
 /** A saved board copy, with every item's `tanto` read as `assignee`. */
@@ -89,6 +90,7 @@ export function refreshSnapshot(p: Paths, config: Config, now: Date, source: Boa
     const snapshot = source.fetchSnapshot(now)
     saveSnapshot(p, snapshot)
     noteActivity(p, previous, snapshot, config, now)
+    pruneStandby(p.memberStandby, snapshot, config, now)
     noteDone(p, previous, snapshot, config)
     if (noteCompletions(p, previous, snapshot, config, now, source)) writeJson(p.fetchedSnapshot, snapshot)
     return snapshot
