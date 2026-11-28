@@ -7,7 +7,7 @@ import { guarded, type GhRun } from '../src/adapters/github/gh.ts'
 import { GithubLimited, isGraphqlCall, limitGuard, limitKindOf, pointsOf, retryAfterSeconds, whatOf } from '../src/adapters/github/limit-guard.ts'
 import { readAllowance } from '../src/adapters/github/project-board.ts'
 import { describeCost, describeUse, isReadHeld, lintGraphqlUse } from '../src/board/allowance.ts'
-import { readBackoff, readUse, recordUse, summarizeUse, useLedgerPath, type UseEntry } from '../src/board/graphql-use.ts'
+import { SMALL_QUERY_POINTS, readBackoff, readUse, recordUse, summarizeUse, useLedgerPath, type UseEntry } from '../src/board/graphql-use.ts'
 import { loadSnapshot, refreshSnapshot } from '../src/board/snapshot.ts'
 import { BoardReadHeld, obtainBoard } from '../src/board/shared.ts'
 import type { Snapshot } from '../src/board/types.ts'
@@ -37,10 +37,11 @@ describe('which calls of gh spend GraphQL points, and what they say', () => {
     assert.equal(whatOf(['api', 'graphql']), 'graphql')
   })
 
-  it('counts the cost the answer states, a page each, else one point', () => {
+  it('counts the cost the answer states, a page each, else a quarter of a point (a small query)', () => {
     assert.equal(pointsOf(JSON.stringify([{ data: { rateLimit: { cost: 1 } } }, { data: { rateLimit: { cost: 1 } } }, { data: { rateLimit: { cost: 3 } } }])), 5)
     assert.equal(pointsOf(JSON.stringify({ data: { rateLimit: { cost: 2 } } })), 2)
-    assert.deepEqual([pointsOf('{"data":{}}'), pointsOf('not json'), pointsOf('')], [1, 1, 1])
+    assert.deepEqual([pointsOf('{"data":{}}'), pointsOf('not json'), pointsOf('')], [SMALL_QUERY_POINTS, SMALL_QUERY_POINTS, SMALL_QUERY_POINTS])
+    assert.equal(SMALL_QUERY_POINTS, 0.25)
   })
 
   it('tells a secondary limit from the hour\'s points used up, from what gh says', () => {
@@ -168,11 +169,12 @@ describe('the ledger of what the harness spent', () => {
     assert.deepEqual(lintGraphqlUse(spent(1000), LIMIT), [])
     const [medium] = lintGraphqlUse(spent(1300), LIMIT)
     assert.deepEqual([medium?.rule, medium?.severity], ['B-GRAPHQL-USE', 'medium'])
-    assert.match(medium?.message ?? '', /at least 1303 of 5000 GraphQL points in the last hour \(2 calls; most on graphql node 1300 \(1 calls\), issue list 3 \(1 calls\)\)/)
+    assert.match(medium?.message ?? '', /about 1303 of 5000 GraphQL points in the last hour \(2 calls; most on graphql node 1300 \(1 calls\), issue list 3 \(1 calls\)\)/)
     assert.equal(lintGraphqlUse(spent(2600), LIMIT)[0]?.severity, 'high')
     assert.deepEqual(lintGraphqlUse(spent(2600), null), [])
-    assert.equal(describeUse(spent(10)), 'the harness used at least 13 GraphQL points in the last hour (2 calls)')
+    assert.equal(describeUse(spent(10)), 'the harness used about 13 GraphQL points in the last hour (2 calls)')
     assert.equal(describeUse(summarizeUse([], NOW)), '')
+    assert.match(describeUse(summarizeUse([entry(-5, 'app', 'issue list', SMALL_QUERY_POINTS), entry(-4, 'app', 'pr list', SMALL_QUERY_POINTS), entry(-3, 'app', 'pr list', SMALL_QUERY_POINTS)], NOW)), /used about 1 GraphQL points/)
   })
 })
 

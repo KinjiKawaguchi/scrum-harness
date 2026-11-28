@@ -1,4 +1,4 @@
-import { activeBackoff, clearBackoff, readBackoff, recordUse, writeBackoff } from '../../board/graphql-use.ts'
+import { SMALL_QUERY_POINTS, activeBackoff, clearBackoff, readBackoff, recordUse, writeBackoff } from '../../board/graphql-use.ts'
 import type { GhRun } from './gh.ts'
 
 /** What a call of gh did: what it printed, or the words it failed with. */
@@ -34,7 +34,7 @@ export function whatOf(args: readonly string[]): string {
   return first === undefined ? 'graphql' : `graphql ${first}`
 }
 
-/** The points a call cost, when its answer says (every `rateLimit.cost` in it, a page each), else 1. */
+/** The points a call cost, when its answer says (every `rateLimit.cost` in it, a page each), else what a small query is counted as. */
 export function pointsOf(stdout: string): number {
   try {
     const value: unknown = JSON.parse(stdout)
@@ -43,9 +43,9 @@ export function pointsOf(stdout: string): number {
       const cost = (page as { data?: { rateLimit?: { cost?: unknown } | null } | null } | null)?.data?.rateLimit?.cost
       return typeof cost === 'number' ? [cost] : []
     })
-    return costs.length === 0 ? 1 : costs.reduce((sum, one) => sum + one, 0)
+    return costs.length === 0 ? SMALL_QUERY_POINTS : costs.reduce((sum, one) => sum + one, 0)
   } catch {
-    return 1
+    return SMALL_QUERY_POINTS
   }
 }
 
