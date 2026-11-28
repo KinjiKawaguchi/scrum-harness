@@ -47,6 +47,7 @@ import { autoMove } from './members/move.ts'
 import { buildPorts, buildScheduler, checkBoardModule, settingsTargets } from './wiring.ts'
 import { runRuntime } from './agency-runtime/handle.ts'
 import { metricsCommand } from './metrics/command.ts'
+import { forecastCommand } from './forecast/command.ts'
 
 const DEFAULT_STATE_DIR = join(homedir(), '.claude', 'scrum')
 
@@ -67,6 +68,7 @@ const USAGE = `scrum: check the GitHub Project board and member activity
   scrum member list|start|stop      the configured members, whether each runs, and what runs but is not listed; start or stop them from the launch section
   scrum request <add|list|show|reply|close>  Requests to the owner: a question or a proposal. Run it with no arguments for the shape. An answer reaches the lead as R-ANSWERED
   scrum metrics [--days N] [--utc-offset +09:00] [--json]  each participant's busy, waiting, and idle time, cost, and tokens by day, and the pull requests whose author is known (what the op participantMetrics answers)
+  scrum forecast [--by <date>] [--people <n>] [--json]  when the ready work finishes and how many people it can use: the critical path, the useful parallelism, and the staffing, from points, blocked_by dependencies, and area: labels
   scrum usage-index                 read what the team's transcripts gained since the last run (scrum runtime starts it in the background for tokenUsage)
   scrum init --project-id <id> --status-field-id <id> --repos <owner/name,...> --owner-user <@login> [...]
                                     write a minimal team configuration and the state directory (scrum init with no flags shows the rest)
@@ -300,6 +302,8 @@ async function main(argv: readonly string[]): Promise<number> {
         if (isRefreshDue(p, c, now)) refreshSnapshot(p, c, now, ports.board)
         return formatOnce(dispatchOnce(p, c, now, ports, positional))
       })
+    case 'forecast':
+      return needConfig((c, ports) => forecastCommand(p, c, ports, flags))
     case 'metrics':
       return needConfig((c, ports) => metricsCommand(c, flags, { p, ports, now: new Date(), spawnRefresh, spawnUsageIndex }))
     case 'usage-index':

@@ -12,6 +12,9 @@ export type GraphqlCost = { readonly cost: number; readonly remaining: number; r
  */
 export type WholeBoard = { readonly items: readonly BoardItem[]; readonly openIssues: readonly OpenIssue[]; readonly cost?: GraphqlCost }
 
+/** What a tracker says of an issue besides its Status: its labels, and the issues that still block it (its dependencies, in the same `<repo>#<number>` form). */
+export type ItemRelations = { readonly labels: readonly string[]; readonly blockedBy: readonly string[] }
+
 /**
  * Reads the board. Throws if it cannot be read. When the returned content is in an unreadable shape, throws FetchError (board/fetch-log.ts)
  * carrying the raw output of the fetch (refreshSnapshot leaves it in the log).
@@ -31,6 +34,11 @@ export type BoardSource = {
     readonly readWhole: (now: Date) => WholeBoard
     readonly scope: (whole: WholeBoard, now: Date) => Snapshot
   }
+  /**
+   * Optional (a tracker may have no dependencies). Reads the labels and the open blockers of the issues among `items`, keyed by label. An issue it could not read is not
+   * in the map. Used by `scrum forecast`; throws if it cannot be asked.
+   */
+  readonly relations?: (items: readonly BoardItem[]) => ReadonlyMap<string, ItemRelations>
 }
 
 /** Writes to the board. Throws if it cannot write. */
