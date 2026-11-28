@@ -19,11 +19,31 @@ export function isReservedName(name: string): boolean {
   return RESERVED_NAMES.includes(name.normalize('NFKC').trim().toLowerCase())
 }
 
-/** A message the owner sent through a verified decision: the harness records the decider only then. */
-export const isVerifiedOwnerMessage = (message: RequestMessage): boolean => message.from === OWNER && message.by !== undefined
+/** A participant (and the member whose device signed) that a message records as its decider. */
+export type Decider = { readonly participant: string; readonly by: string }
 
-/** The author the team view reports. A message that says it is the owner's without a recorded decider is not shown as the owner's. */
-export const authorOf = (message: RequestMessage): string => (message.from === OWNER && !isVerifiedOwnerMessage(message) ? UNVERIFIED : message.from)
+/**
+ * Who decided a message, when it records a verified decision, and null otherwise. It is the participant the node named in the decision (`byParticipant`),
+ * and only that: the member id in `by` is whatever account the signing device belongs to, and an account can be called `owner`, so it is never read as
+ * the decider. A message must say the same participant as its author (`from`), so a record that was edited to claim the owner's name is not one.
+ * A message written before the participant was recorded has only `by`; it is the owner's when the request was not addressed to anyone else, since only
+ * the owner could answer such a request, and not a decision otherwise.
+ */
+export function deciderOf(request: Pick<OwnerRequest, 'to'>, message: RequestMessage): Decider | null {
+  if (message.by === undefined) return null
+  if (message.byParticipant !== undefined) return message.from === message.byParticipant ? { participant: message.byParticipant, by: message.by } : null
+  return message.from === OWNER && request.to === undefined ? { participant: OWNER, by: message.by } : null
+}
+
+/** Whether the owner decided this message: a verified decision whose participant is the owner. */
+export const isOwnerDecision = (request: Pick<OwnerRequest, 'to'>, message: RequestMessage): boolean => deciderOf(request, message)?.participant === OWNER
+
+/** The author the team view reports. A message that says it is the owner's but records no decider that is the owner is not shown as the owner's. */
+export function authorOf(request: Pick<OwnerRequest, 'to'>, message: RequestMessage): string {
+  const decider = deciderOf(request, message)
+  if (decider !== null) return decider.participant
+  return message.from === OWNER ? UNVERIFIED : message.from
+}
 
 export function isRequestId(id: string): boolean {
   return ID.test(id)
@@ -107,10 +127,14 @@ export function parseAnswer(raw: unknown, request: OwnerRequest): Parsed<AnswerI
   return { ok: true, value: { text: body, ...(typeof choice === 'string' ? { choice } : {}) } }
 }
 
-/** The owner answered through a verified decision (`by` is the id of the member who decided). The turn moves to the team, and a closed request reopens so a late answer still reaches the team. */
-export function answer(request: OwnerRequest, input: AnswerInput, now: Date, by: string): OwnerRequest {
+/**
+ * A participant answered through a verified decision: `byParticipant` is the participant the node named (the owner, or the addressee of the request), and
+ * `by` the member whose device signed. The message is from the participant, so it is the owner's only when the participant is the owner. The turn moves to
+ * the team, and a closed request reopens so a late answer still reaches the team.
+ */
+export function answer(request: OwnerRequest, input: AnswerInput, now: Date, by: string, byParticipant: string): OwnerRequest {
   const { closedAt: _closedAt, closeNote: _closeNote, ...open } = request
-  const message = { from: OWNER, text: input.text, ...(input.choice === undefined ? {} : { choice: input.choice }), by, at: now.toISOString() }
+  const message = { from: byParticipant, text: input.text, ...(input.choice === undefined ? {} : { choice: input.choice }), by, byParticipant, at: now.toISOString() }
   return { ...open, waiting: 'team', messages: [...request.messages, message] }
 }
 
@@ -127,14 +151,14 @@ export function close(request: OwnerRequest, note: string, now: Date): OwnerRequ
 export const isOpen = (request: OwnerRequest): boolean => request.closedAt === undefined
 
 /** Whether this answer is the one the request already ends with, so applying it again changes nothing. */
-export function isSameAnswer(request: OwnerRequest, input: AnswerInput, by?: string): boolean {
+export function isSameAnswer(request: OwnerRequest, input: AnswerInput, by: string, byParticipant: string): boolean {
   const last = request.messages.at(-1)
-  return request.waiting === 'team' && isOpen(request) && last?.from === OWNER && last.text === input.text && last.choice === input.choice && last.by === by
+  return request.waiting === 'team' && isOpen(request) && last !== undefined && deciderOf(request, last)?.participant === byParticipant && last.by === by && last.text === input.text && last.choice === input.choice
 }
 
-/** The owner's latest verified answer: the option chosen, described in the team's own words, and the text the answerer wrote. */
+/** The latest verified answer: the option chosen, described in the team's own words, and the text the answerer wrote. */
 export function answerOf(request: OwnerRequest): { readonly chosen: string; readonly text: string } {
-  const last = request.messages.findLast(isVerifiedOwnerMessage)
+  const last = request.messages.findLast((message) => deciderOf(request, message) !== null)
   if (last === undefined) return { chosen: '', text: '' }
   const option = request.options.find((one) => one.key === last.choice)
   return { chosen: option === undefined ? '' : `chose "${option.key}: ${option.text}"`, text: last.text }

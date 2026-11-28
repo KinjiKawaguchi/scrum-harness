@@ -48,7 +48,10 @@ function shifts(name: keyof typeof SESSIONS, now: Date, startsHoursAgo: readonly
 }
 
 export function writeMetricsState(dir: string, options: MetricsStateOptions = {}): void {
-  const now = options.now ?? new Date()
+  // whole seconds, so that every shift is a whole number of seconds: with the milliseconds of the clock, a shift that crosses midnight is cut into two days that
+  // each lose a fraction, and the totals miss a second at some times of day
+  const given = options.now ?? new Date()
+  const now = new Date(Math.floor(given.getTime() / 1000) * 1000)
   const repo = options.repo ?? 'acme/app'
   const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
   const example = JSON.parse(readFileSync(join(root, 'config.example.json'), 'utf8')) as Record<string, unknown>

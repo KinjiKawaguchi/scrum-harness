@@ -34,7 +34,7 @@ export function storedRequestOf(request: OwnerRequest): Request {
     options: request.options.map((option) => ({ key: option.key, text: option.text, isRecommended: option.isRecommended === true, ...(option.detail === undefined ? {} : { detail: option.detail }) })),
     ...(request.messages.length === 0
       ? {}
-      : { thread: request.messages.map((message) => ({ from: authorOf(message), text: message.text, ...(message.choice === undefined ? {} : { choice: message.choice }), at: new Date(message.at).toISOString() })) }),
+      : { thread: request.messages.map((message) => ({ from: authorOf(request, message), text: message.text, ...(message.choice === undefined ? {} : { choice: message.choice }), at: new Date(message.at).toISOString() })) }),
     answerWith: { kind: 'answer', target: request.id },
   }
 }
