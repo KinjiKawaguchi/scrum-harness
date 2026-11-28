@@ -8,6 +8,7 @@ import type { GhRun } from './gh.ts'
 import { itemNodeSelection, normalizeNodes, type RawNode } from './item-node.ts'
 import { readMissingItems } from './off-board.ts'
 import { assertTeamValue } from './team-field.ts'
+import { relationsFor } from './relations.ts'
 import { statusEventsFor, withStatusHistory } from './status-history.ts'
 
 export function itemsQuery(config: Config): string {
@@ -112,5 +113,5 @@ export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
 
 /** Reads the GitHub Project board with gh. */
 export function projectBoardSource(run: GhRun, config: Config): BoardSource {
-  return { fetchSnapshot: (now) => fetchSnapshot(run, config, now), statusEvents: (items) => statusEventsFor(items, config, run) }
+  return { fetchSnapshot: (now) => fetchSnapshot(run, config, now), statusEvents: (items) => statusEventsFor(items, config, run), relations: (items) => relationsFor(items, run) }
 }

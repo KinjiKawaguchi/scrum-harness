@@ -33,6 +33,8 @@ export type ProjectConfig = {
     readonly assignee: string
     /** The single-select field that says what kind of work an item is (New feature, Improvement, ...). Optional: when absent it is not read */
     readonly workType?: string
+    /** The number field that holds an item's points. Optional: `scrum forecast` reads it. With a `sprint` section its `pointsField` is read instead (and for the same purpose) */
+    readonly points?: string
   }
   readonly statusFieldId: string
   readonly statuses: StatusNames
@@ -213,7 +215,10 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
 /** The name of the work type field, when given, is text; it goes into a query. */
 const isValidWorkTypeField = (fields: unknown): boolean => {
   const name = (fields as { readonly workType?: unknown }).workType
-  return name === undefined || (typeof name === 'string' && name.trim() !== '')
+  const points = (fields as { readonly points?: unknown }).points
+  // a field name goes into a query between double quotes, so a quote, a backslash, or a line break is not one
+  const isName = (value: unknown): boolean => typeof value === 'string' && value.trim() !== '' && !/["\\\n\r]/.test(value)
+  return (name === undefined || (typeof name === 'string' && name.trim() !== '')) && (points === undefined || isName(points))
 }
 
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/
