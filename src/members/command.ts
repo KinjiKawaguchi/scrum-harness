@@ -12,6 +12,8 @@ import { moveCommand } from './move.ts'
 import { RESTART_NOTE, recordedSessionId, resumeSession } from './resume.ts'
 import { continueIdle } from './continue.ts'
 import { finishExit, startWatched, type WatchdogDeps } from './lifecycle.ts'
+import { loadSnapshot } from '../board/snapshot.ts'
+import { standbyCommand, viewStandby, readStandby } from './standby.ts'
 import { watchdogOf } from './watchdog.ts'
 
 export type { WatchdogDeps }
@@ -21,6 +23,7 @@ export const MEMBER_USAGE = `scrum member: the members of this team and where th
   scrum member stop <name...> [--force]              Ask an idle member to exit. A busy member, or one at a permission prompt, only with --force, which closes its window
   scrum member adopt <name...> | --all [--source <name>]   Record members that already run (started some other way) as on the default login, or on the source named, without restarting them; needed by "member move"
   scrum member move [<name>...] [--dry-run]          With launch.funding: restart ONE idle member that runs on a source past its threshold on the source the node picks, continuing its conversation. Without names, the members (not the lead)
+  scrum member standby <name> [--until <17:30|4h|time>] --reason <text> | --off   (lead only) Keep an idle member running on purpose: T-IDLE is not raised for it. It ends when the member gets an item, at --until, or with --off
   scrum member continue [--dry-run]                  Type the continuation text of a Codex member into its window when it has been idle at its prompt for its afterMinutes (once for each stretch of idleness, not while an acknowledgement of its idleness is in force); scrum refresh does this too
   scrum member start <name...> | --all [--dry-run] [--no-wait] [--resume]   Start members in the tmux session of the launch section, from their settings; one that already runs is left alone. --dry-run prints what would run. A member with a startup watchdog (a Codex member by default) is waited for, closed, and started again if it shows no sign of life; --no-wait skips that. --resume continues the member's latest recorded Claude Code conversation (claude --resume) with a short note instead of its brief`
 
@@ -120,7 +123,8 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
       const sources = watchdogDeps?.memberSourcesPath === undefined ? [] : readMemberSources(watchdogDeps.memberSourcesPath)
       const session = config.launch?.tmuxSession
       const waiting = waitingQuestions(report, (name) => (session === undefined ? null : ports.members.screen(session, name)))
-      return formatReport(report, sources, runningVersions(report, watchdogDeps?.signals() ?? ports.sessions.signals(), ports.sessions), waiting)
+      const standby = watchdogDeps?.paths === undefined ? [] : viewStandby(readStandby(watchdogDeps.paths.memberStandby), loadSnapshot(watchdogDeps.paths), config, watchdogDeps.now()).active
+      return formatReport(report, sources, runningVersions(report, watchdogDeps?.signals() ?? ports.sessions.signals(), ports.sessions), waiting, standby)
     }
     case 'stop':
       return stopCommand(config, ports, positional, flags, reportOf(config, ports), watchdogDeps)
@@ -128,6 +132,8 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
       return adoptCommand(config, ports, positional, flags, watchdogDeps)
     case 'move':
       return moveCommand(config, ports, positional, flags, watchdogDeps)
+    case 'standby':
+      return standbyArgs(config, positional, flags, watchdogDeps)
     case 'continue':
       return continueCommand(config, ports, flags, watchdogDeps)
     case 'start':
@@ -135,6 +141,14 @@ export function memberCommand(config: Config, ports: Ports, positional: readonly
     default:
       return MEMBER_USAGE
   }
+}
+
+/** `scrum member standby <name> ...`: the caller is the session that runs it (`SCRUM_NAME`; empty for a person at a terminal). */
+function standbyArgs(config: Config, positional: readonly string[], flags: Flags, deps: WatchdogDeps | undefined): string {
+  const name = positional[1]
+  if (name === undefined || deps?.paths === undefined) return 'usage: scrum member standby <name> [--until <17:30|4h|time>] --reason <text>, or --off'
+  const text = (value: string | true | undefined): string | undefined => (typeof value === 'string' ? value : undefined)
+  return standbyCommand(deps.paths.memberStandby, config, { name, off: flags.off === true, reason: text(flags.reason), until: text(flags.until), caller: process.env.SCRUM_NAME ?? '' }, deps.now())
 }
 
 /** `scrum member continue [--dry-run]`: tells each Codex member that has been idle too long to go on, as `scrum refresh` does (see `continueIdle`). */

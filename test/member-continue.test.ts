@@ -136,6 +136,14 @@ describe('telling a Codex member to go on', () => {
     assert.equal(run().lines.length, 1)
   })
 
+  it('does not tell a member the lead put on standby, until the standby ends', () => {
+    const standby = (until?: string) => writeJson(p.memberStandby, [{ name: 'CodexA', reason: 'ready work ran out', since: minutesAgo(40), by: 'TechLead', ...(until === undefined ? {} : { until }) }])
+    standby()
+    assert.deepEqual(run().lines, [])
+    standby(minutesAgo(1))
+    assert.equal(run().lines.length, 1)
+  })
+
   it('never touches a Claude Code member, however long it has been idle', () => {
     run({ signals: [signal('SWE1', 'idle', 600), signal('CodexA', 'busy', 1)] })
     assert.deepEqual(said, [])

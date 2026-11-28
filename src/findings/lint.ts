@@ -27,6 +27,7 @@ import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
 import { readContinued, type Continued } from '../members/continued.ts'
 import { lintContinued, lintRefusedStarts, lintStartFailures } from '../members/rules.ts'
+import { lintStandbyBusy, readStandby, viewStandby, type Standby } from '../members/standby.ts'
 import { readStartFailures, type StartFailure } from '../members/start-failures.ts'
 import { readRequests } from '../requests/store.ts'
 import type { OwnerRequest } from '../requests/types.ts'
@@ -52,6 +53,8 @@ export type LintContext = {
   readonly requests?: readonly OwnerRequest[]
   /** Members that were started and showed no sign of life (M-START-FAILED) */
   readonly startFailures?: readonly StartFailure[]
+  /** The members the lead keeps idle on purpose */
+  readonly standby?: readonly Standby[]
   /** The Codex members that were told to go on, by name */
   readonly continued?: Continued
   /** The account each member started on, or why its start was refused (M-SOURCE-REFUSED) */
@@ -87,6 +90,9 @@ function lintFreshness(snapshot: Snapshot | null, config: Config, now: Date): re
 export function lintAll(ctx: LintContext): LintResult {
   const snapshot = ctx.snapshot ?? EMPTY
   const subordinates = ctx.members.filter((member) => ctx.config.members.includes(member.name))
+  // A member the lead keeps idle on purpose is no T-IDLE, and its busy time without an item is reported as a stale mark.
+  const onStandby = viewStandby(ctx.standby ?? [], ctx.snapshot, ctx.config, ctx.now).active
+  const standbyNames = new Set(onStandby.map((one) => one.name))
   const findings = [
     ...lintFreshness(ctx.snapshot, ctx.config, ctx.now),
     ...lintBoard(snapshot, ctx.config, ctx.now),
@@ -98,6 +104,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintStartFailures(ctx.startFailures ?? [], ctx.members),
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintContinued(ctx.continued ?? {}, ctx.now),
+    ...lintStandbyBusy(onStandby, subordinates, ctx.config, ctx.now),
     ...lintBudget(ctx.budget ?? null),
     ...lintTurnErrors(ctx.turnErrors ?? []),
   ]
@@ -105,7 +112,7 @@ export function lintAll(ctx: LintContext): LintResult {
   const isHeld = ctx.budget?.team.state === 'over'
   const stuck = new Set((ctx.turnErrors ?? []).map((error) => error.name))
   // A member stuck on an API error is reported as that, not as idle (assigning it work would not help).
-  const reported = findings.filter((finding) => !(finding.rule === 'T-IDLE' && (isHeld || stuck.has(finding.subject))))
+  const reported = findings.filter((finding) => !((finding.rule === 'T-IDLE' && (isHeld || stuck.has(finding.subject) || standbyNames.has(finding.subject))) || (finding.rule === 'T-BUSY-UNTRACKED' && standbyNames.has(finding.subject))))
   // A T-IDLE acknowledgement that does not pass the check at creation (at most 1 hour, a fixed reason) does not silence the finding
   const { active, acked } = applyAcks(reported, ctx.acks.filter((ack) => isValidIdleAck(ack, ctx.config)), ctx.now)
   return { active: active.toSorted(bySeverity), acked }
@@ -132,6 +139,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     requests: readRequests(p),
     startFailures: readStartFailures(p.startFailures),
     continued: readContinued(p.memberContinued),
+    standby: readStandby(p.memberStandby),
     memberSources: readMemberSources(p.memberSources),
     budget: currentBudget(readBudgetRecord(p.budget), now),
     turnErrors: findTurnErrors(signals, sessions, names, now),

@@ -34,6 +34,8 @@ export function paths(dir: string = stateDir()) {
     memberMoves: join(dir, 'cache', 'member-moved.json'),
     /** The idle stretch each Codex member was last told to go on in (see members/continue.ts) */
     memberContinued: join(dir, 'cache', 'member-continued.json'),
+    /** The members the lead keeps idle on purpose (see members/standby.ts) */
+    memberStandby: join(dir, 'cache', 'member-standby.json'),
     /** What the node last said of the team's weekly budget (see budget/record.ts) */
     budget: join(dir, 'cache', 'budget.json'),
     /** The week the owner was last asked about the weekly budget (see budget/ask.ts) */
