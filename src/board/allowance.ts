@@ -77,19 +77,19 @@ export const USE_HIGH_FRACTION = 0.5
 const TOP_KINDS = 3
 
 /**
- * B-GRAPHQL-USE: what the harness itself spent of the hour's GraphQL points, counted from its own calls (a call that does not say its cost counts as 1, so
- * it is at least that), once it is a quarter of the limit; half of it is high. The wait for the limit to lift is the other half of the answer, so the
+ * B-GRAPHQL-USE: what the harness itself spent of the hour's GraphQL points, counted from its own calls (a call that does not say its cost is counted as a
+ * quarter of a point, see SMALL_QUERY_POINTS, so the sum is an estimate), once it is a quarter of the limit; half of it is high. The wait for the limit to lift is the other half of the answer, so the
  * finding says which calls cost the most.
  */
 export function lintGraphqlUse(summary: UseSummary, limit: number | null): readonly Finding[] {
-  if (limit === null || limit <= 0 || summary.points < limit * USE_NOTICE_FRACTION) return []
-  const top = summary.byWhat.slice(0, TOP_KINDS).map((one) => `${one.what} ${one.points} (${one.calls} calls)`).join(', ')
+  if (limit === null || limit <= 0 || Math.round(summary.points) < limit * USE_NOTICE_FRACTION) return []
+  const top = summary.byWhat.slice(0, TOP_KINDS).map((one) => `${one.what} ${Math.round(one.points)} (${one.calls} calls)`).join(', ')
   return [
     makeFinding({
       rule: 'B-GRAPHQL-USE',
       subject: 'github',
       severity: summary.points >= limit * USE_HIGH_FRACTION ? 'high' : 'medium',
-      message: `The harness spent at least ${summary.points} of ${limit} GraphQL points in the last hour (${summary.calls} calls; most on ${top})`,
+      message: `The harness spent about ${Math.round(summary.points)} of ${limit} GraphQL points in the last hour (${summary.calls} calls; most on ${top})`,
       fix: 'Teams on one machine share one board read (SCRUM_SHARED_DIR); raise refreshSeconds, or find what calls so often',
       keySuffix: summary.points >= limit * USE_HIGH_FRACTION ? 'high' : 'medium',
     }),
@@ -98,5 +98,5 @@ export function lintGraphqlUse(summary: UseSummary, limit: number | null): reado
 
 /** The words `scrum refresh` adds about the harness's own use in the last hour. Empty when it used none. */
 export function describeUse(summary: UseSummary): string {
-  return summary.calls === 0 ? '' : `the harness used at least ${summary.points} GraphQL points in the last hour (${summary.calls} calls)`
+  return summary.calls === 0 ? '' : `the harness used about ${Math.round(summary.points)} GraphQL points in the last hour (${summary.calls} calls)`
 }

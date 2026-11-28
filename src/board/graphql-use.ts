@@ -7,10 +7,16 @@ import { readJson, releaseLock, tryLock } from '../store.ts'
  * directory the teams share (board/shared.ts: `SCRUM_SHARED_DIR`), one file each, and read from there by every team.
  */
 
-/** One GraphQL call of the harness: when, which team, what it asked, and the points it cost (a call that does not say what it cost counts as 1). */
+/** One GraphQL call of the harness: when, which team, what it asked, and the points it cost (a call that does not say what it cost is a small query, and counts as `SMALL_QUERY_POINTS`). */
 export type UseEntry = { readonly at: string; readonly team: string; readonly what: string; readonly points: number }
 
 const HOUR_MS = 60 * 60_000
+
+/**
+ * What a call that does not state its cost is counted as. The tracker charges a small query a fraction of a point (measured against its own counter: 40 trivial
+ * queries and 30 `issue list` calls moved it by 11 and 8), though its answer says a cost of 1, so counting them as 1 each made the sum larger than the account's own.
+ */
+export const SMALL_QUERY_POINTS = 0.25
 
 /** A ledger is cut down to its last two hours when it grows past this many bytes. */
 const MOST_LEDGER_BYTES = 256 * 1024
