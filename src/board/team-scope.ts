@@ -26,7 +26,8 @@ export function parseTeamScope(raw: unknown): TeamScope | null | undefined {
 /** The repository's short name and the number, as B-OFF-BOARD matches items to issues. */
 const keyOf = (item: { readonly repo: string; readonly number: number | null }): string => `${item.repo.split('/').pop()}#${item.number ?? '?'}`
 
-const isOwn = (item: BoardItem, scope: TeamScope): boolean => item.team === scope.value || (scope.adoptsUnassigned && (item.team ?? null) === null)
+/** Whether the team owns the item: its Team is the team's, or it has none and the team adopts what has none. */
+export const isOwn = (item: BoardItem, scope: TeamScope): boolean => item.team === scope.value || (scope.adoptsUnassigned && (item.team ?? null) === null)
 
 /**
  * Narrows what was read from the whole board to this team's part. The checks keep reading a snapshot and need to know nothing about teams.

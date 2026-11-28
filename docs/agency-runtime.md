@@ -12,16 +12,17 @@ The node runs `scrum runtime` with no further arguments and `SCRUM_STATE_DIR` se
 → {"error":{"status":503,"message":"..."}}                exit code 1
 ```
 
-The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, and `participantMetrics`) is in the request. Fields the harness does not know are ignored.
+The op (`describe`, `view`, `decide`, or the optional `tokenUsage`, `activity`, `participantMetrics`, and `tickets`) is in the request. Fields the harness does not know are ignored.
 
 | op | result |
 |---|---|
-| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics"],"label":"<team label>","version":"<harness release>"}` |
+| `describe` | `{"runtimes":["agency-runtime/1"],"ops":["describe","view","decide","tokenUsage","activity","participantMetrics","tickets"],"label":"<team label>","version":"<harness release>"}` |
 | `view` | a TeamView |
 | `decide` | `{}` |
 | `tokenUsage` | a TokenUsage (below) |
 | `activity` | an Activity (below) |
 | `participantMetrics` | a ParticipantMetrics (below) |
+| `tickets` | a Tickets (below) |
 
 `version` in the `describe` answer is the harness's own release (the `version` of its `package.json`, for example `0.7.2`), so a node can tell which release hosts a team. It is at most 64 characters with no control character, and it is left out when the harness cannot read its release.
 
@@ -122,6 +123,18 @@ The shape is the one the node team published (`participantmetrics.sample.json` a
 - **Pull requests** are listed only when the hooks saw a session of the team open them: `gh pr create` in a Bash command, or an MCP server's `create_pull_request` (`<state dir>/log/pr-authors.jsonl`, kept 90 days; see `src/team/pr-authors.ts`). The repository (`owner/name`) and number are the ones in the pull request's own URL, which the tool printed; a record written before they were kept holds only the short reference (`app#42`), and gets them from the configured repositories when exactly one has that short name, else from the board. A pull request opened any other way is not listed; nothing is guessed from a title or a branch. `by` is the member's name.
 - To try the op from a node without a real team, `node test/fixtures/metrics-state.ts --dir <dir> --repo owner/name --pr <number>:SWE1` writes a state directory with two members' shifts, their tokens, and the pull requests you name; point `SCRUM_STATE_DIR` at it when the node runs `scrum runtime` (see the comment at the head of that file). Nothing in it is read from a real session.
 - `scrum metrics [--days N] [--utc-offset +09:00] [--json]` prints the same report for people (`--json` prints the op's answer). It cuts days in the `--utc-offset` given, else the team's own setting (`runtime.utcOffset`, then the sprint's), else this machine's time zone.
+
+## `tickets`: every epic and ticket the team answers for, in the order of the work
+
+For the owner's screen of all the work. The answer is `Tickets` of Agency's contract (`org`, `team`, `generatedAt`, `epics`, `withoutEpic`; `docs/protocol.md` of Agency, "Tickets"):
+
+- **Which team answers for what.** The epics whose board Team is the team's (or has none, for a team that adopts unassigned work), each with **every** child, open and closed, whatever the child's own Team; and, in `withoutEpic`, the team's tickets that are in no epic. A ticket whose parent is not on the board is in no epic; a chain of parents belongs to the epic at the top.
+- **A ticket** is an issue on the board (not a pull request or a draft, and not one by an excluded author). It carries `ref`, `title`, `status` (a closed issue is `done`; a Status the configuration does not name is `backlog`), `team` (the board's option as text), `assignee`, `points` (a whole number from 0), `priority` (its own value of the Priority field), `effectivePriority` (its own, else its epic's, from `src/board/priority.ts`, the function the dispatch orders by), and `pullRequests`: the open pull requests on the board that name it as the issue they close (`closes`).
+- **Order.** Epics, and the children of each, are in the order of their effective priority (highest first, none after low, deferred last), then by reference.
+- **Priority.** The board's single-select field named by `fields.priority` (default `Priority`); its options are read as `highest`, `high`, `medium`, `low`, `deferred` (any case), and any other option is no priority. The dispatch (`scrum dispatch`) hands out work in the same order: by tier, then by effective priority, and it does not hand out `deferred` work.
+- **Where it reads from.** Not from GitHub in the call: from the whole board as the teams of the machine last read it (`board-<key>.json` in the shared directory, see the README), so that a child of another team is in its epic; a team alone on its board (no `team` section) answers from its own copy. When the copy is not there yet the answer is a 503 and a refresh is started. `generatedAt` is when the board was read. With sharing off (`SCRUM_SHARED_DIR=off`) a team with a `team` section cannot answer.
+- Limits (an answer beyond them is a 503): 500 epics, 5,000 tickets in all, 50 pull requests per ticket, 200 characters of text.
+- `prioritizeWith` is not given yet: no ticket can take a priority from the screen until the `prioritize` op exists.
 
 ## `activity`: what the team did
 

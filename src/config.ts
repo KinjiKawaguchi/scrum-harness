@@ -35,6 +35,8 @@ export type ProjectConfig = {
     readonly workType?: string
     /** The number field that holds an item's points. Optional: `scrum forecast` reads it. With a `sprint` section its `pointsField` is read instead (and for the same purpose) */
     readonly points?: string
+    /** The single-select field that holds an item's priority (highest, high, medium, low, deferred). Optional: it is read as "Priority" when absent */
+    readonly priority?: string
   }
   readonly statusFieldId: string
   readonly statuses: StatusNames
@@ -216,9 +218,10 @@ function parseDispatch(raw: unknown): DispatchConfig | undefined {
 const isValidWorkTypeField = (fields: unknown): boolean => {
   const name = (fields as { readonly workType?: unknown }).workType
   const points = (fields as { readonly points?: unknown }).points
+  const priority = (fields as { readonly priority?: unknown }).priority
   // a field name goes into a query between double quotes, so a quote, a backslash, or a line break is not one
   const isName = (value: unknown): boolean => typeof value === 'string' && value.trim() !== '' && !/["\\\n\r]/.test(value)
-  return (name === undefined || (typeof name === 'string' && name.trim() !== '')) && (points === undefined || isName(points))
+  return (name === undefined || (typeof name === 'string' && name.trim() !== '')) && (points === undefined || isName(points)) && (priority === undefined || isName(priority))
 }
 
 const HOST = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:\d{1,5})?$/

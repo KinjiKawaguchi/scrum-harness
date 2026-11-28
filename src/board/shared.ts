@@ -106,6 +106,14 @@ export function obtainBoard(p: Paths, config: Config, now: Date, source: BoardSo
   }
 }
 
+/** The whole board as the teams of the machine last read it, and when; null when there is none, sharing is off, or the source is not shared. It reads nothing from the tracker. */
+export function readWholeCopy(source: BoardSource, directory: string | null = sharedDir()): { readonly board: WholeBoard; readonly fetchedAt: string } | null {
+  const shared = source.shared
+  if (shared === undefined || directory === null) return null
+  const value = readJson<unknown>(join(directory, `board-${shared.key}.json`), null)
+  return isEntry(value, shared.key) ? { board: value.board, fetchedAt: value.fetchedAt } : null
+}
+
 /** Keeps what the refresh did and what it cost. */
 export function recordCost(path: string, obtained: Obtained, now: Date): void {
   writeJson(path, { at: now.toISOString(), via: obtained.via, boardAt: obtained.boardAt, ...(obtained.cost === undefined ? {} : { cost: obtained.cost }) } satisfies CostRecord)

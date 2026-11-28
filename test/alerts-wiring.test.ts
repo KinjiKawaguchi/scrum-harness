@@ -78,10 +78,12 @@ describe('line 4 of writeShellPatterns', () => {
 })
 
 describe('itemsQuery', () => {
-  it('when alerts is enabled, fetches the parent (Epic) of children even if dispatch is disabled; fetches nothing when both are disabled', () => {
-    const alertsOnly = { ...config, alerts }
-    assert.match(itemsQuery(alertsOnly), /parent\{ number repository\{ nameWithOwner \} \}/)
-    assert.doesNotMatch(itemsQuery(config), /parent\{/)
+  it('when alerts is enabled, fetches the parent (Epic) of children even if dispatch is disabled; on another host it fetches nothing when both are disabled', () => {
+    const elsewhere = { ...config, host: 'ghe.example.test' }
+    assert.match(itemsQuery({ ...elsewhere, alerts }), /parent\{ number repository\{ nameWithOwner \} \}/)
+    assert.doesNotMatch(itemsQuery(elsewhere), /parent\{/)
+    assert.match(itemsQuery(config), /parent\{/)
+    assert.doesNotMatch(itemsQuery(config), /labels\(/)
   })
 })
 

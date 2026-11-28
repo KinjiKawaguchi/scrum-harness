@@ -21,10 +21,10 @@ const call = (op: string, extra: object = {}) => JSON.stringify({ runtime: 'agen
 const parse = (stdout: string) => JSON.parse(stdout) as { result?: any; error?: { status: number; message: string } }
 
 describe('agency-runtime/1 describe', () => {
-  it('reports the version, the operations (tokenUsage and participantMetrics included), and the team label', () => {
+  it('reports the version, the operations (tokenUsage, participantMetrics, and tickets included), and the team label', () => {
     const output = runRuntime(call('describe'), deps())
     assert.equal(output.exitCode, 0)
-    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics'], label: 'app', version: PACKAGE_VERSION } })
+    assert.deepEqual(parse(output.stdout), { result: { runtimes: ['agency-runtime/1'], ops: ['describe', 'view', 'decide', 'tokenUsage', 'activity', 'participantMetrics', 'tickets'], label: 'app', version: PACKAGE_VERSION } })
   })
 
   it('says the harness release, which is the version of the package, in a form a node reads', () => {

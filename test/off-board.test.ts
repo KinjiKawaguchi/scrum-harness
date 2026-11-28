@@ -83,7 +83,7 @@ describe('readQuery', () => {
   })
 
   it('reads the same fields as the whole-board query', () => {
-    const fields = /status: fieldValueByName\(name:"Status"\)[\s\S]*content\{ \.\.\. on Issue\{ number title state author\{login\} repository\{nameWithOwner\} closedAt subIssuesSummary\{ total \} \}/
+    const fields = /status: fieldValueByName\(name:"Status"\)[\s\S]*content\{ \.\.\. on Issue\{ number title state author\{login\} repository\{nameWithOwner\} closedAt parent\{ number repository\{ nameWithOwner \} \} subIssuesSummary\{ total \} \}/
     assert.match(readQuery([open(8)], config), fields)
     assert.match(itemsQuery(config), fields)
   })
@@ -91,7 +91,7 @@ describe('readQuery', () => {
   it('reads the number of sub-issues too, so an epic read on its own is not counted toward the In Progress limit', () => {
     const query = readQuery([open(8)], config)
     const issueContent = /on Issue\{ ([^]*?) \} \.\.\. on PullRequest/.exec(query)?.[1] ?? ''
-    assert.match(issueContent, /closedAt subIssuesSummary\{ total \}$/)
+    assert.match(issueContent, /closedAt parent\{ number repository\{ nameWithOwner \} \} subIssuesSummary\{ total \}$/)
     assert.doesNotMatch(/on PullRequest\{ ([^]*?) \} \.\.\. on DraftIssue/.exec(query)?.[1] ?? '', /subIssuesSummary/)
   })
 
