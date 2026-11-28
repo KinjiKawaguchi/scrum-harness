@@ -182,6 +182,13 @@ describe('a member starts on the account the node picked', () => {
     assert.equal(readMemberSources(p.memberSources)[0]?.state, 'refused')
   })
 
+  it('does not start a member when every source is past its threshold, though the node picks the one with most room, and keeps why (the owner\'s rule)', () => {
+    const { text, started } = run({ SWE1: {} }, () => ({ state: 'overThreshold', source: 'personal-2', env: { CLAUDE_CONFIG_DIR: '/accounts/two' }, reason: 'personal-2 is at 84% of its 7-day window' }), ['start', 'SWE1'])
+    assert.equal(started.length, 0)
+    assert.match(text, /SWE1: not started: every funding source is past its weekly threshold \(the one with most room is personal-2\): personal-2 is at 84%.*no member is started on one/)
+    assert.equal(readMemberSources(p.memberSources)[0]?.state, 'refused')
+  })
+
   it('does not start a Claude Code member under a login that has no harness hooks, and names the command that adds them', () => {
     const { text, started } = run({ SWE1: {} }, picked(), ['start', 'SWE1'], { hasHooks: false })
     assert.equal(started.length, 0)

@@ -30,10 +30,14 @@ export function paths(dir: string = stateDir()) {
     memberSources: join(dir, 'cache', 'member-source.json'),
     /** The login directories of the node's funding sources (see members/funding-dirs.ts) */
     fundingDirs: join(dir, 'cache', 'funding-dirs.json'),
-    /** When a member was last moved to another account by the automatic move (see members/move.ts) */
+    /** When a move of each member was last tried (see members/move.ts) */
     memberMoves: join(dir, 'cache', 'member-moved.json'),
+    /** The members left on a source past its threshold, and since when (see members/over-threshold.ts) */
+    memberOver: join(dir, 'cache', 'member-over-threshold.json'),
     /** The idle stretch each Codex member was last told to go on in (see members/continue.ts) */
     memberContinued: join(dir, 'cache', 'member-continued.json'),
+    /** The members the lead keeps idle on purpose (see members/standby.ts) */
+    memberStandby: join(dir, 'cache', 'member-standby.json'),
     /** What the node last said of the team's weekly budget (see budget/record.ts) */
     budget: join(dir, 'cache', 'budget.json'),
     /** The week the owner was last asked about the weekly budget (see budget/ask.ts) */
