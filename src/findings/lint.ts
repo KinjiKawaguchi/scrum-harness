@@ -25,7 +25,9 @@ import { currentBudget, readBudgetRecord } from '../budget/record.ts'
 import { lintBudget } from '../budget/rules.ts'
 import type { BudgetStatus } from '../ports/index.ts'
 import { readMemberSources, type MemberSource } from '../members/funding.ts'
-import { lintGraphqlAllowance } from '../board/allowance.ts'
+import { lintGraphqlAllowance, lintGraphqlUse } from '../board/allowance.ts'
+import { readUse, summarizeUse, type UseSummary } from '../board/graphql-use.ts'
+import { sharedDir } from '../board/shared.ts'
 import { readCostRecord, type CostRecord } from '../board/shared.ts'
 import { readContinued, type Continued } from '../members/continued.ts'
 import { readOver, type OverRecord } from '../members/over-threshold.ts'
@@ -58,6 +60,8 @@ export type LintContext = {
   readonly startFailures?: readonly StartFailure[]
   /** What the last refresh cost in GraphQL points */
   readonly graphqlCost?: CostRecord | null
+  /** What the harness itself spent of the hour's GraphQL points, from its own calls */
+  readonly graphqlUse?: UseSummary
   /** The members the lead keeps idle on purpose */
   readonly standby?: readonly Standby[]
   /** The members left on a source past its threshold */
@@ -112,6 +116,7 @@ export function lintAll(ctx: LintContext): LintResult {
     ...lintRefusedStarts(ctx.memberSources ?? [], ctx.members),
     ...lintContinued(ctx.continued ?? {}, ctx.now),
     ...lintGraphqlAllowance(ctx.graphqlCost ?? null, ctx.now),
+    ...(ctx.graphqlUse === undefined ? [] : lintGraphqlUse(ctx.graphqlUse, ctx.graphqlCost?.cost?.limit ?? null)),
     ...lintStandbyBusy(onStandby, subordinates, ctx.config, ctx.now),
     ...lintOverThreshold(ctx.overThreshold ?? [], ctx.now),
     ...lintBudget(ctx.budget ?? null),
@@ -132,6 +137,11 @@ export function collectSignals(p: Paths, now: Date, sessions: SessionDirectory):
   return [...sessions.signals(), ...readHeartbeats(p, now)]
 }
 
+/** What the harness spent in the last hour, from the ledger the teams of this machine share; nothing when sharing is off. */
+export function graphqlUseOf(now: Date, directory: string | null = sharedDir()): UseSummary {
+  return summarizeUse(directory === null ? [] : readUse(directory), now)
+}
+
 export function loadContext(p: Paths, config: Config, now: Date, sessions: SessionDirectory, snapshot?: Snapshot | null): LintContext {
   const names = teamNamesOf(config)
   const signals = collectSignals(p, now, sessions)
@@ -149,6 +159,7 @@ export function loadContext(p: Paths, config: Config, now: Date, sessions: Sessi
     startFailures: readStartFailures(p.startFailures),
     continued: readContinued(p.memberContinued),
     graphqlCost: readCostRecord(p.graphqlCost),
+    graphqlUse: graphqlUseOf(now),
     standby: readStandby(p.memberStandby),
     overThreshold: readOver(p.memberOver),
     memberSources: readMemberSources(p.memberSources),

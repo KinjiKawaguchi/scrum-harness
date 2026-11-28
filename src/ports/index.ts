@@ -9,7 +9,7 @@ import type { Product } from '../members/config.ts'
 import type { SessionDirectory } from './sessions.ts'
 import type { TranscriptSource } from './usage.ts'
 
-export type { ActionReader, BoardSource, BoardWriter, GraphqlCost, ItemRelations, ToolCall, WholeBoard } from './board.ts'
+export type { ActionReader, BoardSource, BoardWriter, GraphqlAllowance, GraphqlCost, ItemRelations, ToolCall, WholeBoard } from './board.ts'
 export type { CodeHost, LinkedBranch, LinkOutcome } from './code-host.ts'
 export type { BodyThread, IssueBody, IssueComment, IssueThread } from './issue-thread.ts'
 export type { ScheduledJob, ScheduleFile, Scheduler, ScheduleSetup } from './scheduler.ts'

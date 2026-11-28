@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Config } from '../config.ts'
 import type { BoardSource, GraphqlCost, WholeBoard } from '../ports/index.ts'
+import { isReadHeld } from './allowance.ts'
 import { readJson, releaseLock, tryLock, type Paths, writeJson } from '../store.ts'
 import type { Snapshot } from './types.ts'
 
@@ -26,8 +27,8 @@ const isEntry = (value: unknown, key: string): value is Entry => {
   return entry.version === 1 && entry.key === key && typeof entry.fetchedAt === 'string' && !Number.isNaN(Date.parse(entry.fetchedAt)) && Array.isArray(entry.board?.items) && Array.isArray(entry.board?.openIssues)
 }
 
-/** How the board copy of a refresh was obtained. `private` is a read the team made on its own (no sharing). */
-export type Via = 'fetched' | 'shared' | 'private'
+/** How the board copy of a refresh was obtained. `private` is a read the team made on its own (no sharing); `held` is a copy kept because a read would have used the points others need. */
+export type Via = 'fetched' | 'shared' | 'private' | 'held'
 
 /** What the last refresh did and what it cost, kept for `scrum refresh`'s words and the finding that warns of a low allowance. */
 export type CostRecord = {
@@ -40,7 +41,15 @@ export type CostRecord = {
 
 export const readCostRecord = (path: string): CostRecord | null => {
   const value = readJson<Partial<CostRecord> | null>(path, null)
-  return value !== null && typeof value.at === 'string' && typeof value.boardAt === 'string' && (value.via === 'fetched' || value.via === 'shared' || value.via === 'private') ? (value as CostRecord) : null
+  return value !== null && typeof value.at === 'string' && typeof value.boardAt === 'string' && (value.via === 'fetched' || value.via === 'shared' || value.via === 'private' || value.via === 'held') ? (value as CostRecord) : null
+}
+
+/** Thrown when a read of the board is held back and there is no copy to use in its place. The refresh keeps the board copy it has. */
+export class BoardReadHeld extends Error {
+  constructor() {
+    super('the board read is held back while the hour\'s GraphQL points are nearly used up')
+    this.name = 'BoardReadHeld'
+  }
 }
 
 export type Obtained = { readonly snapshot: Snapshot; readonly via: Via; readonly boardAt: string; readonly cost?: GraphqlCost }
@@ -60,7 +69,12 @@ function writeEntry(path: string, entry: Entry): void {
  */
 export function obtainBoard(p: Paths, config: Config, now: Date, source: BoardSource, directory: string | null = sharedDir()): Obtained {
   const shared = source.shared
-  if (shared === undefined || directory === null) return { snapshot: source.fetchSnapshot(now), via: 'private', boardAt: now.toISOString() }
+  // A read that would be made waits while the hour's points are low; the copy there is, however old, is used instead, and with none the refresh does nothing.
+  const holdsRead = (copy: Entry | null): boolean => isReadHeld(shared?.allowance?.() ?? null, copy?.fetchedAt ?? null, config.refreshSeconds, now)
+  if (shared === undefined || directory === null) {
+    if (holdsRead(null)) throw new BoardReadHeld()
+    return { snapshot: source.fetchSnapshot(now), via: 'private', boardAt: now.toISOString() }
+  }
   const path = join(directory, `board-${shared.key}.json`)
   const read = (): Entry | null => {
     const value = readJson<unknown>(path, null)
@@ -79,6 +93,10 @@ export function obtainBoard(p: Paths, config: Config, now: Date, source: BoardSo
   try {
     const again = read()
     if (isFresh(again)) return from(again, 'shared')
+    if (holdsRead(again)) {
+      if (again === null) throw new BoardReadHeld()
+      return from(again, 'held')
+    }
     const board = shared.readWhole(now)
     const entry: Entry = { version: 1, key: shared.key, fetchedAt: now.toISOString(), board }
     writeEntry(path, entry)

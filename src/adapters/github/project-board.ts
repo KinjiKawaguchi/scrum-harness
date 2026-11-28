@@ -1,6 +1,6 @@
 import type { Config } from '../../config.ts'
 import { createHash } from 'node:crypto'
-import type { BoardSource, GraphqlCost, WholeBoard } from '../../ports/index.ts'
+import type { BoardSource, GraphqlAllowance, GraphqlCost, WholeBoard } from '../../ports/index.ts'
 import { FetchError } from '../../board/fetch-log.ts'
 import { watchedIssues } from '../../board/off-board-scope.ts'
 import { scopeToTeam } from '../../board/team-scope.ts'
@@ -139,6 +139,17 @@ export function fetchSnapshot(run: GhRun, config: Config, now: Date): Snapshot {
   return scopeWholeBoard(run, config, readWholeBoard(run, config), now)
 }
 
+/** What is left of the hour's GraphQL points, from `gh api rate_limit` (which costs none). Null when it cannot be read. */
+export function readAllowance(run: GhRun): GraphqlAllowance | null {
+  try {
+    const graphql = (JSON.parse(run(['api', 'rate_limit'])) as { resources?: { graphql?: { limit?: unknown; remaining?: unknown; reset?: unknown } } }).resources?.graphql
+    if (typeof graphql?.limit !== 'number' || typeof graphql.remaining !== 'number' || typeof graphql.reset !== 'number') return null
+    return { remaining: graphql.remaining, limit: graphql.limit, resetAt: new Date(graphql.reset * 1000).toISOString() }
+  } catch {
+    return null
+  }
+}
+
 /** What makes two teams' reads the same: the host, the board, what is asked of each item, the repositories, and the off-board scope. A team's own value is not in it. */
 export function shareKey(config: Config): string {
   const parts = [config.host ?? '', config.projectId, itemsQuery(config), [...config.repos].sort().join(','), JSON.stringify(config.offBoard ?? null)]
@@ -154,6 +165,7 @@ export function projectBoardSource(run: GhRun, config: Config): BoardSource {
     shared: {
       key: shareKey(config),
       readWhole: () => readWholeBoard(run, config),
+      allowance: () => readAllowance(run),
       scope: (whole, now) => (assertTeamValue(run, config), scopeWholeBoard(run, config, whole, now)),
     },
   }

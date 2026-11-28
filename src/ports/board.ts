@@ -6,6 +6,9 @@ import type { Mark } from '../sprint/marks.ts'
 /** What a read of the tracker cost, and how much of the hour's allowance is left: GitHub's GraphQL points, which every harness, member, and daemon using one login spends from the same hour. */
 export type GraphqlCost = { readonly cost: number; readonly remaining: number; readonly limit: number; readonly resetAt: string }
 
+/** How much of the hour's GraphQL points is left, as the tracker says without charging for the question. */
+export type GraphqlAllowance = { readonly remaining: number; readonly limit: number; readonly resetAt: string }
+
 /**
  * The whole board as a read of the tracker gives it, before it is narrowed to a team: every item, and the open issues the scope watches. It is what teams that
  * use the same board can share, since it does not depend on the team.
@@ -32,6 +35,8 @@ export type BoardSource = {
   readonly shared?: {
     readonly key: string
     readonly readWhole: (now: Date) => WholeBoard
+    /** Optional (a tracker may not say). What is left of the hour's points; null when it cannot be asked. It costs nothing, and is asked only before a read that would be made. */
+    readonly allowance?: () => GraphqlAllowance | null
     readonly scope: (whole: WholeBoard, now: Date) => Snapshot
   }
   /**
