@@ -11,6 +11,7 @@ import { decide } from './decide.ts'
 import { isRuntimeError, parseRuntimeRequest } from './request.ts'
 import { activity } from './activity.ts'
 import { participantMetrics } from './participant-metrics.ts'
+import { harnessRelease } from './release.ts'
 import { tokenUsage } from './token-usage.ts'
 import { RUNTIME_VERSION, type Describe, type RuntimeError, type RuntimeInput, type RuntimeResponse } from './types.ts'
 import { teamViewProblem } from './validate.ts'
@@ -48,7 +49,8 @@ function view(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown
 
 function handle(request: RuntimeInput, deps: RuntimeDeps): RuntimeResponse<unknown> {
   if (request.op === 'describe') {
-    const description: Describe = { runtimes: [RUNTIME_VERSION], ops: OPS, label: labelOf(request, deps.config) }
+    const version = harnessRelease()
+    const description: Describe = { runtimes: [RUNTIME_VERSION], ops: OPS, label: labelOf(request, deps.config), ...(version === null ? {} : { version }) }
     return { result: description }
   }
   if (request.op === 'view') return view(request, deps)
