@@ -15,7 +15,7 @@
     "check:english": "scripts/check-english.sh"
   },
   "devDependencies": {
-    "@types/node": "24.19.2",
+    "@types/node": "24.19.4",
     "typescript": "5.9.3"
   }
 }
